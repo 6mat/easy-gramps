@@ -356,11 +356,14 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 }
 
 /* ---------- "in the tree twice?" + merge dialog ---------- */
-/* Pinned to the panel's bottom edge while the panel scrolls, so editors always see it (#55). */
-.panel .dupbtn { position: sticky; bottom: -20px; z-index: 1; align-self: stretch; text-align: left; margin: 4px -20px -20px;
-  padding: 10px 20px 14px; background: var(--card); border-radius: 0 0 12px 12px; color: var(--muted); text-decoration: underline;
-  font-weight: 400; font-size: 14px; }
-.panel .dupbtn:hover { color: var(--sel-ink); }
+/* A tab pinned to the panel's bottom edge, so editors always see it (#55); its own background, top line
+   and shadow show the panel scrolling underneath. */
+.panel .dupbtn { position: sticky; bottom: -20px; z-index: 1; align-self: stretch; margin: 4px -20px -20px;
+  padding: 12px 20px 14px; background: var(--bg); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px;
+  box-shadow: 0 -6px 12px -8px rgba(40, 30, 10, .35); color: var(--ink); text-align: center; text-decoration: none;
+  font-weight: 700; font-size: 15px; }
+.panel .dupbtn::before { content: "⧉  " / ""; color: var(--muted); }
+.panel .dupbtn:hover { background: var(--accent-soft); }
 .btnrow.end { justify-content: flex-end; }
 .pickrow { display: flex; align-items: center; gap: 12px; text-align: left; font-weight: 400; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .pickrow:hover { background: var(--accent-soft); border-color: var(--accent); }
