@@ -315,8 +315,12 @@ function renderTree() {
   for (const x of married) {
     const o = other(x, f), opf = parentFam(o);
     if (!opf || !(opf.f || opf.m)) continue;
-    parUnits.push({ fam: opf, members: [opf.f, opf.m].filter(Boolean), kids: [o], want: pos[o].x + BW / 2, of: o });
+    // Two wives who are sisters share one set of parents: draw them once, with a line down to each.
+    const same = parUnits.find(u => u.fam?.id === opf.id);
+    if (same) { if (!same.kids.includes(o)) same.kids.push(o); same.of?.push(o); continue; }
+    parUnits.push({ fam: opf, members: [opf.f, opf.m].filter(Boolean), kids: [o], of: [o] });
   }
+  for (const u of parUnits) if (!u.own) u.want = u.kids.reduce((t, k) => t + pos[k].x + BW / 2, 0) / u.kids.length;
   parUnits.forEach(u => { u.w = u.members.length === 2 ? BW * 2 + CG : BW; });
   spread(parUnits);
   for (const u of parUnits) {
@@ -329,7 +333,7 @@ function renderTree() {
         pos[m] = put(m, x, 0);
         const w = m === u.fam?.f ? "father" : "mother";
         REL[m] = u.own ? { tag: cap(w), phrase: `${cap(w)} of ${fp.first}` }
-          : { tag: `${cap(spouseWord(fp))}'s ${w}`, phrase: `${P[u.of].first}'s ${w}` };  // box: "Wife's father"
+          : { tag: `${cap(spouseWord(fp))}'s ${w}`, phrase: `${u.of.map(k => P[k].first).join(" and ")}'s ${w}` };  // box: "Wife's father"
       }
     });
     const real = u.members.filter(m => !m.startsWith("slot-"));
