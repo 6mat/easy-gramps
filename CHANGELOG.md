@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Fixed
+- `deploy/easy-gramps.container`: the Traefik rule label is quoted, since Quadlet splits an unquoted
+  `Label=` line at its spaces.
+
 ## 0.9.2 — 2026-10-04
 
 ### Security
