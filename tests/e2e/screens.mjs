@@ -238,6 +238,36 @@ if (WRITE) {
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent));
   });
   await step(page, "home", async () => { await page.click("#tree-home"); await page.waitForSelector("#start-q"); await page.waitForSelector(".recentcard"); });
+  // Names, places and notes that look like code must show as typed and never become page elements (#9).
+  // (The CSP would stop the scripts anyway, so this looks for the elements themselves, not for alerts.)
+  await step(page, "odd characters show as typed", async () => {
+    const first = "ZZTEST <img src=x onerror=alert(1)>", last = `"><b id=zzinj>x</b>'`;
+    const place = "ZZTEST <svg onload=alert(1)>", note = "<script>alert(1)</script>";
+    const alerts = []; page.on("dialog", d => { alerts.push(d.message()); d.dismiss(); });
+    const check = async where => {
+      const bad = await page.evaluate(() => document.querySelectorAll('img[src="x"], [onerror], [onload], #zzinj, script:not([src])').length);
+      if (bad || alerts.length) throw new Error(`${where}: ${bad} injected elements, alerts ${JSON.stringify(alerts)}`);
+      if (!(await page.evaluate(t => document.body.innerText.includes(t), first))) throw new Error(`${where}: the name isn't shown as typed`);
+    };
+    await page.click("button.pill:has-text('Add a new person')");
+    await page.fill("#np-first", first); await page.fill("#np-last", last);
+    await page.click("label[for=np-g-f]");
+    await page.click(".newperson button.primary");
+    await page.waitForSelector("#editor:not([hidden]) #ed-first");
+    await page.fill("#ed-bplace", place); await page.press("#ed-bplace", "Tab");
+    await page.click(".place button:has-text('Add it as a new place')");
+    await page.click("button.full:has-text('More details')");
+    await page.fill("#ed-notes", note); await page.press("#ed-notes", "Tab");
+    await saved(page); await check("editor");
+    await page.click("#ed-back"); await page.waitForSelector(".node.focus");
+    await page.click("#panel .moretoggle"); await page.waitForSelector("#panel .details");
+    await check("tree and panel");
+    if (!(await page.evaluate(t => document.querySelector("#panel").innerText.includes(t), note))) throw new Error("the note isn't shown as typed");
+    await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results button"); await check("top search"); await page.fill("#q", "");
+    await page.click("#panel .dupbtn"); await page.fill("#merge-q", "ZZTEST"); await page.waitForTimeout(500); await check("merge dialog");
+    await page.click("#dlg button:has-text('Cancel')");
+    await page.click("#tree-home"); await page.waitForSelector(".recentcard"); await check("start screen");
+  });
   await page.context().close();
   await sleep(1500);
   console.log("cleanup after:", await cleanup());
