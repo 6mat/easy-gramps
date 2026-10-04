@@ -9,15 +9,44 @@ export const store = {
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
 
+// On the same site as Gramps Web (https://gramps.example.com/family/ next to https://gramps.example.com/)
+// the login is shared: kept under Gramps Web's own keys, so logging in or out of one does both.
+// Elsewhere (another domain, or testing against a demo) Easy Gramps keeps its own login.
+export const GRAMPS = document.documentElement.dataset.gramps || "";
+export const SHARED = (() => { try { return new URL(GRAMPS).origin === location.origin; } catch { return false; } })();
+const K = SHARED ? { access: "access_token", refresh: "refresh_token" } : { access: "eg_access", refresh: "eg_refresh" };
+const LIFETIME = 15 * 60 * 1000;  // how long Gramps Web's page counts a new access token as good
+if (SHARED) {
+  // A login from before the login was shared carries over once (and so also logs in to Gramps Web).
+  if (!store.get(K.refresh) && store.get("eg_refresh")) {
+    store.set(K.access, store.get("eg_access")); store.set(K.refresh, store.get("eg_refresh"));
+    store.set("access_token_expires", String(Date.now()));  // may be old: let Gramps Web renew it
+  }
+  store.set("eg_access", null); store.set("eg_refresh", null);
+}
+
 export const auth = {
-  get access() { return store.get("eg_access"); },
-  get refresh() { return store.get("eg_refresh"); },
-  save(t) { store.set("eg_access", t.access_token); if (t.refresh_token) store.set("eg_refresh", t.refresh_token); },
+  get access() { return store.get(K.access); },
+  get refresh() { return store.get(K.refresh); },
+  save(t) {
+    store.set(K.access, t.access_token);
+    if (SHARED) store.set("access_token_expires", String(Date.now() + LIFETIME));
+    if (t.refresh_token) {  // a new login (not a renewal)
+      store.set(K.refresh, t.refresh_token);
+      if (SHARED) store.set("id_token", null);  // left from an earlier Google login
+    }
+  },
   clear() {
-    store.set("eg_access", null); store.set("eg_refresh", null);
+    store.set(K.access, null); store.set(K.refresh, null);
+    if (SHARED) { store.set("access_token_expires", null); store.set("id_token", null); }
     fetch(`${BASE}/auth/session`, { method: "DELETE", keepalive: true }).catch(() => {});
   },
 };
+
+// Logging in or out in another tab, the sign-in window or Gramps Web itself (a renewal doesn't count).
+export function onLoginChange(cb) {
+  window.addEventListener("storage", e => { if (e.key === null || (e.key === K.access && !e.oldValue !== !e.newValue)) cb(); });
+}
 
 // Photos load through an HttpOnly cookie (never a token in the URL); renewed with every new token.
 export function photoSession() {
@@ -47,7 +76,7 @@ export async function api(path, opts = {}, retry = true) {
   if (r.status === 401 && retry && await tryRefresh()) return api(path, opts, false);
   if (r.status === 401) { auth.clear(); throw new LoginNeeded("Please log in"); }
   const data = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
-  if (!r.ok) throw new Error(data?.detail || data?.error?.message || `Something went wrong (${r.status})`);
+  if (!r.ok) throw Object.assign(new Error(data?.detail || data?.error?.message || `Something went wrong (${r.status})`), { status: r.status });
   return data;
 }
 
