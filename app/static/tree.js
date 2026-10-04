@@ -321,7 +321,8 @@ function renderTree() {
       } else {
         pos[m] = put(m, x, 0);
         const w = m === u.fam?.f ? "father" : "mother";
-        REL[m] = u.own ? { tag: cap(w), phrase: `${cap(w)} of ${fp.first}` } : { tag: `${P[u.of].first}'s ${w}`, phrase: `${P[u.of].first}'s ${w}` };
+        REL[m] = u.own ? { tag: cap(w), phrase: `${cap(w)} of ${fp.first}` }
+          : { tag: `${cap(spouseWord(fp))}'s ${w}`, phrase: `${P[u.of].first}'s ${w}` };  // box: "Wife's father"
       }
     });
     const real = u.members.filter(m => !m.startsWith("slot-"));
