@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 0.9.3 — 2026-10-04
 
 ### Added
 - **One login for Easy Gramps and Gramps Web** when they're on the same site
