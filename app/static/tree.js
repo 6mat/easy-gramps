@@ -1336,44 +1336,18 @@ function renderAdd() {
     if (words.length && !hits.length) list.append(h("div", { class: "small muted" }, "No one found. Add them as someone new below."));
   });
   // 2) someone new
-  const first = h("input", { id: "add-first" }), last = h("input", { id: "add-last" });
-  const ig = impliedGender(A.rel, base);
-  let gender = ig ?? "";
-  const genderEl = ig === null
-    ? h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-        const r = h("input", { type: "radio", name: "add-g", id: `add-g-${v}` });
-        r.addEventListener("change", () => { gender = v; });
-        return h("label", { class: "inline", for: r.id }, r, l);
-      }))
-    : ig ? h("div", { class: "small muted" }, `Will be saved as ${ig === "m" ? "male" : "female"}.`) : "";
-  let bd = null;
-  const bdOn = h("input", { id: "add-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("add-bd", "Birthday", () => null, v => { bd = v; }));
-  bdBox.hidden = true;
-  bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
-  const warn = h("div", { id: "add-warn" });
+  const nw = someoneNew("add", impliedGender(A.rel, base));
   const submit = () => {
-    const fn = first.value.trim(), ln = last.value.trim();
-    if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = sameName(fn, ln);
-    if (dups.length && !A.dupOk) {
-      warn.replaceChildren(h("div", { class: "warn" },
-        h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
-        ...dups.map(p => h("div", { class: "row-p" },
-          h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
-          skip.has(p.id) ? h("span", { class: "small muted" }, "Already in this family") : h("button", { onclick: () => doAdd({ existing: p.id }) }, "Use this person"))),
-        h("div", {}, h("button", { onclick: () => { A.dupOk = true; submit(); } }, "No, add as someone new"))));
-      return;
-    }
-    doAdd({ new: { first: fn, last: ln, gender, birth: bdOn.checked && bd ? bd : null } });
+    const person = nw.check(A.dupOk,
+      p => skip.has(p.id) ? h("span", { class: "small muted" }, "Already in this family") : h("button", { onclick: () => doAdd({ existing: p.id }) }, "Use this person"),
+      () => { A.dupOk = true; submit(); });
+    if (person) doAdd({ new: person });
   };
   dlg.replaceChildren(title,
     h("label", { for: "add-q" }, "Already in the tree?", q), list,
     h("hr"),
     h("strong", {}, "Or someone new"),
-    h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
-      h("div", { class: "full" }, h("label", { class: "inline", for: "add-bd-on" }, bdOn, "Add their birthday"), bdBox)),
-    warn,
+    nw.fields, nw.warn,
     h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: submit }, "Add"), h("button", { onclick: closeDialog }, "Cancel")));
   q.focus();
 }
@@ -1460,52 +1434,68 @@ function recentSections() {
   return h("div", { class: "recentgrid" }, viewedBox, changedBox);
 }
 
-function newPersonForm() {
-  const first = h("input", { id: "np-first" }), last = h("input", { id: "np-last" });
-  let gender = "";
-  const genderEl = h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-    const r = h("input", { type: "radio", name: "np-g", id: `np-g-${v}` });
-    r.addEventListener("change", () => { gender = v; });
-    return h("label", { class: "inline", for: r.id }, r, l);
-  }));
+// "Someone new": name, Male/Female (unless already known) and birthday, plus the "is it one of these?"
+// check. Shared by the Add dialog and the start screen's "Add a new person".
+function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (shown as a note), "" (not asked), null (asked)
+  const first = h("input", { id: `${prefix}-first` }), last = h("input", { id: `${prefix}-last` });
+  let gender = knownGender ?? "";
+  const genderEl = knownGender == null
+    ? h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
+        const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}` });
+        r.addEventListener("change", () => { gender = v; });
+        return h("label", { class: "inline", for: r.id }, r, l);
+      }))
+    : knownGender ? h("div", { class: "small muted" }, `Will be saved as ${knownGender === "m" ? "male" : "female"}.`) : "";
   let bd = null;
-  const bdOn = h("input", { id: "np-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("np-bd", "Birthday", () => null, v => { bd = v; }));
+  const bdOn = h("input", { id: `${prefix}-bd-on`, type: "checkbox" });
+  const bdBox = h("div", {}, dateInputs(`${prefix}-bd`, "Birthday", () => null, v => { bd = v; }));
   bdBox.hidden = true;
   bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
-  const warn = h("div");
+  const warn = h("div", { id: `${prefix}-warn` });
+  const say = msg => warn.replaceChildren(h("div", { class: "warn" }, msg));
+  return {
+    fields: h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
+      h("div", { class: "full" }, h("label", { class: "inline", for: bdOn.id }, bdOn, "Add their birthday"), bdBox)),
+    warn, say,
+    // The person typed in, or null after saying why not: no name yet, or people of that name exist
+    // (each listed with action(p); "No, add as someone new" calls addAnyway).
+    check(dupOk, action, addAnyway) {
+      const fn = first.value.trim(), ln = last.value.trim();
+      if (!fn && !ln) { say("Please write a first or last name."); first.focus(); return null; }
+      const dups = sameName(fn, ln);
+      if (dups.length && !dupOk) {
+        warn.replaceChildren(h("div", { class: "warn" },
+          h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
+          ...dups.map(p => h("div", { class: "row-p" },
+            h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")), action(p))),
+          h("div", {}, h("button", { onclick: addAnyway }, "No, add as someone new"))));
+        return null;
+      }
+      return { first: fn, last: ln, gender, birth: bdOn.checked && bd ? bd : null };
+    },
+  };
+}
+
+function newPersonForm() {
+  const nw = someoneNew("np", null);
   let dupOk = false;
   const btn = h("button", { class: "primary", onclick: async () => {
-    const fn = first.value.trim(), ln = last.value.trim();
-    if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = sameName(fn, ln);
-    if (dups.length && !dupOk) {
-      warn.replaceChildren(h("div", { class: "warn" },
-        h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
-        ...dups.map(p => h("div", { class: "row-p" },
-          h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
-          h("button", { onclick: () => seeTree(p.id) }, "Open their tree"))),
-        h("div", {}, h("button", { onclick: () => { dupOk = true; btn.click(); } }, "No, add as someone new"))));
-      return;
-    }
+    const person = nw.check(dupOk, p => h("button", { onclick: () => seeTree(p.id) }, "Open their tree"), () => { dupOk = true; btn.click(); });
+    if (!person) return;
     btn.disabled = true; btn.textContent = "Saving…";
     try {
-      const res = await postJSON("/tree/person", { first: fn, last: ln, gender, birth: bdOn.checked && bd ? bd : null });
+      const res = await postJSON("/tree/person", person);
       await loadGraph();
       seeTree(res.added);
-      toast(`Saved: ${fn || ln} added. Now add their family.`);
+      toast(`Saved: ${person.first || person.last} added. Now add their family.`);
       openEditor(res.added);
     } catch (err) {
       if (err instanceof LoginNeeded) return showLogin();
       btn.disabled = false; btn.textContent = "Add this person";
-      warn.replaceChildren(h("div", { class: "warn" }, err.message));
+      nw.say(err.message);
     }
   } }, "Add this person");
-  return h("div", { class: "newperson" },
-    h("strong", {}, "Someone new"),
-    h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
-      h("div", { class: "full" }, h("label", { class: "inline", for: "np-bd-on" }, bdOn, "Add their birthday"), bdBox)),
-    warn, h("div", { class: "btnrow" }, btn));
+  return h("div", { class: "newperson" }, h("strong", {}, "Someone new"), nw.fields, nw.warn, h("div", { class: "btnrow" }, btn));
 }
 
 // ---------- start ----------
