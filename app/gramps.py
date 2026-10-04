@@ -42,9 +42,6 @@ class Gramps:
         self.http = shared_client(base_url)
         self.auth = {"Authorization": f"Bearer {token}"}
 
-    async def close(self):
-        pass  # the connection pool is shared and stays open
-
     async def _call(self, method, path, **kw):
         r = await self.http.request(method, path, headers={**self.auth, **kw.pop("headers", {})}, **kw)
         if r.status_code >= 400:

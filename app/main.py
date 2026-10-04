@@ -211,34 +211,25 @@ async def me(request: Request):
 
 # ---------- family tree ----------
 
+async def gramps_as(request: Request) -> gramps.Gramps:
+    """The Gramps Web API as the logged-in user (after checking the login)."""
+    await who(request)
+    return gramps.Gramps(GRAMPS_URL, bearer(request))
+
+
 @easy.get("/tree/graph")
 async def tree_graph(request: Request):
-    await who(request)
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await familytree.graph(g)
-    finally:
-        await g.close()
+    return await familytree.graph(await gramps_as(request))
 
 
 @easy.get("/tree/recent")
 async def tree_recent(request: Request):
-    await who(request)
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await familytree.recent_changes(g)
-    finally:
-        await g.close()
+    return await familytree.recent_changes(await gramps_as(request))
 
 
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
-    await who(request)
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await familytree.details(g, handle)
-    finally:
-        await g.close()
+    return await familytree.details(await gramps_as(request), handle)
 
 
 TREE_TAG = os.environ.get("TREE_TAG", "Easy Gramps")  # tag on records the tree's editor creates
@@ -261,13 +252,9 @@ async def tree_tags(g):
 
 @easy.patch("/tree/person/{handle}")
 async def tree_update_person(handle: str, request: Request):
-    await who(request)
+    g = await gramps_as(request)
     changes = await json_body(request)
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await familytree.update_person(g, handle, changes, await tree_tags(g))
-    finally:
-        await g.close()
+    return await familytree.update_person(g, handle, changes, await tree_tags(g))
 
 
 PHOTO_MAX_MB = 20
@@ -288,21 +275,14 @@ async def tree_set_photo(handle: str, request: Request):
         raise HTTPException(400, "That file isn't a photo.")
     if (f.size or 0) > PHOTO_MAX_MB * 1024 * 1024:
         raise too_big
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g))
-    finally:
-        await g.close()
+    g = await gramps_as(request)
+    return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g))
 
 
-async def _tree_call(request, fn, *args, with_tags=True):
-    await who(request)
+async def _tree_call(request, fn, with_tags=True):
+    g = await gramps_as(request)
     body = await json_body(request)
-    g = gramps.Gramps(GRAMPS_URL, bearer(request))
-    try:
-        return await (fn(g, body, await tree_tags(g)) if with_tags else fn(g, body))
-    finally:
-        await g.close()
+    return await (fn(g, body, await tree_tags(g)) if with_tags else fn(g, body))
 
 
 @easy.post("/tree/person")
