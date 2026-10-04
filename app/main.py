@@ -230,13 +230,24 @@ async def tree_update_person(handle: str, request: Request):
         await g.close()
 
 
+PHOTO_MAX_MB = 20
+
+
 @easy.post("/tree/person/{handle}/photo")
 async def tree_set_photo(handle: str, request: Request):
-    await who(request)
-    form = await request.form()
+    # Check rights and size before reading the upload, so nobody can make the server hold big files.
+    await need_edit(request, "Only editors can change photos.")
+    too_big = HTTPException(413, f"That photo is too big ({PHOTO_MAX_MB} MB at most).")
+    if int(request.headers.get("content-length") or 0) > PHOTO_MAX_MB * 1024 * 1024 + 10_000:
+        raise too_big
+    form = await request.form(max_files=1, max_fields=5)
     f = form.get("photo")
     if not hasattr(f, "read"):
         raise HTTPException(400, "Please choose a photo")
+    if not (f.content_type or "").startswith("image/"):
+        raise HTTPException(400, "That file isn't a photo.")
+    if (f.size or 0) > PHOTO_MAX_MB * 1024 * 1024:
+        raise too_big
     g = gramps.Gramps(GRAMPS_URL, bearer(request))
     try:
         return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g))

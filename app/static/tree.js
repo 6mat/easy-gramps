@@ -62,7 +62,7 @@ const tint = p => TINTS[[...(p.first + p.last)].reduce((n, ch) => n + ch.charCod
 function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
-    const src = p.photo.startsWith("data:") ? p.photo
+    const src = /^(data|blob):/.test(p.photo) ? p.photo
       : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1&jwt=${encodeURIComponent(auth.access || "")}`;
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);
@@ -1012,15 +1012,21 @@ function centreCard(p) {
   const file = h("input", { id: "ed-photo-file", type: "file", accept: "image/*", hidden: true });
   file.addEventListener("change", () => {
     const f = file.files[0]; if (!f) return;
-    // Show it straight away, then upload it as their main photo.
-    const r = new FileReader();
-    r.onload = () => { p.photo = r.result; renderEditor(); };
-    r.readAsDataURL(f);
+    file.value = "";
+    if (f.size > 20 * 1024 * 1024) return setStatus("Photo not saved: it's too big (20 MB at most)", "failed");
+    // Show it straight away, then upload it as their main photo (the old one comes back if that fails).
+    const old = p.photo, preview = URL.createObjectURL(f);
+    p.photo = preview; renderEditor();
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
     saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
       .then(res => { p.photo = res.photo; setStatus("Saved ✓"); })
-      .catch(err => setStatus(`Photo not saved: ${err.message}`, "failed"));
+      .catch(err => {
+        p.photo = old; URL.revokeObjectURL(preview);
+        if (err instanceof LoginNeeded) return showLogin();
+        if (!$("#editor").hidden) renderEditor();
+        setStatus(`Photo not saved: ${err.message}`, "failed");
+      });
   });
   const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
     ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {

@@ -99,3 +99,17 @@ def test_login_when_gramps_is_down_or_input_is_bad(fake, client):  # #23
     assert not main._failed_logins.get("testclient")  # not counted as a wrong password
     assert client.post("/family/auth/login", content=b"not json", headers={"Content-Type": "application/json"}).status_code == 400
     assert client.post("/family/auth/login", json=[1]).status_code == 400
+
+
+def test_photo_upload_rights_type_and_size(fake, client):  # #20
+    p = fake.person("Ann", "", 0)
+    png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
+    fake.role = 1
+    assert client.post(f"/family/tree/person/{p}/photo", files=png).status_code == 403
+    fake.role = 3
+    __import__("main")._who_cache.clear()
+    assert client.post(f"/family/tree/person/{p}/photo", files={"photo": ("a.txt", b"hi", "text/plain")}).status_code == 400
+    big = client.post(f"/family/tree/person/{p}/photo", content=b"x", headers={"content-length": str(30 * 1024 * 1024), "content-type": "multipart/form-data; boundary=x"})
+    assert big.status_code == 413
+    r = client.post(f"/family/tree/person/{p}/photo", files=png)
+    assert r.status_code == 200 and fake.get("people", p)["media_list"][0]["ref"] == r.json()["photo"]
