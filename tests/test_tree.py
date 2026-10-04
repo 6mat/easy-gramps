@@ -66,3 +66,13 @@ def test_merge_writes_fields_then_calls_native_merge(fake, g):
     assert fake.sent("POST", f"/people/{a}/merge/{b}")
     assert fake.sent("PUT", f"/people/{a}").__len__() == 1
     assert res["name"] == "Anne Lee"
+
+
+def test_graph_sends_parent_families_in_gramps_order(fake, g):  # #22
+    kid, bio, adopt = fake.person("Kid", "", 1), fake.person("Bio", "", 1), fake.person("Adopt", "", 1)
+    fa = fake.family(adopt, None, [kid])
+    fb = fake.family(bio, None, [kid])
+    fake.db["people"][kid]["parent_family_list"] = [fb, fa]  # Gramps' order: birth family first
+    out = run(familytree.graph(g))
+    assert out["people"][kid]["pfams"] == [fb, fa]
+    assert [f["id"] for f in out["families"]].index(fa) < [f["id"] for f in out["families"]].index(fb)  # list order differs

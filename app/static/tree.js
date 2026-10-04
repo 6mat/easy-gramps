@@ -36,7 +36,8 @@ const canAdd = () => EDIT_READY && S.role !== "guest";
 const canEdit = () => EDIT_READY && S.role === "editor";
 const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
 const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
-const parentFam = id => FAMS.find(f => f.kids.includes(id));
+// Their parents' family: the first in Gramps' own order (the server uses the same one when adding a parent).
+const parentFam = id => FAMS.find(f => f.id === P[id]?.pfams?.[0]) || FAMS.find(f => f.kids.includes(id));
 // A person's own families in marriage order (1st husband or wife first), then any the order doesn't list.
 const spouseFams = id => {
   const mine = f => f && (f.f === id || f.m === id);

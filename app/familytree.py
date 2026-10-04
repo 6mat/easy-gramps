@@ -26,7 +26,7 @@ def surname_of(name):
 async def graph(g: Gramps) -> dict:
     """Every person (the fields the tree and panel need) and every family, in one response."""
     people = await g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
-                                          "birth_ref_index,death_ref_index,family_list,media_list")
+                                          "birth_ref_index,death_ref_index,family_list,parent_family_list,media_list")
     families = await g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list")
     events = {e["handle"]: e for e in await g.get("/events/", keys="handle,type,date,place")}
     places = {p["handle"]: p["name"]["value"] for p in await g.get("/places/", keys="handle,name")}
@@ -56,6 +56,7 @@ async def graph(g: Gramps) -> dict:
             "burial": places.get((burial or {}).get("place"), ""),
             "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
             "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
+            "pfams": p.get("parent_family_list") or [],  # their parents' families; the first is the one shown
         }
     fams = [{"id": f["handle"], "f": f.get("father_handle") or None, "m": f.get("mother_handle") or None,
              "kids": [c["ref"] for c in f.get("child_ref_list") or []]}
