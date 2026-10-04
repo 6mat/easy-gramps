@@ -88,6 +88,8 @@ async function cleanup() {
   const unused = async (kind, h) => { const r = await g(`/${kind}/${h}?backlinks=1`); if (!r.ok) return false; const j = await r.json(); return !Object.values(j.backlinks || {}).some(v => v.length); };
   for (const [kind, set] of [["events", events], ["notes", notes], ["media", media]])
     for (const h of set) if (await unused(kind, h)) await g(`/${kind}/${h}`, { method: "DELETE" });
+  const places = await (await g("/places/?keys=handle,name")).json();
+  for (const pl of places) if (pl.name.value.startsWith("ZZTEST") && await unused("places", pl.handle)) await g(`/places/${pl.handle}`, { method: "DELETE" });
   const left = (await (await g("/people/?keys=handle,primary_name")).json()).filter(zz).length;
   return `${mine.length} ZZTEST people removed, ${left} left`;
 }
@@ -155,16 +157,24 @@ if (WRITE) {
   await step(page, "editor fields autosave", async () => {
     await page.fill("#ed-nick", "Screenie");
     await page.fill("#ed-birth-date", "1950-05-04");
-    await page.fill("#ed-bplace", "ZZTEST Town");
+    const sent = [];  // what the editor saves: places must be picked or confirmed, never made while typing (#49)
+    const rec = r => { if (r.method() === "PATCH") sent.push(r.postData()); };
+    page.on("request", rec);
+    await page.fill("#ed-bplace", "Lond");
+    await page.click("#ed-bplace-list li:has-text('London') >> nth=0");
     await page.click("label[for=ed-passed]");
     await page.fill("#ed-death-date", "2020-01-02");
-    await page.fill("#ed-burial", "ZZTEST Cemetery");
+    await page.fill("#ed-burial", "ZZTEST Cemetery"); await page.press("#ed-burial", "Tab");
+    await page.click(".place button:has-text('Add it as a new place')");
     await page.click("button.full:has-text('More details')");
     await page.fill("#ed-res", "ZZTEST City"); await page.fill("#ed-phone", "555-0100");
     await page.fill("#ed-email", "zztest@example.com"); await page.fill("#ed-notes", "ZZTEST note");
     await sleep(1000); await saved(page);
     await page.click("label[for=ed-birth-yo]"); await page.fill("#ed-birth-year", "1951");
     await sleep(1000); await saved(page);
+    page.off("request", rec);
+    const places = sent.flatMap(b => Object.entries(JSON.parse(b)).filter(([k]) => k === "birthPlace" || k === "burial").map(([, v]) => v));
+    if (places.length !== 2 || !places[0].id || places[1].new !== "ZZTEST Cemetery") throw new Error(`places saved as ${JSON.stringify(places)}`);
   });
   await step(page, "photo upload", async () => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");

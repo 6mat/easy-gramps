@@ -31,7 +31,10 @@ app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{l
                     /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
-app/static/         tree.html / tree.css / tree.js (the page), auth.js (tokens + api()), debug.js (?debug)
+app/static/         tree.html + tree.css, and the page's ES modules (no build step):
+                    main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
+                    map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
+                    · merge.js · start.js (start screen, login) · auth.js (tokens + api()) · debug.js (?debug)
 deploy/             compose.traefik.yaml — install next to Gramps Web on the same domain
 LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added dependency compatible
 ```
@@ -45,8 +48,10 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
   `{y,m,d,about}`, birthplace, burial, first photo, `fams` in marriage order.
 - `GET /tree/details/{h}` — residence, phone, email, notes (loaded on demand).
+- `GET /tree/places` — every place `{id, name, area}` for the editor's place boxes.
 - `PATCH /tree/person/{h}` — fields `first last nick gender birth birthPlace deceased death burial
-  residence phone email notes`. Unticking deceased removes Death and Burial. Residence/phone go in a
+  residence phone email notes`. `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
+  name (merge: reuses an exact match, else makes it). Unticking deceased removes Death and Burial. Residence/phone go in a
   **private** Address, email in a **private** Url.
 - `POST /tree/person/{h}/photo` — upload and make it the main photo.
 - `POST /tree/person` — new person with no relatives. `POST /tree/relative` — add father / mother /
@@ -100,8 +105,10 @@ double-tap returns to the opening zoom centred on that person. Arrow keys: ↑ p
 **Editor** (full screen): Back to tree, Home, Saving…/Saved ✓/Not saved + Try again. Parents on top,
 the person's card, spouses beside, children grouped by spouse. Fields: photo, first/last/nickname,
 **Male / Female only**, birthday (calendar or "I only know the year"), place of birth, Passed away?
-(reveals death date and burial place), More details (residing at, phone, email, notes). Each field
-autosaves ~0.7 s after the last keystroke. Add pop-up: search the tree or "Someone new"; **one person
+(reveals death date and burial place), More details (residing at, phone, email, notes). Autosave:
+typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
+once it has 4 digits. Place boxes list the existing places (with their area) and save only a place
+you pick, or a new one after "Add it as a new place" (never one per keystroke, #49). Add pop-up: search the tree or "Someone new"; **one person
 per add**; spouse gender set automatically. ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
 

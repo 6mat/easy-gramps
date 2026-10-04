@@ -231,6 +231,11 @@ async def tree_recent(request: Request):
     return await familytree.recent_changes(await gramps_as(request))
 
 
+@easy.get("/tree/places")
+async def tree_places(request: Request):
+    return await familytree.places(await gramps_as(request))
+
+
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
     return await familytree.details(await gramps_as(request), handle)
