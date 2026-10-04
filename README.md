@@ -36,6 +36,11 @@ https://gramps.example.com/family/   -> Easy Gramps
 
 See the comments in `deploy/compose.traefik.yaml` for the network and router assumptions.
 
+**Clean up places (once, after upgrading from 0.9.1 or older).** Older versions made a new place
+each time you paused while typing one ("Lo", "Lond", "London"). This lists the places Easy Gramps
+made that nobody uses, and deletes them only if you type `yes` (log in as an Editor or Owner):
+`docker exec -it easy-gramps python unused_places.py`
+
 ## Develop locally
 
 ```
