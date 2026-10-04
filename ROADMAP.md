@@ -12,7 +12,7 @@ sharing the login with Gramps Web.
       `Referrer-Policy: strict-origin-when-cross-origin`, a basic `Permissions-Policy`.
       HSTS stays with the TLS proxy. Check every screen with the CSP on (inline styles set from JS,
       the inline SVG favicon, the photo upload).
-- [ ] **Bundle the font.** Atkinson Hyperlegible (OFL) into `app/static/fonts/`, drop Google Fonts
+- [x] **Bundle the font.** Atkinson Hyperlegible (OFL) into `app/static/fonts/`, drop Google Fonts
       (privacy/GDPR, and a simpler CSP).
 - [x] **No login token in photo URLs.** Thumbnails use `?jwt=` today (Gramps Web's own frontend does the
       same, but we can do better). Plan: `POST {BASE}/auth/session` with the Bearer token sets an

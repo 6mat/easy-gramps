@@ -48,8 +48,6 @@ async def revalidate_pages(request: Request, call_next):
 CSP = "; ".join([
     "default-src 'self'",
     "img-src 'self' data: blob:",  # data: for the favicon and icons, blob: for a photo preview
-    "style-src 'self' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

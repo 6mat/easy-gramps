@@ -68,3 +68,4 @@ The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`membe
 
 [GNU AGPL-3.0-or-later](LICENSE), the same license as Gramps Web and the Gramps Web API.
 If you run a modified version for others over a network, you must offer them its source.
+The bundled Atkinson Hyperlegible font (`app/static/fonts/`) is under the SIL Open Font License (`OFL.txt` there).
