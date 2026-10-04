@@ -365,6 +365,9 @@ def append_debug_log(line: str):
 
 # ---------- photo thumbnails (the only Gramps read the page makes directly) ----------
 
+PHOTO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "application/json"}  # json: Gramps' errors
+
+
 @easy.get("/gapi/media/{handle}/thumbnail/{size}")
 async def thumbnail(handle: str, size: int, request: Request):
     if not handle.isalnum() or not 16 <= size <= 1024:
@@ -373,7 +376,10 @@ async def thumbnail(handle: str, size: int, request: Request):
     token = request.cookies.get(PHOTO_COOKIE)
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     r = await upstream.get(f"/media/{handle}/thumbnail/{size}", params=params, headers=headers)
-    keep = {k: v for k, v in r.headers.items() if k.lower() in ("content-type", "cache-control")}
+    keep = {k: v for k, v in r.headers.items() if k.lower() == "cache-control"}
+    # Only a plain picture is served as one: never something that could run as a page here (HTML, SVG).
+    kind = r.headers.get("content-type", "").split(";")[0].strip().lower()
+    keep["content-type"] = kind if kind in PHOTO_TYPES else "application/octet-stream"
     return Response(r.content, status_code=r.status_code, headers=keep)
 
 
