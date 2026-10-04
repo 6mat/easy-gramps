@@ -20,7 +20,11 @@ let refreshing = null;
 async function tryRefresh() {
   if (!auth.refresh) return false;
   refreshing ||= fetch(`${BASE}/auth/refresh`, { method: "POST", headers: { Authorization: `Bearer ${auth.refresh}` } })
-    .then(async r => { if (!r.ok) return false; auth.save(await r.json()); return true; })
+    .then(async r => {
+      if (r.status >= 500) throw new Error((await r.json().catch(() => ({}))).detail || "Can't reach the family tree right now");
+      if (!r.ok) return false;  // the refresh token itself is no good: log in again
+      auth.save(await r.json()); return true;
+    })
     .finally(() => { refreshing = null; });
   return refreshing;
 }

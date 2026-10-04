@@ -96,6 +96,8 @@ class FakeGramps:
         if path == "/token/refresh/":
             return httpx.Response(200, json={"access_token": "tok2"})
         if path == "/users/-/":
+            if request.headers.get("authorization") != "Bearer tok":
+                return httpx.Response(401, json={"msg": "Token has expired"})
             return httpx.Response(200, json={"name": "tester", "role": self.role})
         if path == "/transactions/history/":
             return httpx.Response(200, json=[])

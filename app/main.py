@@ -74,6 +74,23 @@ async def gramps_error(_, e: gramps.GrampsError):
     return JSONResponse({"detail": str(e)}, status_code=e.status)
 
 
+UNREACHABLE = "Can't reach the family tree right now. Please try again in a minute."
+
+
+@easy.exception_handler(httpx.HTTPError)
+async def gramps_unreachable(_, e: httpx.HTTPError):
+    # Gramps Web is down or too slow: say so, and never as "please log in" (the page would drop the login).
+    return JSONResponse({"detail": UNREACHABLE}, status_code=502)
+
+
+def check_login(r: httpx.Response):
+    """Only Gramps saying the login is bad means "log in again"; anything else is Gramps having trouble."""
+    if r.status_code in (401, 403, 422):
+        raise HTTPException(401, "Please log in again")
+    if r.status_code != 200:
+        raise HTTPException(502, UNREACHABLE)
+
+
 # ---------- auth ----------
 
 def bearer(request: Request) -> str:
@@ -89,8 +106,7 @@ async def who(request: Request) -> dict:
     if hit and hit[0] > time.time():
         return hit[1]
     r = await upstream.get("/users/-/", headers={"Authorization": f"Bearer {token}"})
-    if r.status_code != 200:
-        raise HTTPException(401, "Please log in again")
+    check_login(r)
     user = r.json()
     user["can_add"] = user.get("role", 0) >= ROLE_CONTRIBUTOR
     user["can_edit"] = user.get("role", 0) >= ROLE_EDITOR
@@ -112,8 +128,7 @@ async def login(request: Request):
 @easy.post("/auth/refresh")
 async def refresh(request: Request):
     r = await upstream.post("/token/refresh/", headers={"Authorization": f"Bearer {bearer(request)}"})
-    if r.status_code != 200:
-        raise HTTPException(401, "Please log in again")
+    check_login(r)
     return r.json()
 
 
