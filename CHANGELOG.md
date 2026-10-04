@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Fixed
+- "Is this person in the tree twice?" stays visible at the bottom of the details panel for editors;
+  in a big family it used to sit below the panel's edge, looking as if it was missing.
+
 ## 0.9.3 — 2026-10-04
 
 ### Added
