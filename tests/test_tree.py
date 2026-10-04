@@ -76,3 +76,24 @@ def test_graph_sends_parent_families_in_gramps_order(fake, g):  # #22
     out = run(familytree.graph(g))
     assert out["people"][kid]["pfams"] == [fb, fa]
     assert [f["id"] for f in out["families"]].index(fa) < [f["id"] for f in out["families"]].index(fb)  # list order differs
+
+
+def refused(coro, words):
+    try:
+        run(coro)
+    except familytree.GrampsError as e:
+        assert words in str(e), str(e)
+        return
+    raise AssertionError("should refuse")
+
+
+def test_server_checks_the_links_it_is_asked_for(fake, g):  # #38
+    a, b, c, kid = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C", "", 0), fake.person("K", "", 1)
+    f_ab = fake.family(a, b)
+    f_c = fake.family(None, c)
+    refused(familytree.add_relative(g, {"person": a, "rel": "child", "famId": f_c, "existing": kid}, []), "isn't theirs")
+    refused(familytree.add_relative(g, {"person": a, "rel": "spouse", "existing": b}, []), "already husband and wife")
+    run(familytree.add_relative(g, {"person": a, "rel": "child", "famId": f_ab, "existing": kid}, []))
+    r = run(familytree.unlink(g, {"person": a, "rel": "child", "other": kid, "famId": f_ab}))
+    run(familytree.undo(g, r["undo"], [])); run(familytree.undo(g, r["undo"], []))
+    assert [x["ref"] for x in fake.get("families", f_ab)["child_ref_list"]] == [kid]

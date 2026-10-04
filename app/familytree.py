@@ -321,12 +321,16 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
     parent_fam = await _family_parent_of(g, person) if rel in ("father", "mother") else None
     if parent_fam and parent_fam.get(f"{rel}_handle"):
         raise GrampsError(f"They already have a {rel}. Remove that link first.")
+    if rel == "child" and fam_id and fam_id not in (person.get("family_list") or []):
+        raise GrampsError("That family isn't theirs. Please reload and try again.")
     created = None
     if body.get("existing"):
         oh = body["existing"]
         if oh == ph:
             raise GrampsError("Someone can't be their own relative")
         other = await g.get(f"/people/{oh}")
+        if rel == "spouse" and set(person.get("family_list") or []) & set(other.get("family_list") or []):
+            raise GrampsError("They're already husband and wife.")
     else:
         details = body.get("new") or {}
         if not ((details.get("first") or "").strip() or (details.get("last") or "").strip()):
@@ -423,8 +427,9 @@ async def undo(g: Gramps, token: dict, tags: list) -> dict:
         except GrampsError:
             fam = None
         if fam and token["rel"] == "child":
-            fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
-            await g.put(f"/families/{fam['handle']}", fam)
+            if not any(c["ref"] == token["other"] for c in fam.get("child_ref_list", [])):  # Undo sent twice
+                fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
+                await g.put(f"/families/{fam['handle']}", fam)
         elif fam and token.get("side") and not fam.get(token["side"]):
             fam[token["side"]] = token["other"]
             await g.put(f"/families/{fam['handle']}", fam)
