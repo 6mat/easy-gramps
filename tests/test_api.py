@@ -88,3 +88,14 @@ def test_gramps_429_is_retried_once_then_too_many_tries(fake, client, monkeypatc
     r = login(client, "right")
     assert r.status_code == 429 and "Too many tries" in r.json()["detail"]
     assert len(fake.sent("POST", "/token/")) == 2
+
+
+def test_login_when_gramps_is_down_or_input_is_bad(fake, client):  # #23
+    import main
+    main._failed_logins.clear()
+    fake.token_status = 503
+    r = login(client, "right")
+    assert r.status_code == 502 and "Can't reach" in r.json()["detail"]
+    assert not main._failed_logins.get("testclient")  # not counted as a wrong password
+    assert client.post("/family/auth/login", content=b"not json", headers={"Content-Type": "application/json"}).status_code == 400
+    assert client.post("/family/auth/login", json=[1]).status_code == 400

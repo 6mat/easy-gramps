@@ -84,6 +84,17 @@ async def gramps_unreachable(_, e: httpx.HTTPError):
     return JSONResponse({"detail": UNREACHABLE}, status_code=502)
 
 
+async def json_body(request: Request) -> dict:
+    """The request's JSON object, or a plain 400 (not a 500) when it's missing or not an object."""
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Something was missing. Please try again.")
+    return body
+
+
 def check_login(r: httpx.Response):
     """Only Gramps saying the login is bad means "log in again"; anything else is Gramps having trouble."""
     if r.status_code in (401, 403, 422):
@@ -140,14 +151,16 @@ async def login(request: Request):
     ip = request.client.host if request.client else "?"
     if msg := login_blocked(ip):
         raise HTTPException(429, msg)
-    body = await request.json()
-    creds = {"username": body.get("username", "").strip(), "password": body.get("password", "")}
+    body = await json_body(request)
+    creds = {"username": str(body.get("username") or "").strip(), "password": str(body.get("password") or "")}
     r = await upstream.post("/token/", json=creds)
     if r.status_code == 429:  # Gramps allows one login a second for the whole app: wait and try once more
         await asyncio.sleep(1.2)
         r = await upstream.post("/token/", json=creds)
     if r.status_code == 429:
         raise HTTPException(429, LOGIN_LIMITS[0][2])
+    if r.status_code >= 500:
+        raise HTTPException(502, UNREACHABLE)
     if r.status_code != 200:
         _failed_logins[ip].append(time.time())
         raise HTTPException(401, "That name or password didn't work")
