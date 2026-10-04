@@ -32,6 +32,9 @@ function h(tag, attrs = {}, ...kids) {
   for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : String(k));
   return el;
 }
+// People already in the tree with the name being typed: match each part that was given.
+const sameName = (first, last) => Object.values(P).filter(p =>
+  (!first || p.first.toLowerCase() === first.toLowerCase()) && (!last || p.last.toLowerCase() === last.toLowerCase()));
 const canAdd = () => EDIT_READY && S.role !== "guest";
 const canEdit = () => EDIT_READY && S.role === "editor";
 const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
@@ -1356,7 +1359,7 @@ function renderAdd() {
   const submit = () => {
     const fn = first.value.trim(), ln = last.value.trim();
     if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = Object.values(P).filter(p => p.first.toLowerCase() === (fn || ln).toLowerCase() && (!ln || p.last.toLowerCase() === ln.toLowerCase()));
+    const dups = sameName(fn, ln);
     if (dups.length && !A.dupOk) {
       warn.replaceChildren(h("div", { class: "warn" },
         h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
@@ -1479,7 +1482,7 @@ function newPersonForm() {
   const btn = h("button", { class: "primary", onclick: async () => {
     const fn = first.value.trim(), ln = last.value.trim();
     if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = Object.values(P).filter(p => p.first.toLowerCase() === (fn || ln).toLowerCase() && (!ln || p.last.toLowerCase() === ln.toLowerCase()));
+    const dups = sameName(fn, ln);
     if (dups.length && !dupOk) {
       warn.replaceChildren(h("div", { class: "warn" },
         h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
