@@ -28,7 +28,7 @@ STATIC = pathlib.Path(__file__).parent / "static"
 
 # The app lives under BASE_PATH (e.g. /family) so it can share a domain with Gramps Web.
 easy = FastAPI(title="Easy Gramps", docs_url=None, redoc_url=None, openapi_url=None)
-upstream = httpx.AsyncClient(base_url=f"{GRAMPS_URL}/api", timeout=60)
+upstream = httpx.AsyncClient(base_url=f"{GRAMPS_URL}/api", timeout=60, transport=gramps.TRANSPORT)
 _who_cache: dict[str, tuple[float, dict]] = {}
 
 

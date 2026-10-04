@@ -6,6 +6,7 @@ import httpx
 
 MOD_NONE, MOD_ABOUT = 0, 3
 GENDER = {"female": 0, "male": 1, "unknown": 2}
+TRANSPORT = None  # the tests swap in a fake Gramps Web here
 
 
 class GrampsError(Exception):
@@ -20,7 +21,7 @@ def new_handle():
 
 class Gramps:
     def __init__(self, base_url: str, token: str):
-        self.http = httpx.AsyncClient(base_url=f"{base_url}/api", timeout=60,
+        self.http = httpx.AsyncClient(base_url=f"{base_url}/api", timeout=60, transport=TRANSPORT,
                                       headers={"Authorization": f"Bearer {token}"})
 
     async def close(self):
