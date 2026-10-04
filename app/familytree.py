@@ -246,8 +246,9 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
         if h not in fresh:
             await g.put(f"/events/{h}", ev)
     await g.put(f"/people/{handle}", p)
-    for h in dropped:
-        await g.http.delete(f"/events/{h}")
+    for h in dropped:  # an event can be shared (e.g. a witness): delete it only if no one else uses it
+        if not await g.in_use("events", h):
+            await g.http.delete(f"/events/{h}")
     for h in dropped_notes:
         if not await g.in_use("notes", h):
             await g.http.delete(f"/notes/{h}")
@@ -299,7 +300,8 @@ async def _delete_person(g, handle):
     events = [r["ref"] for r in p.get("event_ref_list") or []]
     await g.http.delete(f"/people/{handle}")
     for h in events:
-        await g.http.delete(f"/events/{h}")
+        if not await g.in_use("events", h):
+            await g.http.delete(f"/events/{h}")
 
 
 def _family(father, mother, kids, tags):

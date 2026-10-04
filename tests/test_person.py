@@ -64,3 +64,21 @@ def test_new_address_is_private_and_empty_one_removed(fake, g):
     assert fake.get("people", p)["address_list"][0]["private"] is True
     run(familytree.update_person(g, p, {"phone": ""}, []))
     assert fake.get("people", p)["address_list"] == []
+
+
+def test_untick_deceased_keeps_a_shared_death_event(fake, g):  # #26
+    ev = fake.add("events", _class="Event", type="Death")
+    a = fake.person("Ann", "", 0, event_ref_list=[{"ref": ev, "role": "Primary"}], death_ref_index=0)
+    b = fake.person("Bob", "", 1, event_ref_list=[{"ref": ev, "role": "Witness"}])
+    run(familytree.update_person(g, a, {"deceased": False}, []))
+    assert fake.get("people", a)["event_ref_list"] == [] and fake.get("people", a)["death_ref_index"] == -1
+    assert fake.get("events", ev) is not None
+    assert fake.get("people", b)["event_ref_list"][0]["ref"] == ev
+
+
+def test_untick_deceased_deletes_own_death_and_burial(fake, g):
+    d = fake.add("events", _class="Event", type="Death")
+    bu = fake.add("events", _class="Event", type="Burial")
+    a = fake.person("Ann", "", 0, event_ref_list=[{"ref": d}, {"ref": bu}], death_ref_index=0)
+    run(familytree.update_person(g, a, {"deceased": False}, []))
+    assert fake.get("events", d) is None and fake.get("events", bu) is None
