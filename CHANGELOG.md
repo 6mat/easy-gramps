@@ -9,6 +9,12 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
   a changed copy can offer its source as the AGPL asks.
 - README: Easy Gramps is not affiliated with or endorsed by the Gramps project.
 
+### Fixed
+- Typing a place no longer makes a new place at every pause ("Lo", "Lond", "London"). The box now
+  lists the places already in the tree; a new place is made only after "Add it as a new place".
+  Text boxes save when you leave them or pause for 2 seconds, a year once it has 4 digits.
+  `unused_places.py` lists places the tree made that nobody uses and deletes them if you say yes.
+
 ### Changed
 - The page's script is split into small modules (tree, details panel, editor, merge, start screen),
   so each part is easier to read and fix. Nothing changes for users.
