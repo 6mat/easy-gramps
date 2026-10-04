@@ -227,3 +227,30 @@ def test_debug_log_only_when_switched_on(fake, client, monkeypatch, tmp_path):
     monkeypatch.setattr(main, "DATA", tmp_path); monkeypatch.setattr(main, "DEBUG_LOG", tmp_path / "debug.log")
     assert client.post("/family/debug/log", json={"a": 1}).status_code == 200
     assert '"a": 1' in (tmp_path / "debug.log").read_text()
+
+
+def test_login_options_follow_gramps_web(fake, client):  # shared login, pick 2a
+    from starlette.testclient import TestClient
+    import main
+    anon = TestClient(main.app)  # asked before anyone is logged in
+    assert anon.get("/family/auth/options").json() == {"password": True, "providers": []}
+    fake.oidc = {"enabled": True, "disable_local_auth": True, "providers": [{"id": "google", "name": "Google", "extra": 1}]}
+    main._login_options.update(until=0)
+    assert anon.get("/family/auth/options").json() == {"password": False, "providers": [{"id": "google", "name": "Google"}]}
+    fake.oidc = {"enabled": True}
+    assert anon.get("/family/auth/options").json()["password"] is False  # kept for a few minutes
+    fake.fail[("GET", "/oidc/")] = 500
+    main._login_options.update(until=0)
+    assert anon.get("/family/auth/options").json()["password"] is False  # Gramps trouble: keep what we knew
+
+
+def test_account_gramps_refuses_is_not_a_logout(fake, client):  # shared login: don't log them out of Gramps Web
+    fake.me_status = 403
+    r = client.get("/family/auth/me")
+    assert r.status_code == 403 and "owner" in r.json()["detail"]
+    fake.me_status, fake.role = 200, -1
+    assert client.get("/family/auth/me").status_code == 403
+
+
+def test_page_knows_where_gramps_web_is(fake, client):  # same site → shared login, pick 5a
+    assert 'data-gramps="http://gramps.test"' in client.get("/family/").text

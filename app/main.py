@@ -116,6 +116,9 @@ def bearer(request: Request) -> str:
     return auth[7:]
 
 
+NO_ACCESS = "Your account can't open the family tree yet. Ask the family tree's owner to let you in."
+
+
 async def who(request: Request) -> dict:
     token = bearer(request)
     key = hashlib.sha256(token.encode()).hexdigest()  # don't keep raw tokens in memory
@@ -123,8 +126,12 @@ async def who(request: Request) -> dict:
     if hit and hit[0] > time.time():
         return hit[1]
     r = await upstream.get("/users/-/", headers={"Authorization": f"Bearer {token}"})
+    if r.status_code == 403:  # a good login Gramps won't let in (yet): not "log in again", which would log
+        raise HTTPException(403, NO_ACCESS)  # them out of Gramps Web too when the login is shared
     check_login(r)
     user = r.json()
+    if user.get("role", 0) < 0:  # Gramps: -1 disabled, -2 not confirmed yet
+        raise HTTPException(403, NO_ACCESS)
     user["can_view_private"] = user.get("role", 0) >= ROLE_MEMBER
     user["can_add"] = user.get("role", 0) >= ROLE_CONTRIBUTOR
     user["can_edit"] = user.get("role", 0) >= ROLE_EDITOR
@@ -154,6 +161,28 @@ def login_blocked(ip: str) -> str | None:
     tries = [t for t in _failed_logins.get(ip, []) if now - t < 86400]
     _failed_logins[ip] = tries
     return next((msg for window, limit, msg in LOGIN_LIMITS if sum(now - t < window for t in tries) >= limit), None)
+
+
+# What the login screen offers, from Gramps Web's own settings: its sign-in buttons (e.g. Google) and
+# whether password login is on. Asked before anyone is logged in, so it's kept for a few minutes.
+_login_options = {"until": 0.0, "value": {"password": True, "providers": []}}
+
+
+@easy.get("/auth/options")
+async def login_options():
+    if _login_options["until"] < time.time():
+        try:
+            r = await upstream.get("/oidc/config/")
+            c = r.json() if r.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            c = None
+        if c is not None:
+            on = bool(c.get("enabled"))
+            _login_options["value"] = {
+                "password": not (on and c.get("disable_local_auth")),
+                "providers": [{"id": str(x.get("id", "")), "name": str(x.get("name", ""))} for x in c.get("providers") or []] if on else []}
+        _login_options["until"] = time.time() + (600 if c is not None else 30)  # try again soon after a failure
+    return _login_options["value"]
 
 
 @easy.post("/auth/login")
@@ -387,6 +416,7 @@ async def thumbnail(handle: str, size: int, request: Request):
 
 def page(name: str) -> HTMLResponse:
     text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH)
+    text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True))
     return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))
 
 
