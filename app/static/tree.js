@@ -1,5 +1,5 @@
 // Easy Gramps — family tree view. Data comes from Gramps Web through this app's /tree/* endpoints.
-import { api, auth, login, LoginNeeded, BASE } from "./auth.js";
+import { api, auth, login, LoginNeeded, BASE, photoSession } from "./auth.js";
 
 if (new URLSearchParams(location.search).has("debug")) import("./debug.js");  // screen diagnostics
 
@@ -63,10 +63,15 @@ function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
     const src = /^(data|blob):/.test(p.photo) ? p.photo
-      : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1&jwt=${encodeURIComponent(auth.access || "")}`;
+      : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1`;
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);
-    img.onerror = () => { const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2; };
+    let retried = false;
+    img.onerror = async () => {
+      // The photo cookie may have outlived its token: renew the login once, then try again.
+      if (!retried && !src.startsWith("blob:")) { retried = true; if (await renewPhotos()) { img.src = `${src}&r=1`; return; } }
+      const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2;
+    };
     return box;
   }
   const [a, b] = tint(p);
@@ -74,6 +79,12 @@ function photoEl(p, big) {
   const el = h("span", { class: cls, "aria-hidden": "true" }, (p.first[0] || "") + (p.last[0] || ""));
   el.style.background = a; el.style.color = "#1d1b18";
   return el;
+}
+let renewing = null;
+function renewPhotos() {  // one renewal for all the photos that failed at the same time
+  renewing ||= api("/auth/me").then(() => photoSession()).then(() => true, () => false)
+    .finally(() => setTimeout(() => { renewing = null; }, 30000));
+  return renewing;
 }
 const spouseWord = p => (p.gender === "m" ? "wife" : p.gender === "f" ? "husband" : "husband or wife");
 const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
@@ -1495,6 +1506,7 @@ async function start() {
   gate("Loading the family tree…");
   try {
     ME = await api("/auth/me");
+    await photoSession();
     await loadGraph();
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();

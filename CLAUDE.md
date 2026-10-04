@@ -25,8 +25,8 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me},
-                    /tree/*, /gapi/media/{h}/thumbnail/{size}, /debug/log (only with DEBUG_LOG=1), / = the page
+app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session},
+                    /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html / tree.css / tree.js (the page), auth.js (tokens + api()), debug.js (?debug)

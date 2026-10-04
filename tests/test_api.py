@@ -113,3 +113,23 @@ def test_photo_upload_rights_type_and_size(fake, client):  # #20
     assert big.status_code == 413
     r = client.post(f"/family/tree/person/{p}/photo", files=png)
     assert r.status_code == 200 and fake.get("people", p)["media_list"][0]["ref"] == r.json()["photo"]
+
+
+def test_photos_use_an_httponly_cookie_not_a_url_token(fake, client):  # #3
+    from starlette.testclient import TestClient
+    import main
+    anon = TestClient(main.app)
+    assert anon.get("/family/gapi/media/abc123/thumbnail/96?jwt=tok").status_code == 401  # ?jwt= is ignored
+    r = client.post("/family/auth/session")
+    cookie = r.headers["set-cookie"]
+    assert "eg_photo=tok" in cookie and "HttpOnly" in cookie and "Path=/family/gapi/" in cookie and "SameSite=strict" in cookie
+    anon.cookies.set("eg_photo", "tok", path="/family/gapi/")
+    t = anon.get("/family/gapi/media/abc123/thumbnail/96?square=1")
+    assert t.status_code == 200 and t.headers["cache-control"] == "max-age=60"
+    assert "max-age=0" in client.delete("/family/auth/session").headers["set-cookie"] or "expires" in client.delete("/family/auth/session").headers["set-cookie"].lower()
+
+
+def test_session_needs_a_valid_login(fake, client):
+    from starlette.testclient import TestClient
+    import main
+    assert TestClient(main.app, headers={"Authorization": "Bearer bad"}).post("/family/auth/session").status_code == 401

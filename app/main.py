@@ -175,6 +175,29 @@ async def refresh(request: Request):
     return r.json()
 
 
+# Photos are <img> tags, which can't send the login header. Instead of putting the token in the
+# URL (where it ends up in logs and history), the page asks for an HttpOnly cookie that only the
+# thumbnail route ever receives. The page renews it after every login and token refresh.
+PHOTO_COOKIE = "eg_photo"
+
+
+@easy.post("/auth/session")
+async def photo_session(request: Request):
+    await who(request)
+    response = JSONResponse({"ok": True})
+    secure = request.url.scheme == "https" or request.url.hostname in ("localhost", "127.0.0.1")
+    response.set_cookie(PHOTO_COOKIE, bearer(request), max_age=86400, path=f"{BASE_PATH}/gapi/",
+                        httponly=True, secure=secure, samesite="strict")
+    return response
+
+
+@easy.delete("/auth/session")
+async def photo_session_end():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(PHOTO_COOKIE, path=f"{BASE_PATH}/gapi/")
+    return response
+
+
 @easy.get("/auth/me")
 async def me(request: Request):
     return await who(request)
@@ -336,8 +359,9 @@ async def debug_log(request: Request):
 async def thumbnail(handle: str, size: int, request: Request):
     if not handle.isalnum() or not 16 <= size <= 1024:
         raise HTTPException(400, "Bad thumbnail request")
-    params = {k: v for k, v in request.query_params.items() if k in ("square", "jwt")}
-    headers = {"Authorization": request.headers["authorization"]} if "authorization" in request.headers else {}
+    params = {k: v for k, v in request.query_params.items() if k == "square"}
+    token = request.cookies.get(PHOTO_COOKIE)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     r = await upstream.get(f"/media/{handle}/thumbnail/{size}", params=params, headers=headers)
     keep = {k: v for k, v in r.headers.items() if k.lower() in ("content-type", "cache-control")}
     return Response(r.content, status_code=r.status_code, headers=keep)
