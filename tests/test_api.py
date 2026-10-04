@@ -152,3 +152,17 @@ def test_responses_are_compressed_and_carry_security_headers(fake, client):  # #
     assert r.headers["content-encoding"] == "gzip"
     assert "default-src 'self'" in r.headers["content-security-policy"] and r.headers["x-frame-options"] == "DENY"
     assert "googleapis" not in r.headers["content-security-policy"]
+
+
+def test_tag_created_once_for_concurrent_first_edits(fake, client):  # #39
+    import asyncio
+    import gramps
+    import main
+
+    async def five():
+        g = gramps.Gramps("http://gramps.test", "tok")
+        return await asyncio.gather(*[main.tree_tags(g) for _ in range(5)])
+    out = asyncio.run(five())
+    assert len(fake.db["tags"]) == 1 and len({tuple(x) for x in out}) == 1
+    client.post("/family/tree/person", json={"first": "A"}); client.post("/family/tree/person", json={"first": "B"})
+    assert len(fake.sent("GET", "/tags/")) == 1

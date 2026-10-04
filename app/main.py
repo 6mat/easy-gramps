@@ -243,8 +243,19 @@ async def tree_details(handle: str, request: Request):
 TREE_TAG = os.environ.get("TREE_TAG", "Easy Gramps")  # tag on records the tree's editor creates
 
 
+_tag = {"handle": None, "until": 0.0}
+_tag_lock = asyncio.Lock()
+
+
 async def tree_tags(g):
-    return [await g.tag_handle(TREE_TAG)] if TREE_TAG else []
+    # Looked up (or created) once, under a lock so two first edits can't create the tag twice;
+    # re-checked every 10 minutes in case it was renamed or deleted in Gramps Web.
+    if not TREE_TAG:
+        return []
+    async with _tag_lock:
+        if not _tag["handle"] or _tag["until"] < time.time():
+            _tag.update(handle=await g.tag_handle(TREE_TAG), until=time.time() + 600)
+        return [_tag["handle"]]
 
 
 @easy.patch("/tree/person/{handle}")

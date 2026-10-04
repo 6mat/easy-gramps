@@ -23,6 +23,7 @@ def fake(monkeypatch):
     import main
     monkeypatch.setattr(main, "upstream", main.httpx.AsyncClient(base_url="http://gramps.test/api", transport=f.transport))
     main._who_cache.clear()
+    main._tag.update(handle=None, until=0)
     return f
 
 
