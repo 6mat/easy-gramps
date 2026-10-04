@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Changed
+- "Is this person in the tree twice?" is now a tab across the bottom of the details panel, with its own
+  background and edge, so it's clearly a button and the panel visibly scrolls underneath it.
+
 ## 1.0.0 — 2026-10-04
 
 First stable release: installs next to Gramps Web on the same site, with one shared login

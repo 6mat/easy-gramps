@@ -98,8 +98,8 @@ check). It must **not** open on an automatic person.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo, name, relation, born/died, clickable Parents/Wives/Children, More
-details ▾ (burial, lives in, phone, email, notes); "Is this person in the tree twice?" for editors, pinned to the
-panel's bottom edge so it shows without scrolling (#55).
+details ▾ (burial, lives in, phone, email, notes); "Is this person in the tree twice?" for editors, a tab pinned to
+the panel's bottom edge (own background, top line) so it shows without scrolling (#55).
 Fit and centring use only the area not under the panel.
 
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
