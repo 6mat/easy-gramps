@@ -98,6 +98,15 @@ async function cleanup() {
 {
   const page = await newPage();
   await step(page, "login screen", async () => { await page.goto(APP); await page.waitForSelector("#lg-user"); });
+  await step(page, "installable as an app", async () => {  // what Chrome's "Install app" needs
+    const cdp = await page.context().newCDPSession(page);
+    const m = await cdp.send("Page.getAppManifest");
+    if (!m.url || m.errors.length) throw new Error(`manifest: ${m.url || "none"} ${JSON.stringify(m.errors)}`);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    const errs = (await cdp.send("Page.getInstallabilityErrors")).installabilityErrors;
+    if (errs.length) throw new Error(`can't be installed: ${errs.map(e => e.errorId).join(", ")}`);
+    await cdp.detach();
+  });
   await step(page, "log in", () => login(page, "member"));
   await step(page, "start screen", async () => { await page.waitForSelector("#start-q"); await page.waitForSelector(".recentgrid"); });
   await step(page, "start search + open a tree", async () => {
