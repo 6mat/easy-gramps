@@ -32,6 +32,8 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
   messages, darker amber text, no text under 13 px, 44 px buttons on touch screens.
 - Spouse's parents are tagged "Wife's father" / "Husband's mother".
 - Responses are compressed (the whole-tree data is about 5× smaller); one shared connection to Gramps.
+- Code clean-up, no visible change: copied code merged into shared helpers (name search, the
+  "Someone new" form, new people, endpoints), dead code and unused CSS removed.
 
 ### Added
 - Backend tests (fake Gramps Web), an every-screen browser check, CI, and a multi-arch image on
