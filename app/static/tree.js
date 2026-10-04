@@ -666,7 +666,7 @@ function drawMinimap() {
   };
   mm.addEventListener("pointerdown", e => { if (mm.classList.contains("idle")) return; down = true; mm.setPointerCapture(e.pointerId); jump(e); });
   mm.addEventListener("pointermove", e => { if (down) jump(e); });
-  mm.addEventListener("pointerup", () => { down = false; });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) mm.addEventListener(ev, () => { down = false; });
 })();
 
 // ----- side panel: hide it, bring it back with ⓘ; while hidden, a click shows a quick card -----
