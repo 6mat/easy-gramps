@@ -1,5 +1,5 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
-import { api, auth, login, LoginNeeded, photoSession } from "./auth.js";
+import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
 import { $, ME, P, S, canAdd, desc, h, loadGraph, matches, name, photoEl, postJSON, searchWords, years } from "./common.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
@@ -95,24 +95,72 @@ function gate(msg, ...kids) {
   g.replaceChildren(h("div", { class: "gate-card" }, msg && h("p", {}, msg), ...kids));
 }
 function hideGate() { $("#gate").hidden = true; }
-export function showLogin(message) {
-  const user = h("input", { id: "lg-user", autocomplete: "username", autocapitalize: "none" });
-  const pass = h("input", { id: "lg-pass", type: "password", autocomplete: "current-password" });
-  const err = h("div", { role: "status" }, message && h("div", { class: "warn" }, message));
-  const btn = h("button", { class: "primary", type: "submit" }, "Log in");
-  const form = h("form", { class: "login-form" },
-    h("h2", {}, "🌳 Family Tree"),
-    h("label", { for: "lg-user" }, "Your name", user),
-    h("label", { for: "lg-pass" }, "Your password", pass), err, btn);
-  form.onsubmit = async e => {
-    e.preventDefault(); btn.disabled = true; btn.textContent = "Checking…";
-    try { await login(user.value, pass.value); await start(); }
-    catch (ex) { err.replaceChildren(h("div", { class: "warn" }, ex.message)); btn.disabled = false; btn.textContent = "Log in"; }
-  };
-  gate("", form);
-  user.focus();
+// ---------- login: Gramps Web's sign-in buttons (e.g. Google) and/or name + password ----------
+let loginShown = false, waiter = null;  // waiter: set while a sign-in window is open
+let options = null;                     // what Gramps Web offers, asked once
+async function loginOptions() {
+  if (!options) {
+    try { const r = await fetch(`${BASE}/auth/options`); options = r.ok ? await r.json() : null; } catch { /* keep the default */ }
+  }
+  return options || { password: true, providers: [] };
 }
+export async function showLogin(message) {
+  loginShown = true; waiter = null;
+  const { password, providers } = await loginOptions();
+  if (!loginShown) return;  // logged in meanwhile (in Gramps Web or another tab): the tree is loading
+  const sso = SHARED ? providers.filter(p => p.id) : [];  // these only work on Gramps Web's own site
+  const err = h("div", { role: "status" }, message && h("div", { class: "warn" }, message));
+  const form = h("form", { class: "login-form" }, h("h2", {}, "🌳 Family Tree"),
+    ...sso.map(p => h("button", { class: "primary", type: "button", onclick: () => signIn(p) }, `Continue with ${p.name || p.id}`)));
+  if (password) {
+    const user = h("input", { id: "lg-user", autocomplete: "username", autocapitalize: "none" });
+    const pass = h("input", { id: "lg-pass", type: "password", autocomplete: "current-password" });
+    const btn = h("button", { class: sso.length ? "" : "primary", type: "submit" }, "Log in");
+    if (sso.length) form.append(h("p", { class: "small muted" }, "Or log in with your name and password:"));
+    form.append(h("label", { for: "lg-user" }, "Your name", user), h("label", { for: "lg-pass" }, "Your password", pass), err, btn);
+    form.onsubmit = async e => {
+      e.preventDefault(); btn.disabled = true; btn.textContent = "Checking…";
+      try { await login(user.value, pass.value); await start(); }
+      catch (ex) { err.replaceChildren(h("div", { class: "warn" }, ex.message)); btn.disabled = false; btn.textContent = "Log in"; }
+    };
+  } else {
+    form.onsubmit = e => e.preventDefault();
+    form.append(err, !sso.length && h("p", {}, "Signing in isn't set up for this page yet. Ask the family tree's owner."));
+  }
+  gate("", form);
+  form.querySelector("button, input")?.focus();
+}
+// Sign in with Google (or another provider) in a pop-up; on phones it opens as a new tab. Gramps Web
+// keeps the login on this site and then shows its own home page in that window, so this page watches
+// for the login to appear rather than waiting to be sent back.
+function signIn(p) {
+  const url = `${GRAMPS}/api/oidc/login/?provider=${encodeURIComponent(p.id)}`;
+  const win = window.open(url, "eg-signin", "popup,width=520,height=700");
+  if (!win) { location.href = url; return; }  // pop-ups blocked: sign in in this tab, then come back here
+  const say = h("div", { role: "status" });
+  const poll = setInterval(() => { if (auth.access) waiter?.(); }, 1000);
+  waiter = () => {
+    clearInterval(poll); waiter = null;
+    try { win.close(); } catch { /* Google may have cut the link to the window */ }
+    start().then(() => { if (auth.access) toast("Signed in ✓ If the sign-in window is still open, you can close it."); });
+  };
+  gate("", h("div", { class: "login-form" }, h("h2", {}, "🌳 Family Tree"),
+    h("p", {}, `Finish signing in with ${p.name || p.id} in the other window.`),
+    h("p", { class: "small muted" }, "On a phone or tablet it opens as a new tab. When you're done, come back to this one."),
+    say,
+    h("button", { class: "primary", onclick: () => auth.access ? waiter?.() : say.replaceChildren(h("div", { class: "warn" }, "Not signed in yet. Finish in the other window first.")) },
+      "Signed in already? Tap here to continue"),
+    h("button", { onclick: () => { clearInterval(poll); showLogin(); } }, "Back")));
+}
+// Logging in or out in Gramps Web (or another tab) counts here too.
+onLoginChange(() => {
+  if (!auth.access) return location.replace(location.pathname);  // logged out: leave nothing of the tree on screen
+  if (waiter) waiter(); else if (loginShown) start();
+});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && auth.access) waiter?.(); });
+
 export async function start() {
+  loginShown = false;
   gate("Loading the family tree…");
   try {
     Object.assign(ME, await api("/auth/me"));
@@ -120,6 +168,8 @@ export async function start() {
     await loadGraph();
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();
+    if (err.status === 403) return gate(err.message, h("button", { onclick: start }, "Try again"),
+      h("button", { onclick: () => { auth.clear(); location.replace(location.pathname); } }, "Log out"));
     return gate(`Couldn't load the family tree: ${err.message}`, h("button", { onclick: start }, "Try again"));
   }
   S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";

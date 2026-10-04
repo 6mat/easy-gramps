@@ -30,24 +30,21 @@ sharing the login with Gramps Web.
 
 ### 2. Shared login with Gramps Web (Google / OIDC users included)
 Easy Gramps is served on the **same origin** as Gramps Web (`https://host/family/`), so both apps
-share the browser's `localStorage`. Gramps Web stores its login (password *or* OIDC) under the keys
-**`access_token`** and **`refresh_token`** (see `gramps-web` `src/api.js`, `storeAuthToken()` /
-`storeRefreshToken()`; OIDC completes in `src/oidc.js`).
-- [ ] `auth.js`: read/write Gramps Web's `access_token` / `refresh_token` instead of our own
-      `eg_access` / `eg_refresh` (migrate once: if ours exist and theirs don't, copy them over).
-      Refresh still goes through `{BASE}/auth/refresh` and writes the new access token back to the
-      shared key. Log out clears the shared keys (= logs out of both; confirm that's wanted).
-- [ ] **Not logged in →** a "Sign in" button that opens Gramps Web's login page
-      (`GRAMPS_PUBLIC_URL`) in a new tab/popup. Listen for the `storage` event on `access_token`;
-      when it appears, close the popup (same origin, so allowed) and load the tree. On phones the popup
-      is a tab — the page picks the login up when the user comes back. Fallback text:
-      "Signed in already? Tap here to continue."
-- [ ] Keep the password form as an option (`PASSWORD_LOGIN=1` default on); allow turning it off for
-      Google-only installs.
-- [ ] Verify the refresh-token behaviour of Gramps Web (does refresh rotate it?) so the two apps don't
-      log each other out.
-- [ ] Note: same origin also means a script-injection bug here could take over the Gramps login —
-      which is why step 1 (CSP) comes first.
+share the browser's `localStorage`, where Gramps Web keeps its login (password *or* OIDC) under
+`access_token`, `refresh_token`, `access_token_expires` and `id_token`. Owner's picks: 1a 2a 3a 4a 5a.
+- [x] `auth.js` uses Gramps Web's keys on the same origin (automatic, no setting); an old `eg_*` login
+      carries over once. Renewal still goes through `{BASE}/auth/refresh` and writes the shared key.
+- [x] **Not logged in →** Gramps Web's own sign-in buttons ("Continue with Google", from
+      `/api/oidc/config/` via `{BASE}/auth/options`) open the sign-in in a pop-up / new tab; the page
+      notices the login (`storage` event, a poll, coming back to the tab) and loads the tree, closing the
+      pop-up when the browser allows. Fallback: "Signed in already? Tap here to continue."
+- [x] Password form stays, and hides itself when Gramps Web has password login off (`disable_local_auth`).
+- [x] Refresh-token behaviour checked: Gramps Web's refresh writes only a new access token (no
+      rotation), so the two apps can't log each other out by renewing.
+- [x] Log out logs out of both; logging out in Gramps Web logs this page out. An account Gramps refuses
+      sees "ask the owner" and is not logged out.
+- [x] Script-injection review done (#9) on top of the CSP (#1).
+- [ ] Owner tests Google sign-in on a real server (phone and computer).
 
 ### 3. Release
 - [x] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);

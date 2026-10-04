@@ -27,6 +27,7 @@ ContainerName=easy-gramps
 Network=proxy.network
 
 Environment=GRAMPS_URL=http://gramps:5000
+# Gramps Web's address in the browser. The same site as this app (Host rule below) = one shared login.
 Environment=GRAMPS_PUBLIC_URL=https://gramps.example.com
 Environment=BASE_PATH=/family
 # Only Traefik can reach this container (no published port), so trust its X-Forwarded-For;

@@ -25,6 +25,8 @@ class FakeGramps:
         self.fail = {}         # (method, path prefix) -> status, to simulate errors
         self.token_status = 200
         self.thumb_type = "image/png"  # what a thumbnail says it is
+        self.oidc = {"enabled": False}  # Gramps Web's login settings (/api/oidc/config/)
+        self.me_status = 200           # what /users/-/ answers a good login
 
     # ----- helpers for tests -----
     def add(self, kind, **obj):
@@ -96,9 +98,13 @@ class FakeGramps:
             return httpx.Response(200, json={"access_token": "tok", "refresh_token": "ref"}) if ok else httpx.Response(403, json={})
         if path == "/token/refresh/":
             return httpx.Response(200, json={"access_token": "tok2"})
+        if path == "/oidc/config/":
+            return httpx.Response(200, json=self.oidc)
         if path == "/users/-/":
             if request.headers.get("authorization") != "Bearer tok":
                 return httpx.Response(401, json={"msg": "Token has expired"})
+            if self.me_status != 200:
+                return httpx.Response(self.me_status, json={})
             return httpx.Response(200, json={"name": "tester", "role": self.role})
         if path == "/transactions/history/":
             return httpx.Response(200, json=[])

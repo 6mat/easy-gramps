@@ -72,6 +72,8 @@ cd tests/e2e && npm ci && npx playwright install chromium && cd ../..
 # with the app running against https://demo.grampsweb.org on port 8095:
 APP=http://localhost:8095/family/ node tests/e2e/screens.mjs           # every screen, read-only
 APP=http://localhost:8095/family/ node tests/e2e/screens.mjs --write   # also edits (ZZTEST records, cleaned up)
+# with the app started with GRAMPS_PUBLIC_URL=http://localhost:8096 instead:
+node tests/e2e/shared-login.mjs   # shared login with Gramps Web, "Continue with Google" played by a stand-in
 ```
 Never run `--write` against a real family tree. CI runs the first three on every push and the
 read-only screen check weekly.
@@ -81,13 +83,31 @@ read-only screen check weekly.
 | Setting | Meaning |
 |---|---|
 | `GRAMPS_URL` | How the app reaches Gramps Web (internal Docker URL on a server). |
-| `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. |
+| `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/family/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
 | `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
+
+## Signing in
+
+Everyone signs in with their own Gramps Web account, so Gramps Web decides what each person may see
+and change. Installed on the **same site** as Gramps Web (as in the Traefik example), the two share one
+login:
+
+- Logged in to Gramps Web already? Opening `/family/` goes straight to the tree, and the other way round.
+- The login screen shows Gramps Web's own sign-in buttons, e.g. **Continue with Google** when Gramps
+  Web has Google (OIDC) sign-in set up. Nothing extra to configure: it's Gramps Web's sign-in, with the
+  same Google settings. It opens in a pop-up (a new tab on phones); the tree loads once it's done.
+- The name-and-password form hides itself when Gramps Web has password login turned off.
+- **Log out** logs out of both (safe on a shared tablet); logging out in Gramps Web logs out here too.
+- A new Google user needs a role in Gramps Web (Settings → user administration) before they can open
+  the tree; until then they see "Ask the family tree's owner to let you in".
+
+On a different site (e.g. a laptop against the Gramps Web demo) Easy Gramps keeps its own login with
+the name-and-password form, as before.
 
 ## How it fits together
 
