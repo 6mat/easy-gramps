@@ -199,3 +199,12 @@ def test_delete_checks_the_answer(fake, g):  # #27
         raise AssertionError("should raise")
     except gramps.GrampsError as e:
         assert e.status == 403
+
+
+def test_debug_log_only_when_switched_on(fake, client, monkeypatch, tmp_path):
+    import main
+    assert client.post("/family/debug/log", json={"a": 1}).status_code == 404
+    monkeypatch.setattr(main, "DEBUG_LOG_ON", True)
+    monkeypatch.setattr(main, "DATA", tmp_path); monkeypatch.setattr(main, "DEBUG_LOG", tmp_path / "debug.log")
+    assert client.post("/family/debug/log", json={"a": 1}).status_code == 200
+    assert '"a": 1' in (tmp_path / "debug.log").read_text()

@@ -357,17 +357,21 @@ async def debug_log(request: Request):
     body = await request.body()
     if len(body) > 20_000:
         raise HTTPException(413, "Too much")
-    DATA.mkdir(parents=True, exist_ok=True)
-    if DEBUG_LOG.exists() and DEBUG_LOG.stat().st_size > 1_000_000:
-        DEBUG_LOG.replace(DATA / "debug.log.old")
     try:
         info = json.loads(body)
     except ValueError:
-        raise HTTPException(400, "Expected JSON")
+        raise HTTPException(400, "Expected JSON") from None
     entry = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "user": user["name"], "info": info}
-    with DEBUG_LOG.open("a") as f:
-        f.write(json.dumps(entry) + "\n")
+    await asyncio.to_thread(append_debug_log, json.dumps(entry) + "\n")
     return {"ok": True}
+
+
+def append_debug_log(line: str):
+    DATA.mkdir(parents=True, exist_ok=True)
+    if DEBUG_LOG.exists() and DEBUG_LOG.stat().st_size > 1_000_000:
+        DEBUG_LOG.replace(DATA / "debug.log.old")
+    with DEBUG_LOG.open("a") as f:
+        f.write(line)
 
 
 # ---------- photo thumbnails (the only Gramps read the page makes directly) ----------

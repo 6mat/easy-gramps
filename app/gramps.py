@@ -126,7 +126,7 @@ def gramps_date(v):
     try:
         sortval = datetime.date(y, m or 1, d or 1).toordinal() + 1721425
     except ValueError as e:
-        raise GrampsError(f"That date doesn't exist: {e}")
+        raise GrampsError(f"That date doesn't exist: {e}") from None
     return {"_class": "Date", "calendar": 0, "modifier": MOD_ABOUT if v.get("about") else MOD_NONE,
             "quality": 0, "dateval": [d, m, y, False], "sortval": sortval, "newyear": 0,
             "text": "", "year": y}

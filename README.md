@@ -26,7 +26,8 @@ https://gramps.example.com/          -> Gramps Web
 https://gramps.example.com/family/   -> Easy Gramps
 ```
 
-1. Build the image: `docker build -t easy-gramps:latest app/`
+1. The image is published as `ghcr.io/6mat/easy-gramps` (amd64 and arm64). To build it yourself instead:
+   `docker build -t easy-gramps:latest app/` and change `image:` in the compose file.
 2. Copy `deploy/compose.traefik.yaml` next to your Gramps Web stack and create a `.env` from
    `.env.example` (`GRAMPS_HOST`, `CERT_RESOLVER`).
 3. `docker compose -f compose.traefik.yaml up -d`, then open `https://<your gramps host>/family/`.

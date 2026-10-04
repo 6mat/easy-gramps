@@ -1,0 +1,5 @@
+# Lint settings (run: ruff check app tests). Long lines are the house style here.
+target-version = "py312"
+[lint]
+select = ["E", "F", "W", "B", "ASYNC"]
+ignore = ["E501", "E702", "B023"]  # long lines; "a; b" one-liners in tests; B023 misreads familytree.graph's event_at

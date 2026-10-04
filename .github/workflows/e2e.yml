@@ -1,0 +1,30 @@
+# Every screen in a real browser against the public Gramps Web demo (read-only, Member login).
+# Weekly and on demand, not on every push: it depends on the demo being up.
+name: Screens on the demo
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+jobs:
+  screens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r app/requirements.txt
+      - name: Start Easy Gramps against the demo
+        working-directory: app
+        run: |
+          GRAMPS_URL=https://demo.grampsweb.org BASE_PATH=/family DATA_DIR=/tmp/eg uvicorn main:app --port 8095 &
+          for i in $(seq 30); do curl -sf http://localhost:8095/family/ >/dev/null && break; sleep 1; done
+      - name: Browser
+        working-directory: tests/e2e
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: Every screen (read-only)
+        run: APP=http://localhost:8095/family/ node tests/e2e/screens.mjs

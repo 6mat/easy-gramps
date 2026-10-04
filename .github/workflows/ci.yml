@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r app/requirements.txt -r tests/requirements.txt
+      - name: Lint
+        run: ruff check app tests
+      - name: JavaScript syntax
+        run: for f in app/static/*.js tests/e2e/*.mjs; do node --check "$f"; done
+      - name: Backend tests
+        run: pytest -q
+      - name: Known vulnerabilities in dependencies
+        run: pip-audit -r app/requirements.txt

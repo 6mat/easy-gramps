@@ -1,0 +1,9 @@
+{
+  "name": "easy-gramps-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Every-screen browser check against the Gramps Web demo: node screens.mjs [--write]",
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}
