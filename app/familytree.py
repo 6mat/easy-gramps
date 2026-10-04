@@ -68,9 +68,11 @@ async def details(g: Gramps, handle: str) -> dict:
     p = await g.get(f"/people/{handle}", extend="note_list")
     addr = next(iter(p.get("address_list") or []), {})
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
-    notes = [n["text"]["string"] for n in (p.get("extended") or {}).get("notes", []) if n.get("text", {}).get("string")]
+    # The editor changes only the first note (the one it shows); any others are shown read-only.
+    notes = [(n.get("text") or {}).get("string", "") for n in (p.get("extended") or {}).get("notes", [])]
     residence = ", ".join(x for x in (addr.get("city"), addr.get("state"), addr.get("country")) if x)
-    return {"residence": residence, "phone": addr.get("phone", ""), "email": email, "notes": "\n\n".join(notes),
+    return {"residence": residence, "phone": addr.get("phone", ""), "email": email,
+            "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t],
             "private": bool(addr.get("private"))}
 
 
@@ -230,7 +232,7 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
             await g.put(f"/notes/{first}", note)
         elif first:
             p["note_list"].pop(0)
-            dropped_notes.append(first)  # deleted after the person no longer points to it
+            dropped_notes.append(first)  # deleted after the person no longer points to it, if nothing else does
         elif text:
             n = note_obj(text, tags, False)
             new_objs.append(n)
@@ -246,7 +248,8 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
     for h in dropped:
         await g.http.delete(f"/events/{h}")
     for h in dropped_notes:
-        await g.http.delete(f"/notes/{h}")
+        if not await g.in_use("notes", h):
+            await g.http.delete(f"/notes/{h}")
     return {"ok": True}
 
 

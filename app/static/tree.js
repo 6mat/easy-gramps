@@ -9,7 +9,7 @@ let ME = null;
 async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];
-  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", phone: "", email: "", notes: "", ...p };
+  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", phone: "", email: "", notes: "", otherNotes: [], ...p };
   FAMS.length = 0; FAMS.push(...g.families);
 }
 
@@ -813,11 +813,12 @@ function renderPanel() {
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
     const priv = S.role === "guest";
-    const any = p.burial || p.residence || p.phone || p.email || p.notes;
+    const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
+    const any = p.burial || p.residence || p.phone || p.email || notes;
     panel.append(h("div", { class: "details" },
       h("dl", { class: "kv" },
         row("Buried at", p.burial), row("Lives in", p.residence),
-        row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", p.notes)),
+        row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", notes)),
       !priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are private. Guests can't see them.") : "",
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : ""));
@@ -1041,7 +1042,9 @@ function centreCard(p) {
     field("Residing at", bindText(p, "residence", "ed-res"), "full"),
     field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel" })),
     field("Email (private)", bindText(p, "email", "ed-email", { type: "email" })),
-    field("Notes", bindText(p, "notes", "ed-notes", { area: true }), "full"));
+    field("Notes", bindText(p, "notes", "ed-notes", { area: true }), "full"),
+    p.otherNotes.length ? h("div", { class: "small muted full" },
+      `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, photoEl(p, true),

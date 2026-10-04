@@ -57,6 +57,14 @@ class Gramps:
                 return tx["handle"]
         raise GrampsError("Photo upload did not return a media record", 502)
 
+    async def in_use(self, kind: str, handle: str) -> bool:
+        """Does anything (a person, a family, …) still point at this event, note or other object?"""
+        try:
+            obj = await self.get(f"/{kind}/{handle}", backlinks=1)
+        except GrampsError:
+            return True  # can't tell (or it's gone already): don't delete
+        return any((obj.get("backlinks") or {}).values())
+
     async def places_by_name(self) -> dict:
         return {p["name"]["value"].strip().lower(): p["handle"]
                 for p in await self.get("/places/", keys="handle,name") if p["name"]["value"].strip()}
