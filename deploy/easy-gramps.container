@@ -33,6 +33,9 @@ Environment=BASE_PATH=/family
 # Only Traefik can reach this container (no published port), so trust its X-Forwarded-For;
 # the per-visitor login limit depends on it.
 Environment=FORWARDED_ALLOW_IPS=*
+# Your own app icon (a square picture, PNG or JPG): every icon size is made from it.
+# Volume=%h/easy-gramps/icon.png:/icon/icon.png:ro,Z
+# Environment=ICON_FILE=/icon/icon.png
 
 Label=traefik.enable=true
 # Quoted because the rule has spaces: Quadlet splits an unquoted Label= line at whitespace.

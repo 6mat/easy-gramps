@@ -18,8 +18,10 @@ services:
       BASE_PATH: /family
       TREE_TAG: ${TREE_TAG:-Easy Gramps}
       FORWARDED_ALLOW_IPS: "*"                         # safe only because no port is published: only Traefik can reach us
+      # ICON_FILE: /icon/icon.png                      # your own app icon (square picture), with the volume below
     volumes:
       - ./data:/data
+      # - ./icon.png:/icon/icon.png:ro
     networks: [proxy]
     labels:
       - traefik.enable=true
