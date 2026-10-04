@@ -32,6 +32,9 @@ function h(tag, attrs = {}, ...kids) {
   for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : String(k));
   return el;
 }
+// Search: everyone whose first name, last name or nickname contains every word typed.
+const searchWords = text => text.toLowerCase().split(/\s+/).filter(Boolean);
+const matches = (p, words) => words.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w));
 // People already in the tree with the name being typed: match each part that was given.
 const sameName = (first, last) => Object.values(P).filter(p =>
   (!first || p.first.toLowerCase() === first.toLowerCase()) && (!last || p.last.toLowerCase() === last.toLowerCase()));
@@ -919,10 +922,10 @@ function roundedPath(pts, r) {
 
 // ---------- search ----------
 $("#q").addEventListener("input", () => {
-  const words = $("#q").value.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = searchWords($("#q").value);
   const res = $("#results");
   if (!words.length) { res.hidden = true; return; }
-  const hits = Object.values(P).filter(p => words.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w)))
+  const hits = Object.values(P).filter(p => matches(p, words))
     .sort((a, b) => name(a).localeCompare(name(b)));
   res.replaceChildren(...(hits.length ? hits.map(p => h("button", { onclick: () => {
     res.hidden = true; $("#q").value = ""; seeTree(p.id);
@@ -1203,17 +1206,12 @@ function renderMerge() {
 
   if (!m.absorb) {  // step 1: find the duplicate
     const keep = P[m.keep];
-    const words = m.q.toLowerCase().split(/\s+/).filter(Boolean);
-    const hits = Object.values(P).filter(p => p.id !== m.keep
-      && (!words.length || words.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w))))
-      .sort((a, b) => (b.last === keep.last) - (a.last === keep.last) || name(a).localeCompare(name(b)))
-      .slice(0, 40);
     const input = h("input", { id: "merge-q", type: "search", value: m.q, placeholder: "Search a name", autocomplete: "off" });
     input.addEventListener("input", () => { m.q = input.value; const l = $("#merge-list"); if (l) l.replaceChildren(...candidates()); });
     function candidates() {
-      const ws = m.q.toLowerCase().split(/\s+/).filter(Boolean);
+      const ws = searchWords(m.q);
       const list = Object.values(P).filter(p => p.id !== m.keep
-        && (!ws.length || ws.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w))))
+        && (!ws.length || matches(p, ws)))
         .sort((a, b) => (b.last === keep.last) - (a.last === keep.last) || name(a).localeCompare(name(b))).slice(0, 40);
       return list.length ? list.map(p => h("button", { class: "pickrow", onclick: () => { m.absorb = p.id; renderMerge(); } },
         photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet"))))
@@ -1333,9 +1331,9 @@ function renderAdd() {
   const q = h("input", { id: "add-q", type: "search", placeholder: "Type a name to look for", autocomplete: "off" });
   const list = h("div", { class: "pick" });
   q.addEventListener("input", () => {
-    const words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const words = searchWords(q.value);
     const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) &&
-      words.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w)));
+      matches(p, words));
     list.replaceChildren(...hits.map(p => h("div", { class: "row-p" },
       h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
       h("button", { onclick: () => doAdd({ existing: p.id }) }, "Choose"))));
@@ -1419,8 +1417,8 @@ function renderStart() {
   const q = h("input", { id: "start-q", type: "search", placeholder: "Type a name", autocomplete: "off", "aria-label": "Type a name" });
   const list = h("div", { class: "pick" });
   q.addEventListener("input", () => {
-    const words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
-    const hits = !words.length ? [] : Object.values(P).filter(p => words.every(w => `${p.first} ${p.last} ${p.nick}`.toLowerCase().includes(w)))
+    const words = searchWords(q.value);
+    const hits = !words.length ? [] : Object.values(P).filter(p => matches(p, words))
       .sort((a, b) => name(a).localeCompare(name(b))).slice(0, 30);
     list.replaceChildren(...hits.map(p => h("button", { class: "row-p pickbtn", onclick: () => seeTree(p.id) },
       photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")))));
