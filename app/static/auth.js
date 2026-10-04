@@ -15,7 +15,7 @@ export const auth = {
   save(t) { store.set("eg_access", t.access_token); if (t.refresh_token) store.set("eg_refresh", t.refresh_token); },
   clear() {
     store.set("eg_access", null); store.set("eg_refresh", null);
-    fetch(`${BASE}/auth/session`, { method: "DELETE" }).catch(() => {});
+    fetch(`${BASE}/auth/session`, { method: "DELETE", keepalive: true }).catch(() => {});
   },
 };
 

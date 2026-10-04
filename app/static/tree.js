@@ -1558,6 +1558,7 @@ async function start() {
   rememberFocus();
   renderAll();
 }
-$("#logout").onclick = () => { auth.clear(); location.hash = ""; showLogin(); };
+// Log out: forget the login and reload, so nothing of the tree stays in the page for the next person.
+$("#logout").onclick = async () => { await flushSaves(); auth.clear(); location.replace(location.pathname); };
 start();
 
