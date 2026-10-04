@@ -12,6 +12,7 @@ services:
       GRAMPS_URL: ${GRAMPS_URL}
       GRAMPS_PUBLIC_URL: ${GRAMPS_PUBLIC_URL:-}
       GRAMPS_LINK_LABEL: ${GRAMPS_LINK_LABEL:-Full Gramps}
+      SOURCE_URL: ${SOURCE_URL:-}
       BASE_PATH: ${BASE_PATH:-/family}
       TREE_TAG: ${TREE_TAG:-Easy Gramps}
       DEBUG_LOG: ${DEBUG_LOG:-}

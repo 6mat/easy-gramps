@@ -154,6 +154,12 @@ def test_responses_are_compressed_and_carry_security_headers(fake, client):  # #
     assert "googleapis" not in r.headers["content-security-policy"]
 
 
+def test_page_links_to_source_code(fake, client):
+    import main
+    assert f'id="menu-source" href="{main.SOURCE_URL}"' in client.get("/family/").text
+    assert "__SOURCE__" not in client.get("/family/").text
+
+
 def test_tag_created_once_for_concurrent_first_edits(fake, client):  # #39
     import asyncio
     import gramps
