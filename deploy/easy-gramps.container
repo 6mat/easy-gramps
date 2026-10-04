@@ -35,7 +35,7 @@ Environment=FORWARDED_ALLOW_IPS=*
 
 Label=traefik.enable=true
 # Quoted because the rule has spaces: Quadlet splits an unquoted Label= line at whitespace.
-Label="traefik.http.routers.easy-gramps.rule=Host(`gramps.example.com`) && PathPrefix(`/family`)"
+Label="traefik.http.routers.easy-gramps.rule=Host(`gramps.example.com`)&&PathPrefix(`/family`)"
 Label=traefik.http.routers.easy-gramps.entrypoints=websecure
 Label=traefik.http.routers.easy-gramps.tls.certresolver=letsencrypt
 # Must beat Gramps Web's Host-only router. Traefik ranks routers without a priority by rule length,
