@@ -392,7 +392,7 @@ function nodeEl(id, focus) {
   const el = h("div", { class: `node${focus ? " focus" : ""}${S.sel === id ? " sel" : ""}`, "data-key": id, tabindex: "0",
     role: "button", "aria-label": `${rel ? rel + ": " : ""}${name(p)} ${years(p)}`,
     onclick: e => { e.stopPropagation(); if (S.dragged) return; select(id, true); },
-    onkeydown: e => { if (e.key === "Enter") { e.stopPropagation(); select(id); showPanel(); } } },
+    onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); } } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
     h("span", { class: "pl" }, p.birthPlace || " "));
@@ -760,7 +760,7 @@ $("#showlink").addEventListener("change", () => {
 
 // ----- arrow keys: ↑ parent, ↓ eldest child, ← → neighbours in the row, Enter details, Esc clear -----
 document.addEventListener("keydown", e => {
-  if (!$("#editor").hidden || e.target.closest("input, textarea, select")) return;
+  if (!$("#editor").hidden || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
   const L = S.layout;
   if (!L) return;
   const at = id => L.nodes.find(n => n.key === id);
@@ -945,10 +945,11 @@ async function closeEditor() {
 }
 $("#ed-back").onclick = closeEditor;
 document.addEventListener("keydown", e => {
-  if (e.key !== "Escape" || $("#editor").hidden) return;
-  if (!$("#dlg-wrap").hidden) closeDialog();
+  if (e.key !== "Escape") return;
+  if (!$("#dlg-wrap").hidden) { e.stopImmediatePropagation(); S.merge ? closeMerge() : closeDialog(); }
+  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); $("#menubtn").focus(); }
   else if (!$("#editor").hidden) closeEditor();
-});
+}, true);  // capture: before the tree's arrow-key handler
 
 function rcard(id, rel, famObj, base, isNew) {
   const p = P[id];
@@ -1125,13 +1126,32 @@ function renderEditor() {
 }
 
 // ---------- add dialog ----------
+// The pop-up dialog (Add, Merge): focus goes into it, Tab stays inside, and focus returns on close.
+let dlgOpener = null;
+function showDlg(wide) {
+  dlgOpener = document.activeElement;
+  $("#dlg").classList.toggle("wide", wide);
+  $("#dlg-wrap").hidden = false;
+}
+function hideDlg() {
+  $("#dlg-wrap").hidden = true;
+  if (dlgOpener?.isConnected) dlgOpener.focus();
+  dlgOpener = null;
+}
+$("#dlg-wrap").addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const f = [...$("#dlg").querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
+  else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+});
 function openAdd(pid, rel, famId) {
   S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
-  $("#dlg").classList.remove("wide");
-  $("#dlg-wrap").hidden = false;
+  showDlg(false);
   renderAdd();
 }
-function closeDialog() { $("#dlg-wrap").hidden = true; if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
+function closeDialog() { hideDlg(); if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
 
 // ---------- merge two records of the same person ----------
 const dateEq = (a, b) => (!a && !b) || (a && b && a.y === b.y && (a.m || 0) === (b.m || 0) && (a.d || 0) === (b.d || 0) && !!a.about === !!b.about);
@@ -1149,9 +1169,9 @@ const MERGE_FIELDS = [
 
 function openMerge(id) {
   S.merge = { keep: id, absorb: null, q: name(P[id]), choice: {}, text: {}, confirm: false, busy: false };
-  $("#dlg").classList.add("wide");
-  $("#dlg-wrap").hidden = false;
+  showDlg(true);
   renderMerge();
+  $("#merge-q")?.focus();
 }
 function swapMerge() {
   const m = S.merge;
@@ -1271,7 +1291,7 @@ async function doMerge() {
     toast(`Couldn't combine: ${err.message}`);
   }
 }
-function closeMerge() { $("#dlg-wrap").hidden = true; $("#dlg").classList.remove("wide"); S.merge = null; }
+function closeMerge() { hideDlg(); $("#dlg").classList.remove("wide"); S.merge = null; }
 
 
 function linked(pid) {
@@ -1359,7 +1379,7 @@ async function doAdd(choice) {
     await flushSaves();
     const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
     const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
-    $("#dlg-wrap").hidden = true; S.add = null;
+    hideDlg(); S.add = null;
     S.newlyAdded = res.added;
     await refresh();
     S.newlyAdded = null;
