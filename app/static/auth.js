@@ -4,7 +4,7 @@
 export const BASE = document.documentElement.dataset.base || "";
 
 // ---------- storage + api ----------
-const store = {
+export const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };

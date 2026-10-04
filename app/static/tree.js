@@ -1,5 +1,5 @@
 // Easy Gramps — family tree view. Data comes from Gramps Web through this app's /tree/* endpoints.
-import { api, auth, login, LoginNeeded, BASE, photoSession } from "./auth.js";
+import { api, auth, login, LoginNeeded, BASE, photoSession, store } from "./auth.js";
 
 if (new URLSearchParams(location.search).has("debug")) import("./debug.js");  // screen diagnostics
 
@@ -13,10 +13,8 @@ async function loadGraph() {
   FAMS.length = 0; FAMS.push(...g.families);
 }
 
-// Switches for the editing features (all on).
-const EDIT_READY = true;
 
-const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom: 1, fit: true, panel: true, pop: null, big: false, full: false, role: "guest", stack: [], add: null, more: false, edMore: false, menu: null, snap: null, merge: null };
+const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom: 1, fit: true, panel: true, pop: null, big: false, full: false, role: "guest", stack: [], add: null, more: false, edMore: false, menu: null, merge: null };
 
 // ---------- helpers ----------
 const $ = s => document.querySelector(s);
@@ -38,8 +36,8 @@ const matches = (p, words) => words.every(w => `${p.first} ${p.last} ${p.nick}`.
 // People already in the tree with the name being typed: match each part that was given.
 const sameName = (first, last) => Object.values(P).filter(p =>
   (!first || p.first.toLowerCase() === first.toLowerCase()) && (!last || p.last.toLowerCase() === last.toLowerCase()));
-const canAdd = () => EDIT_READY && S.role !== "guest";
-const canEdit = () => EDIT_READY && S.role === "editor";
+const canAdd = () => S.role !== "guest";
+const canEdit = () => S.role === "editor";
 const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
 const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
 // Their parents' family: the first in Gramps' own order (the server uses the same one when adding a parent).
@@ -722,8 +720,6 @@ $("#z-full").onclick = () => toggleFull();
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && S.full) toggleFull(false); });
 
 // ----- ☰ menu: light / dark theme and help -----
-const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
-                set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
 function applyTheme(t) {
   if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
