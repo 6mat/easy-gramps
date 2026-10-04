@@ -361,7 +361,7 @@ function renderTree() {
     el.style.left = `${n.x + OX}px`; el.style.top = `${n.y}px`;
     el.style.width = `${BW}px`; el.style.height = `${BH}px`;
     return el;
-  }));
+  }), ...nodes.filter(n => !n.slot && n.key === S.sel && canAdd()).slice(0, 1).map(n => plusEl(n, OX)));
   drawLines({ couples, fams, arches, pos, rowY, OX, focusFams: sfs.map(x => x.id) });
 
   // title bar: back on the left, whose tree in the middle, the selected person's tree on the right
@@ -396,8 +396,15 @@ function nodeEl(id, focus) {
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
     h("span", { class: "pl" }, p.birthPlace || " "));
-  if (canAdd() && S.sel === id) el.append(h("button", { class: "plus", title: `Edit ${p.first}`, "aria-label": `Edit ${name(p)}`,
-    onclick: e => { e.stopPropagation(); openEditor(id); } }, "✎"));
+  return el;
+}
+// The ✎ on the selected box sits beside it in the page (a button inside the box's own button
+// confuses screen readers), placed over the box's bottom-right corner as before.
+function plusEl(n, OX) {
+  const p = P[n.key];
+  const el = h("button", { class: "plus", title: `Edit ${p.first}`, "aria-label": `Edit ${name(p)}`,
+    onclick: e => { e.stopPropagation(); openEditor(n.key); } }, "✎");
+  el.style.left = `${n.x + OX + BW - 22}px`; el.style.top = `${n.y + BH - 22}px`;
   return el;
 }
 function slotEl(label, onClick) {
@@ -1000,13 +1007,13 @@ function bindText(p, key, id, opts = {}) {
   el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }); });
   return el;
 }
-function dateInputs(prefix, get, set) {
+function dateInputs(prefix, label, get, set) {
   const d = get() || {};
   const yearOnlyStart = !!(d.y && !(d.m && d.d));
   const pad = n => String(n).padStart(2, "0");
-  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit() });
+  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit(), "aria-label": label });
   cal.value = d.y && d.m && d.d ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : "";
-  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit() });
+  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit(), "aria-label": `${label}: year` });
   yr.value = yearOnlyStart ? d.y : "";
   const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
   yo.checked = yearOnlyStart;
@@ -1052,7 +1059,7 @@ function centreCard(p) {
   const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
-    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
+    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
     field("Place of burial", bindText(p, "burial", "ed-burial")));
   deathBox.hidden = !p.deceased;
   passed.addEventListener("change", () => {
@@ -1081,7 +1088,7 @@ function centreCard(p) {
     field("Last name", bindText(p, "last", "ed-last")),
     field("Nickname", bindText(p, "nick", "ed-nick")),
     gender,
-    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
+    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
     field("Place of birth", bindText(p, "birthPlace", "ed-bplace")),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
@@ -1340,7 +1347,7 @@ function renderAdd() {
     : ig ? h("div", { class: "small muted" }, `Will be saved as ${ig === "m" ? "male" : "female"}.`) : "";
   let bd = null;
   const bdOn = h("input", { id: "add-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("add-bd", () => null, v => { bd = v; }));
+  const bdBox = h("div", {}, dateInputs("add-bd", "Birthday", () => null, v => { bd = v; }));
   bdBox.hidden = true;
   bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
   const warn = h("div", { id: "add-warn" });
@@ -1462,7 +1469,7 @@ function newPersonForm() {
   }));
   let bd = null;
   const bdOn = h("input", { id: "np-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("np-bd", () => null, v => { bd = v; }));
+  const bdBox = h("div", {}, dateInputs("np-bd", "Birthday", () => null, v => { bd = v; }));
   bdBox.hidden = true;
   bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
   const warn = h("div");

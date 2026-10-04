@@ -15,7 +15,7 @@
 /* Easy Gramps palette (v1), extended with one colour per family for the tree's lines. */
 :root {
   --bg: #f6f3ee; --canvas: #fbf9f5; --card: #ffffff; --ink: #1d1b18; --muted: #5c574f; --line: #e2dbcf; --edge: #b8ae9f;
-  --accent: #1f5f99; --accent-ink: #ffffff; --accent-soft: #e6eef7; --ok: #2f6f4e; --ok-soft: #e5f1ea; --bad: #a3261b; --ring: #e09a00; --sel: #d98300; --sel-soft: #fbeccf; --dot: #e8e2d7;
+  --accent: #1f5f99; --accent-ink: #ffffff; --accent-soft: #e6eef7; --ok: #2f6f4e; --ok-soft: #e5f1ea; --bad: #a3261b; --ring: #e09a00; --sel: #d98300; --sel-ink: #9a5b00; --sel-soft: #fbeccf; --dot: #e8e2d7;
   --f0: #2c7a6b; --f1: #a0571a; --f2: #7a3e8e; --f3: #b0445a; --f4: #4f6b2a; --f5: #4a4fa3;
   --shadow: 0 1px 2px rgba(40, 30, 10, .08), 0 2px 8px rgba(40, 30, 10, .06);
   color-scheme: light;
@@ -23,14 +23,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #171614; --canvas: #1c1b19; --card: #25231f; --ink: #f3efe8; --muted: #b5ad9f; --line: #37342f; --edge: #5a554c;
-    --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: #f0b429; --sel: #f0b429; --sel-soft: #3a2f16; --dot: #2a2825;
+    --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: #f0b429; --sel: #f0b429; --sel-ink: #f0b429; --sel-soft: #3a2f16; --dot: #2a2825;
     --f0: #5cc4ad; --f1: #e0a15c; --f2: #c79ad6; --f3: #f08aa0; --f4: #a8c46a; --f5: #9ea3f0;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #171614; --canvas: #1c1b19; --card: #25231f; --ink: #f3efe8; --muted: #b5ad9f; --line: #37342f; --edge: #5a554c;
-  --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: #f0b429; --sel: #f0b429; --sel-soft: #3a2f16; --dot: #2a2825;
+  --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: #f0b429; --sel: #f0b429; --sel-ink: #f0b429; --sel-soft: #3a2f16; --dot: #2a2825;
   --f0: #5cc4ad; --f1: #e0a15c; --f2: #c79ad6; --f3: #f08aa0; --f4: #a8c46a; --f5: #9ea3f0;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
 }
@@ -50,7 +50,9 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 button.danger { border-color: var(--bad); color: var(--bad); }
 button.ghost { border-color: transparent; background: transparent; }
 input, select, textarea { background: var(--card); border: 1.5px solid var(--edge); border-radius: 10px; padding: 9px 11px; width: 100%; }
-input[type=checkbox], input[type=radio] { width: 1.2em; height: 1.2em; accent-color: var(--accent); }
+input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+/* Big enough to tap: on touch screens every button is at least 44 px (WCAG target size). */
+@media (pointer: coarse) { button { min-height: 44px; min-width: 44px; } }
 .muted { color: var(--muted); }
 .small { font-size: 14px; }
 .pad { padding: 8px 10px; }
@@ -131,7 +133,7 @@ body.fullmode .treepane { border-radius: 0; border: 0; }
 .menuwrap { position: relative; margin-left: auto; }
 .menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 280px; background: var(--card); border: 1px solid var(--line);
   border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
-.menu-pop h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.menu-pop h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .menu-pop label { display: flex; align-items: center; gap: 8px; }
 /* theme picker: a segmented control, like most apps */
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
@@ -157,7 +159,7 @@ body.big .node .nm { font-size: 18px; } body.big .node.focus .nm { font-size: 19
 body.big .node .yr { font-size: 15px; } body.big .node .pl { font-size: 14px; }
 body.big .node { grid-template-columns: 52px 1fr; }
 body.big .node .ph { width: 52px; height: 52px; }
-body.big .node .tag { font-size: 12px; }
+body.big .node .tag { font-size: 14px; }
 #lines { position: absolute; left: 0; top: 0; pointer-events: none; }
 #selink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
 #selink .selink-line { fill: none; stroke: var(--sel); stroke-width: 1.6; stroke-dasharray: 2.5 4; stroke-linecap: round; opacity: .9; }
@@ -176,15 +178,15 @@ body.big .node .tag { font-size: 12px; }
 .node .ph { grid-row: 1 / span 3; align-self: center; }
 .node .nm { font-weight: 700; font-size: 15px; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .node .yr { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.node .pl { font-size: 12px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.node .pl { font-size: 13px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .node .tag { position: absolute; top: -11px; left: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
-  padding: 1px 8px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  padding: 1px 8px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .node.focus { border: 2.5px solid var(--accent); background: var(--accent-soft); }
 .node.focus .nm { font-size: 16px; }
 .node.focus .tag { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .node.sel { outline: 4px solid var(--sel); outline-offset: 3px; }
 .node.focus.sel { outline-color: var(--accent); }  /* the tree's own person: blue ring, blue line, blue panel edge */
-.node .plus { position: absolute; right: -14px; bottom: -14px; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+.plus { position: absolute; z-index: 2; width: 36px; height: 36px; padding: 0; border-radius: 50%;
   line-height: 1; font-size: 18px; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
 .slot { width: 204px; min-height: 64px; border: 2px dashed var(--edge); border-radius: 12px; background: transparent;
   color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 700; }
@@ -211,7 +213,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .kv dt { color: var(--muted); font-size: 14px; }
 .kv dd { margin: 0; }
 .fam { display: flex; flex-direction: column; gap: 8px; }
-.fam h3, .panel h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.fam h3, .panel h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-weight: 400; font-size: 14px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--canvas); }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
@@ -234,7 +236,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .status button { padding: 1px 8px; font-size: 13px; margin-left: 6px; }
 .ed-body { overflow: auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 32px; align-items: center; }
 .ed-sec { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; }
-.ed-sec > h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.ed-sec > h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .ed-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
 .rcard { position: relative; width: 220px; background: var(--card); border: 1.5px solid var(--edge); border-radius: 12px; padding: 14px 12px 12px;
   display: grid; grid-template-columns: 44px 1fr auto; gap: 1px 10px; text-align: left; box-shadow: var(--shadow); }
@@ -243,7 +245,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .rcard .yr, .rcard .ds { font-size: 13px; color: var(--muted); grid-column: 2 / 4; }
 .rcard .more { grid-row: 1; grid-column: 3; padding: 0 8px; border: 0; background: none; font-size: 20px; line-height: 1; }
 .rcard .role { position: absolute; top: -11px; left: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
-  padding: 1px 8px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  padding: 1px 8px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .rcard.new { outline: 4px solid var(--ok); outline-offset: 2px; }
 .ed-slot { width: 220px; min-height: 92px; }
 .menu { position: absolute; z-index: 30; top: 100%; right: 0; margin-top: 6px; width: 270px; background: var(--card);
@@ -346,7 +348,7 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 .recentgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .recentgrid:has(> .recent[hidden]) { grid-template-columns: 1fr; }
 .recent { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.recent h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.recent h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .recentlist { display: flex; flex-direction: column; gap: 6px; }
 .recentcard { display: flex; gap: 10px; align-items: center; text-align: left; font-weight: 400; padding: 7px 10px; background: var(--card); }
 .recentcard:hover { background: var(--accent-soft); }
@@ -367,7 +369,7 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 
 /* ---------- "in the tree twice?" + merge dialog ---------- */
 .panel .dupbtn { margin-top: 4px; align-self: flex-start; color: var(--muted); text-decoration: underline; font-weight: 400; font-size: 14px; padding: 4px 0; }
-.panel .dupbtn:hover { color: var(--sel); }
+.panel .dupbtn:hover { color: var(--sel-ink); }
 .btnrow.end { justify-content: flex-end; }
 .pickrow { display: flex; align-items: center; gap: 12px; text-align: left; font-weight: 400; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .pickrow:hover { background: var(--accent-soft); border-color: var(--accent); }
@@ -376,12 +378,12 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 .dlg.wide { width: 820px; }
 .cmphead { display: grid; grid-template-columns: 110px 1fr 1fr 1fr; align-items: start; gap: 8px; margin: 6px 0 2px; }
 .cmphead .swap { justify-self: center; align-self: center; }
-.cmphead .rescol .cmptag { color: var(--sel); }
+.cmphead .rescol .cmptag { color: var(--sel-ink); }
 .cmphead .rescol strong { color: var(--muted); font-weight: 400; font-size: 14px; }
 .cmpwho { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .cmpwho .ph { width: 48px; height: 48px; }
-.cmptag { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
-.cmphead .keepcol .cmptag { color: var(--sel); }
+.cmptag { font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.cmphead .keepcol .cmptag { color: var(--sel-ink); }
 .cmphead .swap { font-size: 22px; padding: 6px 10px; border-radius: 10px; }
 .cmp { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; max-height: 42vh; overflow: auto; }
 .cmprow { display: grid; grid-template-columns: 110px 1fr 1fr 1fr; gap: 8px; align-items: stretch; }
@@ -403,12 +405,12 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 }
 
 .cmpresult { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-.cmpres-lbl { display: none; font-size: 12px; font-weight: 700; color: var(--sel); margin-bottom: 2px; }
+.cmpres-lbl { display: none; font-size: 13px; font-weight: 700; color: var(--sel-ink); margin-bottom: 2px; }
 .cmpresult input { width: 100%; font-weight: 700; border-color: var(--sel); background: var(--sel-soft); }
 .cmpresult input:focus-visible { outline: 3px solid var(--ring); }
 .cmpfinal { border: 1.5px solid var(--sel); border-radius: 9px; padding: 8px 10px; background: var(--sel-soft); font-weight: 700; }
 .cmpfinal.empty { color: var(--muted); font-weight: 400; font-style: italic; }
-.cmphint { font-size: 12px; color: var(--muted); margin: -2px 0 2px; }
+.cmphint { font-size: 13px; color: var(--muted); margin: -2px 0 2px; }
 @media (max-width: 620px) {
   .cmpres-lbl { display: block; }
 }
