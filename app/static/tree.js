@@ -308,7 +308,7 @@ function drawLines({ couples, fams, arches, pos, rowY, OX, focusFams }) {
     const [l, r] = A.x < B.x ? [A, B] : [B, A];
     d.push(`<path class="couple ${dotted ? "dot" : col(id)}" d="M${l.x + OX + BW} ${l.y + BH / 2}H${r.x + OX}"/>`);
   }
-  svg.innerHTML = d.join("");
+  svg.innerHTML = d.join("");  // only numbers and our own class names (c0–c5): never names or places (#9)
 }
 // At most one redraw per frame: resize and scroll fire many times a second.
 const perFrame = fn => { let queued = false; return () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; fn(); }); }; };
@@ -486,6 +486,7 @@ function drawMinimap() {
   const rects = L.nodes.map(n => `<rect class="${n.focus ? "mm-focus" : "mm-node"}" x="${(n.x + L.OX) * m}" y="${n.y * m}" width="${BW * m}" height="${BH * m}" rx="1.5"/>`).join("");
   const vx = sc.scrollLeft / z * m, vy = sc.scrollTop / z * m, vw = viewW() / z * m, vh = sc.clientHeight / z * m;
   const view = needed ? `<rect class="mm-view" x="${vx}" y="${vy}" width="${Math.min(vw, w)}" height="${Math.min(vh, hh)}" rx="2"/>` : "";
+  // Only numbers go into this markup (#9).
   mm.innerHTML = `<svg width="${w}" height="${hh}" viewBox="0 0 ${w} ${hh}" aria-hidden="true">${rects}${view}</svg>`;
   mm.dataset.m = m;
 }

@@ -129,6 +129,19 @@ def test_photos_use_an_httponly_cookie_not_a_url_token(fake, client):  # #3
     assert "max-age=0" in client.delete("/family/auth/session").headers["set-cookie"] or "expires" in client.delete("/family/auth/session").headers["set-cookie"].lower()
 
 
+def test_thumbnails_are_only_served_as_pictures(fake, client):  # #9
+    from starlette.testclient import TestClient
+    import main
+    anon = TestClient(main.app)
+    anon.cookies.set("eg_photo", "tok", path="/family/gapi/")
+    assert anon.get("/family/gapi/media/abc123/thumbnail/96").headers["content-type"] == "image/png"
+    for bad in ("text/html; charset=utf-8", "image/svg+xml", ""):
+        fake.thumb_type = bad
+        r = anon.get("/family/gapi/media/abc123/thumbnail/96")
+        assert r.headers["content-type"] == "application/octet-stream", bad
+        assert "default-src 'self'" in r.headers["content-security-policy"]
+
+
 def test_session_needs_a_valid_login(fake, client):
     from starlette.testclient import TestClient
     import main

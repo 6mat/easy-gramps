@@ -24,6 +24,7 @@ class FakeGramps:
         self.calls = []        # (method, path) of every request, for asserting what was (not) sent
         self.fail = {}         # (method, path prefix) -> status, to simulate errors
         self.token_status = 200
+        self.thumb_type = "image/png"  # what a thumbnail says it is
 
     # ----- helpers for tests -----
     def add(self, kind, **obj):
@@ -118,7 +119,7 @@ class FakeGramps:
         if len(parts) == 4 and parts[0] == "media" and parts[2] == "thumbnail":
             if request.headers.get("authorization") != "Bearer tok":
                 return httpx.Response(401, json={})
-            return httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png", "cache-control": "max-age=60"})
+            return httpx.Response(200, content=b"\x89PNG", headers={"content-type": self.thumb_type, "cache-control": "max-age=60"})
 
         kind = parts[0] if parts else ""
         if kind not in KINDS:
