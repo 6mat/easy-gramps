@@ -95,6 +95,7 @@ $("#toast-undo").onclick = async () => {
   undoToken = null;
   $("#toast").hidden = true;
   try {
+    await flushSaves();  // typing waiting to be saved goes first, so the reload can't undo it
     await api("/tree/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token) });
     await refresh();
     toast("Undone");
@@ -966,6 +967,7 @@ async function removeLink(id, rel, x, base) {
   S.menu = null;
   setStatus("Saving…", "saving");
   try {
+    await flushSaves();
     const res = await postJSON("/tree/unlink", { person: base, rel, other: id, famId: x.id });
     await refresh();
     setStatus("Saved ✓");
@@ -1230,6 +1232,7 @@ async function doMerge() {
   }
   m.busy = true; renderMerge();
   try {
+    await flushSaves();
     const res = await api("/tree/merge", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keep: m.keep, absorb: m.absorb, fields }) });
     closeMerge();
@@ -1330,6 +1333,7 @@ async function doAdd(choice) {
   buttons.forEach(b => { b.disabled = true; });
   setStatus("Saving…", "saving");
   try {
+    await flushSaves();
     const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
     const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
     $("#dlg-wrap").hidden = true; S.add = null;
