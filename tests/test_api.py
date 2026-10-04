@@ -145,3 +145,10 @@ def test_login_check_cache_is_hashed_and_bounded(fake, client, monkeypatch):  # 
     main._who_cache.pop(next(k for k in main._who_cache if not k.startswith("old")))
     client.get("/family/auth/me")
     assert len(main._who_cache) < 10
+
+
+def test_responses_are_compressed_and_carry_security_headers(fake, client):  # #41, #1
+    r = client.get("/family/", headers={"Accept-Encoding": "gzip"})
+    assert r.headers["content-encoding"] == "gzip"
+    assert "default-src 'self'" in r.headers["content-security-policy"] and r.headers["x-frame-options"] == "DENY"
+    assert "googleapis" not in r.headers["content-security-policy"]

@@ -14,6 +14,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 import familytree
 import gramps
@@ -400,3 +401,4 @@ else:
     app = easy
 
 app.middleware("http")(security_headers)
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # the whole-tree JSON shrinks several times over
