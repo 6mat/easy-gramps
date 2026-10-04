@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 0.9.1 — 2026-10-04
 
 ### Security
 - Dependencies upgraded past known vulnerabilities (Starlette 1.7, python-multipart 0.0.32).
