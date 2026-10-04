@@ -201,26 +201,37 @@ async def tree_create_person(request: Request):
     return await _tree_call(request, familytree.create_person)
 
 
+LINK_REFUSED = "Only editors can link family members. Ask an editor to add them."
+
+
+async def need_edit(request: Request, message: str):
+    # Linking or unlinking always changes an existing person or family, which Gramps allows only for
+    # Editors and up. Refuse here, before anything is created, so nothing is left half-done.
+    if not (await who(request)).get("can_edit"):
+        raise HTTPException(403, message)
+
+
 @easy.post("/tree/relative")
 async def tree_add_relative(request: Request):
+    await need_edit(request, LINK_REFUSED)
     return await _tree_call(request, familytree.add_relative)
 
 
 @easy.post("/tree/unlink")
 async def tree_unlink(request: Request):
+    await need_edit(request, LINK_REFUSED)
     return await _tree_call(request, familytree.unlink, with_tags=False)
 
 
 @easy.post("/tree/undo")
 async def tree_undo(request: Request):
+    await need_edit(request, "Only editors can undo changes to family links.")
     return await _tree_call(request, familytree.undo)
 
 
 @easy.post("/tree/merge")
 async def tree_merge(request: Request):
-    user = await who(request)
-    if not user.get("can_edit"):
-        raise HTTPException(403, "Only people with edit rights can merge")
+    await need_edit(request, "Only people with edit rights can merge")
     return await _tree_call(request, familytree.merge)
 
 

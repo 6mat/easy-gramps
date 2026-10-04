@@ -37,7 +37,9 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 ## Backend behaviour
 - Users log in with their **own Gramps Web account**; their token is passed straight to Gramps, so
   **Gramps enforces permissions** (Guest/Member view, Contributor add, Editor+ change).
-  `/auth/me` adds `can_add`, `can_edit`. Merge is editors only (checked server-side too).
+  `/auth/me` adds `can_add`, `can_edit`. Contributors can add people but not link them (Gramps refuses
+  a new family that links an existing person), so add relative / unlink / undo / merge are editors only,
+  checked server-side before anything is created; the page hides those buttons for them.
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
   `{y,m,d,about}`, birthplace, burial, first photo, `fams` in marriage order.
 - `GET /tree/details/{h}` — residence, phone, email, notes (loaded on demand).

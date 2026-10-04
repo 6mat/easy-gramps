@@ -15,7 +15,6 @@ async function loadGraph() {
 
 // Switches for the editing features (all on).
 const EDIT_READY = true;
-const REL_READY = true;
 
 const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom: 1, fit: true, panel: true, pop: null, big: false, full: false, role: "guest", stack: [], add: null, more: false, edMore: false, menu: null, snap: null, merge: null };
 
@@ -35,6 +34,7 @@ function h(tag, attrs = {}, ...kids) {
 }
 const canAdd = () => EDIT_READY && S.role !== "guest";
 const canEdit = () => EDIT_READY && S.role === "editor";
+const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
 const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
 const parentFam = id => FAMS.find(f => f.kids.includes(id));
 // A person's own families in marriage order (1st husband or wife first), then any the order doesn't list.
@@ -257,12 +257,12 @@ function renderTree() {
       const ks = spouseFams(k).map(y => other(y, k)).find(Boolean);
       return { k, ks, w: ks ? BW * 2 + CG : BW };
     });
-    if (canAdd()) items.push({ slot: true, famId: x.id, w: BW });
+    if (canLink()) items.push({ slot: true, famId: x.id, w: BW });
     if (!items.length) continue;
     const w = items.reduce((t, it) => t + it.w, 0) + SG * (items.length - 1);
     kidUnits.push({ fam: x, items, w, want: drop[x.id].x });
   }
-  if (!sfs.length && canAdd()) kidUnits.push({ fam: null, items: [{ slot: true, famId: null, w: BW }], w: BW, want: fx + BW / 2 });
+  if (!sfs.length && canLink()) kidUnits.push({ fam: null, items: [{ slot: true, famId: null, w: BW }], w: BW, want: fx + BW / 2 });
   spread(kidUnits);
   for (const u of kidUnits) {
     let gx = u.x;
@@ -390,7 +390,7 @@ function nodeEl(id, focus) {
   return el;
 }
 function slotEl(label, onClick) {
-  return canAdd() && REL_READY ? h("button", { class: "slot tslot", onclick: e => { e.stopPropagation(); onClick(); } }, `Add ${label.slice(2).toLowerCase()}`)
+  return canLink() ? h("button", { class: "slot tslot", onclick: e => { e.stopPropagation(); onClick(); } }, `Add ${label.slice(2).toLowerCase()}`)
     : h("span", { class: "slot tslot" }, `No ${label.slice(2).toLowerCase()} added`);
 }
 
@@ -952,7 +952,7 @@ function rcard(id, rel, famObj, base, isNew) {
 function menuEl(id, rel, famObj, base) {
   return h("div", { class: "menu" },
     h("button", { onclick: async () => { await flushSaves(); await ensureDetails(id).catch(() => {}); S.stack.push(id); S.menu = null; S.edMore = false; renderEditor(); } }, `Open ${P[id].first}'s family`),
-    canEdit() && REL_READY && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
+    canLink() && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
 }
 function confirmEl(id, rel, famObj, base) {
   const w = relWord(rel, P[base]);
@@ -1056,7 +1056,7 @@ function centreCard(p) {
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, photoEl(p, true),
       canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
-      !canEdit() && h("span", { class: "small muted" }, "Contributors can add family but not change details.")),
+      !canEdit() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
     field("First name", bindText(p, "first", "ed-first")),
     field("Last name", bindText(p, "last", "ed-last")),
     field("Nickname", bindText(p, "nick", "ed-nick")),
@@ -1080,25 +1080,25 @@ function renderEditor() {
   const lastNew = S.newlyAdded;
   const pf = parentFam(id);
   const parentsRow = h("div", { class: "ed-row" },
-    pf?.f ? rcard(pf.f, "father", pf, id, lastNew === pf.f) : REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "father") }, "Add father"),
-    pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
+    pf?.f ? rcard(pf.f, "father", pf, id, lastNew === pf.f) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "father") }, "Add father"),
+    pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
   const sfs = spouseFams(id);
   const sw = spouseWord(p);
   const spouseCol = h("div", { class: "spouses" },
     ...sfs.filter(x => other(x, id)).map(x => rcard(other(x, id), "spouse", x, id, lastNew === other(x, id))),
-    REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
       sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`));
   const kidGroups = sfs.map(x => {
     const o = other(x, id);
     const g = h("div", { class: "kidgroup" },
       h("span", { class: "glabel" }, o ? `Children with ${P[o].first}` : "Children (other parent not added)"),
       h("div", { class: "ed-row" }, ...byBirth(x.kids).map(k => rcard(k, "child", x, id, lastNew === k)),
-        REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
+        canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
     g.style.setProperty("--fc", `var(--f${sfs.indexOf(x) % 6})`);
     return g;
   });
   if (!sfs.length) kidGroups.push(h("div", { class: "kidgroup" }, h("span", { class: "glabel" }, "Children"),
-    REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
   $("#ed-body").replaceChildren(
     h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
     h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
