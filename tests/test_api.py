@@ -133,3 +133,15 @@ def test_session_needs_a_valid_login(fake, client):
     from starlette.testclient import TestClient
     import main
     assert TestClient(main.app, headers={"Authorization": "Bearer bad"}).post("/family/auth/session").status_code == 401
+
+
+def test_login_check_cache_is_hashed_and_bounded(fake, client, monkeypatch):  # #28
+    import main
+    main._who_cache.clear()
+    client.get("/family/auth/me")
+    assert "tok" not in main._who_cache and len(next(iter(main._who_cache))) == 64
+    main._who_cache.update({f"old{i}": (0, {}) for i in range(600)})
+    client.get("/family/auth/me", headers={"Authorization": "Bearer tok"})
+    main._who_cache.pop(next(k for k in main._who_cache if not k.startswith("old")))
+    client.get("/family/auth/me")
+    assert len(main._who_cache) < 10

@@ -4,6 +4,7 @@ Users log in with their Gramps Web account; every read and write goes to Gramps 
 with that user's own token, so Gramps permissions still apply.
 """
 import asyncio
+import hashlib
 import json
 import os
 import pathlib
@@ -114,7 +115,8 @@ def bearer(request: Request) -> str:
 
 async def who(request: Request) -> dict:
     token = bearer(request)
-    hit = _who_cache.get(token)
+    key = hashlib.sha256(token.encode()).hexdigest()  # don't keep raw tokens in memory
+    hit = _who_cache.get(key)
     if hit and hit[0] > time.time():
         return hit[1]
     r = await upstream.get("/users/-/", headers={"Authorization": f"Bearer {token}"})
@@ -123,7 +125,11 @@ async def who(request: Request) -> dict:
     user["can_add"] = user.get("role", 0) >= ROLE_CONTRIBUTOR
     user["can_edit"] = user.get("role", 0) >= ROLE_EDITOR
     user["gramps_link"] = {"url": GRAMPS_PUBLIC_URL, "label": GRAMPS_LINK_LABEL}
-    _who_cache[token] = (time.time() + 60, user)
+    now = time.time()
+    if len(_who_cache) > 500:  # drop expired entries so the cache can't grow forever
+        for k in [k for k, (until, _) in _who_cache.items() if until < now]:
+            del _who_cache[k]
+    _who_cache[key] = (now + 60, user)
     return user
 
 
