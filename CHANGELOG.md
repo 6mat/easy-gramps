@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Added
+- **One login for Easy Gramps and Gramps Web** when they're on the same site
+  (`https://gramps.example.com/family/` next to `https://gramps.example.com/`): logged in to one means
+  logged in to both, and "Log out" logs out of both. Gramps Web's own sign-in buttons (e.g. "Continue
+  with Google") appear on the login screen; signing in opens in a pop-up (a new tab on phones) and the
+  tree loads by itself once it's done. The name-and-password form hides itself when Gramps Web has
+  password login turned off. A login from before carries over once. Elsewhere nothing changes.
+- An account Gramps Web won't let in yet (e.g. a new Google user without a role) sees "Ask the family
+  tree's owner to let you in" instead of being logged out.
+
 ## 0.9.2 — 2026-10-04
 
 ### Security

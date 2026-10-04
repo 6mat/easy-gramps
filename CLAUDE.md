@@ -27,7 +27,7 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session},
+app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session,options},
                     /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
@@ -42,7 +42,16 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 ## Backend behaviour
 - Users log in with their **own Gramps Web account**; their token is passed straight to Gramps, so
   **Gramps enforces permissions** (Guest/Member view, Contributor add, Editor+ change).
-  `/auth/me` adds `can_add`, `can_edit`. Contributors can add people but not link them (Gramps refuses
+  `/auth/me` adds `can_add`, `can_edit`; a login Gramps refuses (403, role < 0) is a 403 "ask the owner",
+  never "log in again".
+- **Shared login** when the page and `GRAMPS_PUBLIC_URL` (`data-gramps`) are the same origin: auth.js uses
+  Gramps Web's own `localStorage` keys (`access_token`, `refresh_token`, plus `access_token_expires`,
+  `id_token`); old `eg_*` keys carry over once. Gramps Web's refresh doesn't rotate the refresh token, so
+  both apps renew independently. Log out clears both apps' keys; a `storage` event from Gramps Web
+  logs this page in or out. `GET /auth/options` (no login) relays Gramps Web's `/api/oidc/config/`:
+  sign-in buttons (opened in a pop-up at `/api/oidc/login/?provider=…`; Gramps Web then shows its own
+  home page there, so the page watches for the login instead of being sent back) and `password: false`
+  when Gramps Web disables local login. Other origins keep the `eg_*` keys and the password form. Contributors can add people but not link them (Gramps refuses
   a new family that links an existing person), so add relative / unlink / undo / merge are editors only,
   checked server-side before anything is created; the page hides those buttons for them.
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
