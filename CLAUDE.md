@@ -19,7 +19,9 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
 cp .env.example .env    # GRAMPS_URL=https://demo.grampsweb.org for testing
 docker compose up -d --build        # http://localhost:8095/family/
 node --check app/static/tree.js     # quick syntax check after JS edits
+pytest && ruff check app tests      # backend tests (fake Gramps Web in tests/fake_gramps.py)
 ```
+Every screen in a browser: `tests/e2e/screens.mjs` (see README → Tests); `--write` only against the demo.
 Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 `GRAMPS_URL=... BASE_PATH=/family DATA_DIR=../data uvicorn main:app --port 8095`.
 

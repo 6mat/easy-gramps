@@ -50,9 +50,9 @@ share the browser's `localStorage`. Gramps Web stores its login (password *or* O
       which is why step 1 (CSP) comes first.
 
 ### 3. Release
-- [ ] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);
+- [x] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);
       a Playwright smoke test against the Gramps Web demo (read-only parts).
-- [ ] GitHub Actions: lint + tests on push; on a `v*` tag, build a multi-arch (amd64 + arm64) image to GHCR.
+- [x] GitHub Actions: lint + tests on push; on a `v*` tag, build a multi-arch (amd64 + arm64) image to GHCR.
 - [x] `LICENSE`: AGPL-3.0-or-later, same as Gramps Web / Gramps Web API.
 - [ ] `CHANGELOG.md`, `SECURITY.md` (how to report), README screenshots (from the Gramps Web demo tree,
       never a real family).

@@ -45,6 +45,21 @@ docker compose up -d --build
 The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`member`,
 `editor`/`editor`, `owner`/`owner`) works well as a test backend.
 
+## Tests
+
+```
+pip install -r app/requirements.txt -r tests/requirements.txt
+pytest                      # backend, against a fake Gramps Web (no network)
+ruff check app tests
+
+cd tests/e2e && npm ci && npx playwright install chromium && cd ../..
+# with the app running against https://demo.grampsweb.org on port 8095:
+APP=http://localhost:8095/family/ node tests/e2e/screens.mjs           # every screen, read-only
+APP=http://localhost:8095/family/ node tests/e2e/screens.mjs --write   # also edits (ZZTEST records, cleaned up)
+```
+Never run `--write` against a real family tree. CI runs the first three on every push and the
+read-only screen check weekly.
+
 ## Settings
 
 | Setting | Meaning |
