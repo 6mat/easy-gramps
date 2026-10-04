@@ -898,7 +898,7 @@ $("#q").addEventListener("input", () => {
   res.replaceChildren(...(hits.length ? hits.map(p => h("button", { onclick: () => {
     res.hidden = true; $("#q").value = ""; seeTree(p.id);
   } }, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")))
-    : [h("div", { class: "small muted", style: "padding:8px" }, "No one found with that name.")]));
+    : [h("div", { class: "small muted pad" }, "No one found with that name.")]));
   res.hidden = false;
 });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) $("#results").hidden = true; });
@@ -1154,7 +1154,7 @@ function renderMerge() {
         .sort((a, b) => (b.last === keep.last) - (a.last === keep.last) || name(a).localeCompare(name(b))).slice(0, 40);
       return list.length ? list.map(p => h("button", { class: "pickrow", onclick: () => { m.absorb = p.id; renderMerge(); } },
         photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet"))))
-        : [h("div", { class: "small muted", style: "padding:10px" }, "No one else found with that name.")];
+        : [h("div", { class: "small muted pad" }, "No one else found with that name.")];
     }
     dlg.replaceChildren(
       h("h2", { id: "dlg-title" }, "Is this person in the tree twice?"),

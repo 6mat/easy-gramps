@@ -42,6 +42,33 @@ async def revalidate_pages(request: Request, call_next):
     return response
 
 
+# Sent with every response, so installs without our Traefik setup are covered too. HSTS stays with the TLS proxy.
+CSP = "; ".join([
+    "default-src 'self'",
+    "img-src 'self' data: blob:",  # data: for the favicon and icons, blob: for a photo preview
+    "style-src 'self' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+])
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CSP,
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), fullscreen=(self)",
+}
+
+
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for k, v in SECURITY_HEADERS.items():
+        response.headers.setdefault(k, v)
+    return response
+
+
 @easy.exception_handler(gramps.GrampsError)
 async def gramps_error(_, e: gramps.GrampsError):
     return JSONResponse({"detail": str(e)}, status_code=e.status)
@@ -263,3 +290,5 @@ if BASE_PATH:
     app.mount(BASE_PATH, easy)
 else:
     app = easy
+
+app.middleware("http")(security_headers)

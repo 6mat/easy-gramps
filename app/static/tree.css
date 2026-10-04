@@ -39,6 +39,7 @@ input, select, textarea { background: var(--card); border: 1.5px solid var(--edg
 input[type=checkbox], input[type=radio] { width: 1.2em; height: 1.2em; accent-color: var(--accent); }
 .muted { color: var(--muted); }
 .small { font-size: 14px; }
+.pad { padding: 8px 10px; }
 
 /* ---------- page ---------- */
 .app { height: 100%; display: grid; grid-template-rows: auto auto 1fr; padding-inline: 20px; }
