@@ -5,6 +5,7 @@ with that user's own token, so Gramps permissions still apply.
 """
 import asyncio
 import hashlib
+import html
 import json
 import os
 import pathlib
@@ -22,6 +23,9 @@ import gramps
 GRAMPS_URL = os.environ["GRAMPS_URL"].rstrip("/")  # how this app reaches Gramps Web (can be an internal Docker URL)
 GRAMPS_PUBLIC_URL = os.environ.get("GRAMPS_PUBLIC_URL", "").rstrip("/") or GRAMPS_URL  # what users' browsers open
 GRAMPS_LINK_LABEL = os.environ.get("GRAMPS_LINK_LABEL", "Full Gramps")  # menu link to Gramps Web
+# Menu link to this app's source code (AGPL: people using a modified copy over the network must be
+# offered its source). Point it at your own repository if you run a changed version.
+SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6mat/easy-gramps"
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /family
@@ -371,7 +375,8 @@ async def thumbnail(handle: str, size: int, request: Request):
 # ---------- pages ----------
 
 def page(name: str) -> HTMLResponse:
-    return HTMLResponse((STATIC / name).read_text().replace("__BASE__", BASE_PATH))
+    text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH)
+    return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))
 
 
 @easy.get("/")

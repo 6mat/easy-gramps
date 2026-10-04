@@ -14,6 +14,8 @@ relatives who find the full Gramps interface too much.
 It talks only to the Gramps Web API, using each person's own Gramps Web login, so **Gramps Web's
 roles and permissions still apply** (a Member can only look, a Contributor can add, an Editor can change).
 
+Easy Gramps is an independent project. It is not affiliated with or endorsed by the Gramps project.
+
 > Status: **0.9 preview.** Tested with Gramps Web API 3.22.x. Built for landscape screens
 > (laptop, tablet sideways); phones are not supported yet.
 
@@ -69,6 +71,7 @@ read-only screen check weekly.
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
 | `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
+| `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
@@ -83,5 +86,6 @@ read-only screen check weekly.
 ## License
 
 [GNU AGPL-3.0-or-later](LICENSE), the same license as Gramps Web and the Gramps Web API.
-If you run a modified version for others over a network, you must offer them its source.
+If you run a modified version for others over a network, you must offer them its source: the
+menu's "Source code" link does that once `SOURCE_URL` points at your copy.
 The bundled Atkinson Hyperlegible font (`app/static/fonts/`) is under the SIL Open Font License (`OFL.txt` there).

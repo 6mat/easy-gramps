@@ -2,6 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Added
+- Menu link "Source code ↗" (setting `SOURCE_URL`, defaults to this repository), so anyone running
+  a changed copy can offer its source as the AGPL asks.
+- README: Easy Gramps is not affiliated with or endorsed by the Gramps project.
+
 ## 0.9.1 — 2026-10-04
 
 ### Security
