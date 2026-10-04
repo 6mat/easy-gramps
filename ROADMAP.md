@@ -18,7 +18,7 @@ sharing the login with Gramps Web.
       same, but we can do better). Plan: `POST {BASE}/auth/session` with the Bearer token sets an
       `HttpOnly; Secure; SameSite=Strict` cookie scoped to `{BASE}/gapi/`; call it after login and every
       refresh; the thumbnail route reads the cookie. Photos stay HTTP-cacheable.
-- [ ] **Login rate limit per visitor.** Gramps Web limits `/api/token/` to 1/second **per IP**, and every
+- [x] **Login rate limit per visitor.** Gramps Web limits `/api/token/` to 1/second **per IP**, and every
       login through this app arrives from one IP, so one attacker can lock out everyone's logins here.
       Add our own per-client-IP limit on `/auth/login` (e.g. 5/min with back-off), using the
       `X-Forwarded-For` that uvicorn trusts via `FORWARDED_ALLOW_IPS` (set in the Traefik example).

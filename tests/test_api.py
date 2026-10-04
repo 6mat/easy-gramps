@@ -43,3 +43,48 @@ def test_gramps_unreachable_is_502(fake, client, monkeypatch):
     monkeypatch.setattr(main, "upstream", httpx.AsyncClient(base_url="http://gramps.test/api", transport=httpx.MockTransport(down)))
     r = client.get("/family/auth/me")
     assert r.status_code == 502 and "Can't reach" in r.json()["detail"]
+
+
+def login(client, pw):
+    return client.post("/family/auth/login", json={"username": "a", "password": pw})
+
+
+def test_login_limit_per_visitor(fake, client, monkeypatch):  # #4
+    import main
+    main._failed_logins.clear()
+    for _ in range(3):
+        assert login(client, "wrong").status_code == 401
+    r = login(client, "right")
+    assert r.status_code == 429 and "wait a minute" in r.json()["detail"]
+    assert len(fake.sent("POST", "/token/")) == 3  # the blocked try never reached Gramps
+    main._failed_logins.clear()
+    assert login(client, "right").status_code == 200
+
+
+def test_success_clears_failed_tries(fake, client):
+    import main
+    main._failed_logins.clear()
+    login(client, "wrong"); login(client, "wrong")
+    assert login(client, "right").status_code == 200
+    assert login(client, "wrong").status_code == 401  # count started again
+
+
+def test_hour_and_day_limits(fake, client, monkeypatch):
+    import main
+    main._failed_logins.clear()
+    now = main.time.time()
+    main._failed_logins["testclient"] = [now - 3000, now - 2000, now - 1000, now - 500, now - 120]
+    assert "an hour" in login(client, "right").json()["detail"]
+    main._failed_logins["testclient"] = [now - 80000 + i for i in range(7)]
+    assert "tomorrow" in login(client, "right").json()["detail"]
+
+
+def test_gramps_429_is_retried_once_then_too_many_tries(fake, client, monkeypatch):
+    import main
+    main._failed_logins.clear()
+    real_sleep = main.asyncio.sleep
+    monkeypatch.setattr(main.asyncio, "sleep", lambda s: real_sleep(0))
+    fake.token_status = 429
+    r = login(client, "right")
+    assert r.status_code == 429 and "Too many tries" in r.json()["detail"]
+    assert len(fake.sent("POST", "/token/")) == 2

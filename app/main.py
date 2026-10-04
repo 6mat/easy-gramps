@@ -3,6 +3,7 @@
 Users log in with their Gramps Web account; every read and write goes to Gramps Web
 with that user's own token, so Gramps permissions still apply.
 """
+import asyncio
 import json
 import os
 import pathlib
@@ -115,13 +116,42 @@ async def who(request: Request) -> dict:
     return user
 
 
+# Failed logins per visitor. Gramps limits /api/token/ per IP, and every login through this app comes
+# from this app's IP, so without our own per-visitor limit one person could lock everyone out.
+# The visitor's IP is X-Forwarded-For when uvicorn trusts the proxy (FORWARDED_ALLOW_IPS).
+LOGIN_LIMITS = ((60, 3, "Too many tries. Please wait a minute and try again."),
+                (3600, 5, "Too many tries. Please wait an hour and try again."),
+                (86400, 7, "Too many tries. Please try again tomorrow."))
+_failed_logins: dict[str, list[float]] = {}
+
+
+def login_blocked(ip: str) -> str | None:
+    now = time.time()
+    if len(_failed_logins) > 5000:  # keep memory bounded: forget visitors with nothing in the last day
+        for k in [k for k, v in _failed_logins.items() if not v or now - v[-1] > 86400]:
+            del _failed_logins[k]
+    tries = [t for t in _failed_logins.get(ip, []) if now - t < 86400]
+    _failed_logins[ip] = tries
+    return next((msg for window, limit, msg in LOGIN_LIMITS if sum(now - t < window for t in tries) >= limit), None)
+
+
 @easy.post("/auth/login")
 async def login(request: Request):
+    ip = request.client.host if request.client else "?"
+    if msg := login_blocked(ip):
+        raise HTTPException(429, msg)
     body = await request.json()
-    r = await upstream.post("/token/", json={"username": body.get("username", "").strip(),
-                                             "password": body.get("password", "")})
+    creds = {"username": body.get("username", "").strip(), "password": body.get("password", "")}
+    r = await upstream.post("/token/", json=creds)
+    if r.status_code == 429:  # Gramps allows one login a second for the whole app: wait and try once more
+        await asyncio.sleep(1.2)
+        r = await upstream.post("/token/", json=creds)
+    if r.status_code == 429:
+        raise HTTPException(429, LOGIN_LIMITS[0][2])
     if r.status_code != 200:
+        _failed_logins[ip].append(time.time())
         raise HTTPException(401, "That name or password didn't work")
+    _failed_logins.pop(ip, None)
     return r.json()
 
 

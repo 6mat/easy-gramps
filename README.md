@@ -53,6 +53,7 @@ The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`membe
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
 | `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
+| `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
 ## How it fits together
