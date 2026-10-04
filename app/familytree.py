@@ -1,0 +1,481 @@
+"""The family-tree view: everyone as one compact graph, plus the details shown under "More details".
+
+Reads go through the viewer's own Gramps Web token, so Gramps decides what they may see
+(private records and private addresses/emails are left out for roles without "view private").
+"""
+from gramps import Gramps
+
+GENDER_CODE = {0: "f", 1: "m"}
+MOD_ABOUT = 3
+
+
+def ymd(d):
+    """Gramps Date -> {y, m, d, about}, or None when there is no year."""
+    if not d or not d.get("dateval") or not d["dateval"][2]:
+        return None
+    day, month, year = d["dateval"][:3]
+    return {"y": year, "m": month or None, "d": day or None, "about": d.get("modifier") == MOD_ABOUT}
+
+
+def surname_of(name):
+    sl = name.get("surname_list") or []
+    primary = next((s for s in sl if s.get("primary")), sl[0] if sl else None)
+    return (primary or {}).get("surname", "")
+
+
+async def graph(g: Gramps) -> dict:
+    """Every person (the fields the tree and panel need) and every family, in one response."""
+    people = await g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
+                                          "birth_ref_index,death_ref_index,family_list,media_list")
+    families = await g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list")
+    events = {e["handle"]: e for e in await g.get("/events/", keys="handle,type,date,place")}
+    places = {p["handle"]: p["name"]["value"] for p in await g.get("/places/", keys="handle,name")}
+
+    out = {}
+    for p in people:
+        refs = p.get("event_ref_list") or []
+
+        def event_at(i):
+            return events.get(refs[i]["ref"]) if 0 <= i < len(refs) else None
+
+        birth, death = event_at(p.get("birth_ref_index", -1)), event_at(p.get("death_ref_index", -1))
+        burial = next((events[r["ref"]] for r in refs
+                       if r["ref"] in events and events[r["ref"]].get("type") == "Burial"), None)
+        name = p["primary_name"]
+        out[p["handle"]] = {
+            "id": p["handle"],
+            "gid": p.get("gramps_id", ""),
+            "first": (name.get("first_name") or "").strip(),
+            "last": surname_of(name),
+            "nick": name.get("nick") or "",
+            "gender": GENDER_CODE.get(p.get("gender"), ""),
+            "birth": ymd((birth or {}).get("date")),
+            "birthPlace": places.get((birth or {}).get("place"), ""),
+            "deceased": death is not None,
+            "death": ymd((death or {}).get("date")),
+            "burial": places.get((burial or {}).get("place"), ""),
+            "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
+            "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
+        }
+    fams = [{"id": f["handle"], "f": f.get("father_handle") or None, "m": f.get("mother_handle") or None,
+             "kids": [c["ref"] for c in f.get("child_ref_list") or []]}
+            for f in families]
+    return {"people": out, "families": fams}
+
+
+async def details(g: Gramps, handle: str) -> dict:
+    """Where they live, phone, email and notes: loaded only when someone opens "More details"."""
+    p = await g.get(f"/people/{handle}", extend="note_list")
+    addr = next(iter(p.get("address_list") or []), {})
+    email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
+    notes = [n["text"]["string"] for n in (p.get("extended") or {}).get("notes", []) if n.get("text", {}).get("string")]
+    residence = ", ".join(x for x in (addr.get("city"), addr.get("state"), addr.get("country")) if x)
+    return {"residence": residence, "phone": addr.get("phone", ""), "email": email, "notes": "\n\n".join(notes),
+            "private": bool(addr.get("private"))}
+
+
+# ---------- editing one person, a field at a time (the editor autosaves each change) ----------
+
+from gramps import GENDER, GrampsError, gramps_date, new_handle, note_obj, upload_photo  # noqa: E402
+
+FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",
+          "residence", "phone", "email", "notes"}
+EMPTY_DATE = {"_class": "Date", "calendar": 0, "modifier": 0, "quality": 0, "dateval": [0, 0, 0, False],
+              "sortval": 0, "newyear": 0, "text": "", "year": 0}
+
+
+def to_gramps_date(v):
+    if not v or not v.get("y"):
+        return None
+    return gramps_date({"year": v["y"], "month": v.get("m") or 0, "day": v.get("d") or 0, "about": v.get("about")})
+
+
+async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> dict:
+    unknown = set(changes) - FIELDS
+    if unknown:
+        raise GrampsError(f"Can't change: {', '.join(sorted(unknown))}")
+    p = await g.get(f"/people/{handle}")
+    refs = p.setdefault("event_ref_list", [])
+    new_objs, dirty_events, dropped, dropped_notes = [], {}, [], []
+    known_places = None
+
+    async def place_handle(name):
+        nonlocal known_places
+        name = (name or "").strip()
+        if not name:
+            return ""
+        if known_places is None:
+            known_places = await g.places_by_name()
+        if name.lower() not in known_places:
+            h = new_handle()
+            known_places[name.lower()] = h
+            new_objs.append({"_class": "Place", "handle": h, "place_type": "Unknown", "title": "", "tag_list": list(tags),
+                             "name": {"_class": "PlaceName", "value": name, "lang": ""}})
+        return known_places[name.lower()]
+
+    loaded = {}  # event handle -> event, fetched at most once
+
+    async def load_event(h):
+        if h not in loaded:
+            loaded[h] = next((o for o in new_objs if o.get("handle") == h), None) or await g.get(f"/events/{h}")
+        return loaded[h]
+
+    async def event(etype, index_key=None, create=True):
+        """The person's event of this type (via birth/death pointer, or by type), optionally creating it."""
+        idx = p.get(index_key, -1) if index_key else -1
+        if not index_key:
+            for i, r in enumerate(refs):
+                if (await load_event(r["ref"])).get("type") == etype:
+                    idx = i
+                    break
+        if 0 <= idx < len(refs):
+            ev = await load_event(refs[idx]["ref"])
+            dirty_events[ev["handle"]] = ev
+            return ev
+        if not create:
+            return None
+        ev = {"_class": "Event", "handle": new_handle(), "type": etype, "place": "", "description": "",
+              "tag_list": list(tags), "private": False}
+        new_objs.append(ev)
+        loaded[ev["handle"]] = dirty_events[ev["handle"]] = ev
+        refs.append({"_class": "EventRef", "ref": ev["handle"], "role": "Primary"})
+        if index_key:
+            p[index_key] = len(refs) - 1
+        return ev
+
+    def drop_event(ev, index_key=None):
+        """Take an event off the person (and delete it), keeping the birth/death pointers right."""
+        i = next(i for i, r in enumerate(refs) if r["ref"] == ev["handle"])
+        refs.pop(i)
+        for k in ("birth_ref_index", "death_ref_index"):
+            if p.get(k, -1) == i:
+                p[k] = -1
+            elif p.get(k, -1) > i:
+                p[k] -= 1
+        dirty_events.pop(ev["handle"], None)
+        if ev in new_objs:
+            new_objs.remove(ev)
+        else:
+            dropped.append(ev["handle"])
+
+    name = p["primary_name"]
+    if "first" in changes:
+        name["first_name"] = (changes["first"] or "").strip()
+    if "nick" in changes:
+        name["nick"] = (changes["nick"] or "").strip()
+    if "last" in changes:
+        rest = [s for s in name.get("surname_list", []) if not s.get("primary")]
+        last = (changes["last"] or "").strip()
+        name["surname_list"] = ([{"_class": "Surname", "surname": last, "primary": True}] if last else []) + rest
+    if "gender" in changes:
+        p["gender"] = GENDER.get({"m": "male", "f": "female"}.get(changes["gender"], "unknown"), 2)
+
+    if "birth" in changes or "birthPlace" in changes:
+        date = to_gramps_date(changes.get("birth")) if "birth" in changes else None
+        wants = date or (changes.get("birthPlace") or "").strip()
+        ev = await event("Birth", "birth_ref_index", create=bool(wants))
+        if ev:
+            if "birth" in changes:
+                ev["date"] = date or dict(EMPTY_DATE)
+            if "birthPlace" in changes:
+                ev["place"] = await place_handle(changes["birthPlace"])
+
+    if changes.get("death") and "deceased" not in changes:
+        changes["deceased"] = True  # a death date means they've passed away
+    if "deceased" in changes and not changes["deceased"]:
+        for etype, key in (("Death", "death_ref_index"), ("Burial", None)):
+            ev = await event(etype, key, create=False)
+            if ev:
+                drop_event(ev, key)
+    else:
+        if changes.get("deceased") or "death" in changes:
+            ev = await event("Death", "death_ref_index", create=True)
+            if "death" in changes:
+                ev["date"] = to_gramps_date(changes["death"]) or dict(EMPTY_DATE)
+        if "burial" in changes:
+            place = await place_handle(changes["burial"])
+            ev = await event("Burial", None, create=bool(place))
+            if ev and place:
+                ev["place"] = place
+            elif ev:
+                drop_event(ev)
+
+    if "residence" in changes or "phone" in changes:
+        addrs = p.setdefault("address_list", [])
+        if not addrs:
+            addrs.append({"_class": "Address", "private": True, "street": "", "locality": "", "city": "", "county": "",
+                          "state": "", "country": "", "postal": "", "phone": ""})
+        a = addrs[0]
+        if "residence" in changes:
+            a["city"], a["state"], a["country"] = (changes["residence"] or "").strip(), "", ""
+        if "phone" in changes:
+            a["phone"] = (changes["phone"] or "").strip()
+        a["private"] = True
+        if not (a.get("city") or a.get("phone") or a.get("street")):
+            addrs.pop(0)
+
+    if "email" in changes:
+        urls = [u for u in p.get("urls", []) if u.get("type") != "E-mail"]
+        email = (changes["email"] or "").strip()
+        if email:
+            urls.insert(0, {"_class": "Url", "private": True, "path": f"mailto:{email}", "desc": "Email", "type": "E-mail"})
+        p["urls"] = urls
+
+    if "notes" in changes:
+        text = (changes["notes"] or "").strip()
+        first = p["note_list"][0] if p.get("note_list") else None
+        if first and text:
+            note = await g.get(f"/notes/{first}")
+            note["text"] = {"_class": "StyledText", "string": text, "tags": []}
+            await g.put(f"/notes/{first}", note)
+        elif first:
+            p["note_list"].pop(0)
+            dropped_notes.append(first)  # deleted after the person no longer points to it
+        elif text:
+            n = note_obj(text, tags, False)
+            new_objs.append(n)
+            p.setdefault("note_list", []).append(n["handle"])
+
+    fresh = {o["handle"] for o in new_objs}
+    if new_objs:
+        await g.add_objects(new_objs)
+    for h, ev in dirty_events.items():
+        if h not in fresh:
+            await g.put(f"/events/{h}", ev)
+    await g.put(f"/people/{handle}", p)
+    for h in dropped:
+        await g.http.delete(f"/events/{h}")
+    for h in dropped_notes:
+        await g.http.delete(f"/notes/{h}")
+    return {"ok": True}
+
+
+async def set_photo(g: Gramps, handle: str, photo, tags: list) -> dict:
+    """Upload a photo and make it the person's main (first) photo."""
+    p = await g.get(f"/people/{handle}")
+    name = (p["primary_name"].get("first_name") or "").strip()
+    mh = await upload_photo(g, photo, tags, False, desc=f"Photo of {name}".strip())
+    p["media_list"] = [{"_class": "MediaRef", "ref": mh}] + [m for m in p.get("media_list", []) if m["ref"] != mh]
+    await g.put(f"/people/{handle}", p)
+    return {"photo": mh}
+
+
+# ---------- adding and removing relatives (every change can be undone) ----------
+
+from gramps import new_person_objs  # noqa: E402
+
+RELS = {"father", "mother", "spouse", "child"}
+
+
+async def _family_parent_of(g, person):
+    """The family the person is a child in (their parents), or None."""
+    pf = person.get("parent_family_list") or []
+    return await g.get(f"/families/{pf[0]}") if pf else None
+
+
+async def _delete_family(g, fam):
+    """Empty the family first, so Gramps clears everyone's links to it, then delete it."""
+    fam.update(father_handle=None, mother_handle=None, child_ref_list=[])
+    await g.put(f"/families/{fam['handle']}", fam)
+    await g.http.delete(f"/families/{fam['handle']}")
+
+
+async def _delete_person(g, handle):
+    p = await g.get(f"/people/{handle}")
+    for fh in (p.get("family_list") or []) + (p.get("parent_family_list") or []):
+        fam = await g.get(f"/families/{fh}")
+        fam["child_ref_list"] = [c for c in fam.get("child_ref_list", []) if c["ref"] != handle]
+        for side in ("father_handle", "mother_handle"):
+            if fam.get(side) == handle:
+                fam[side] = None
+        if not fam["child_ref_list"] and not (fam.get("father_handle") and fam.get("mother_handle")):
+            await _delete_family(g, fam)
+        else:
+            await g.put(f"/families/{fh}", fam)
+    events = [r["ref"] for r in p.get("event_ref_list") or []]
+    await g.http.delete(f"/people/{handle}")
+    for h in events:
+        await g.http.delete(f"/events/{h}")
+
+
+def _family(father, mother, kids, tags):
+    return {"_class": "Family", "handle": new_handle(), "type": "Married" if father and mother else "Unknown",
+            "father_handle": father, "mother_handle": mother, "tag_list": list(tags),
+            "child_ref_list": [{"_class": "ChildRef", "ref": k, "frel": "Birth", "mrel": "Birth"} for k in kids]}
+
+
+async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
+    """Link someone (already in the tree, or new) as father / mother / spouse / child of a person."""
+    ph, rel, fam_id = body.get("person"), body.get("rel"), body.get("famId")
+    if rel not in RELS or not ph:
+        raise GrampsError("Unknown kind of relative")
+    person = await g.get(f"/people/{ph}")
+    # Check before creating anyone, so a refused add leaves nothing behind.
+    parent_fam = await _family_parent_of(g, person) if rel in ("father", "mother") else None
+    if parent_fam and parent_fam.get(f"{rel}_handle"):
+        raise GrampsError(f"They already have a {rel}. Remove that link first.")
+    created = None
+    if body.get("existing"):
+        oh = body["existing"]
+        if oh == ph:
+            raise GrampsError("Someone can't be their own relative")
+        other = await g.get(f"/people/{oh}")
+    else:
+        details = body.get("new") or {}
+        if not ((details.get("first") or "").strip() or (details.get("last") or "").strip()):
+            raise GrampsError("Please write a first or last name")
+        implied = {"father": "male", "mother": "female"}.get(rel)
+        if rel == "spouse":
+            implied = {1: "female", 0: "male"}.get(person.get("gender"))
+        gender = implied or {"m": "male", "f": "female"}.get(details.get("gender"), "unknown")
+        oh, objs = new_person_objs({"first_name": details.get("first", ""), "surname": details.get("last", ""),
+                                    "birth_date": {"year": (details.get("birth") or {}).get("y"),
+                                                   "month": (details.get("birth") or {}).get("m"),
+                                                   "day": (details.get("birth") or {}).get("d")}},
+                                   tags, False, gender)
+        await g.add_objects(objs)
+        created = oh
+        other = await g.get(f"/people/{oh}")
+
+    if rel in ("father", "mother"):
+        side = f"{rel}_handle"
+        fam = parent_fam
+        if fam:
+            fam[side] = oh
+            fam["type"] = "Married" if fam.get("father_handle") and fam.get("mother_handle") else fam.get("type", "Unknown")
+            await g.put(f"/families/{fam['handle']}", fam)
+            fam_id = fam["handle"]
+        else:
+            fam = _family(oh if rel == "father" else None, oh if rel == "mother" else None, [ph], tags)
+            await g.add_objects([fam])
+            fam_id = fam["handle"]
+    elif rel == "spouse":
+        person_is_father = person.get("gender") == 1 or (person.get("gender") != 0 and other.get("gender") != 1)
+        fam = _family(ph if person_is_father else oh, oh if person_is_father else ph, [], tags)
+        await g.add_objects([fam])
+        fam_id = fam["handle"]
+    else:  # child
+        fam = await g.get(f"/families/{fam_id}") if fam_id else None
+        if fam:
+            if any(c["ref"] == oh for c in fam.get("child_ref_list", [])):
+                raise GrampsError("They're already a child of this family")
+            fam["child_ref_list"].append({"_class": "ChildRef", "ref": oh, "frel": "Birth", "mrel": "Birth"})
+            await g.put(f"/families/{fam_id}", fam)
+        else:
+            is_mother = person.get("gender") == 0
+            fam = _family(None if is_mother else ph, ph if is_mother else None, [oh], tags)
+            await g.add_objects([fam])
+            fam_id = fam["handle"]
+
+    undo = {"op": "unlink", "person": ph, "rel": rel, "other": oh, "famId": fam_id}
+    if created:
+        undo["delete"] = created
+    return {"added": oh, "famId": fam_id, "undo": undo}
+
+
+async def unlink(g: Gramps, body: dict) -> dict:
+    """Remove the link between two people. Nobody is deleted (unless undoing an add that created them)."""
+    ph, rel, oh, fam_id = body.get("person"), body.get("rel"), body.get("other"), body.get("famId")
+    if rel not in RELS or not (ph and oh and fam_id):
+        raise GrampsError("Missing details for removing a link")
+    try:
+        fam = await g.get(f"/families/{fam_id}")
+    except GrampsError:
+        fam = None
+    if fam is None:  # the family is already gone (e.g. undoing an add after its other links went)
+        if body.get("delete"):
+            await _delete_person(g, body["delete"])
+        return {"ok": True}
+    was_side = None
+    if rel == "child":
+        fam["child_ref_list"] = [c for c in fam.get("child_ref_list", []) if c["ref"] != oh]
+    else:
+        for side in ("father_handle", "mother_handle"):
+            if fam.get(side) == oh:
+                fam[side], was_side = None, side
+    kids, fa, mo = fam.get("child_ref_list", []), fam.get("father_handle"), fam.get("mother_handle")
+    # A family stays while it still links two people: a couple, or a parent with a child.
+    if not (fa or mo) or (not kids and not (fa and mo)):
+        await _delete_family(g, fam)
+    else:
+        await g.put(f"/families/{fam_id}", fam)
+    if body.get("delete"):
+        await _delete_person(g, body["delete"])
+        return {"ok": True}
+    return {"ok": True, "undo": {"op": "link", "person": ph, "rel": rel, "other": oh, "famId": fam_id, "side": was_side}}
+
+
+async def undo(g: Gramps, token: dict, tags: list) -> dict:
+    if token.get("op") == "unlink":
+        await unlink(g, token)
+        return {"ok": True}
+    if token.get("op") == "link":
+        # Put them back into the same family when it still exists, so its other links stay as they were.
+        try:
+            fam = await g.get(f"/families/{token['famId']}")
+        except GrampsError:
+            fam = None
+        if fam and token["rel"] == "child":
+            fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
+            await g.put(f"/families/{fam['handle']}", fam)
+        elif fam and token.get("side") and not fam.get(token["side"]):
+            fam[token["side"]] = token["other"]
+            await g.put(f"/families/{fam['handle']}", fam)
+        else:  # that family was removed; link them afresh
+            await add_relative(g, {"person": token["person"], "rel": token["rel"], "existing": token["other"],
+                                   "famId": None}, tags)
+        return {"ok": True}
+    raise GrampsError("Nothing to undo")
+
+
+async def create_person(g: Gramps, body: dict, tags: list) -> dict:
+    """A new person with no relatives yet (the start screen's "Add a new person")."""
+    first, last = (body.get("first") or "").strip(), (body.get("last") or "").strip()
+    if not (first or last):
+        raise GrampsError("Please write a first or last name")
+    b = body.get("birth") or {}
+    handle, objs = new_person_objs({"first_name": first, "surname": last,
+                                    "birth_date": {"year": b.get("y"), "month": b.get("m"), "day": b.get("d")}},
+                                   tags, False, {"m": "male", "f": "female"}.get(body.get("gender"), "unknown"))
+    await g.add_objects(objs)
+    return {"added": handle}
+
+
+async def merge(g: Gramps, body: dict, tags: list) -> dict:
+    """Fold the duplicate person (`absorb`) into the one we keep (`keep`), using Gramps' own merge.
+
+    Gramps keeps `keep`'s primary name/gender/preferred events and appends everything from
+    `absorb` (events, media, notes, addresses, attributes); with family_merger it also keeps both
+    people's family links. We first copy any chosen scalar values onto `keep` (gap-fill / the
+    user's picks on the compare screen), then call the native merge, which deletes `absorb`.
+    """
+    keep, absorb = body.get("keep"), body.get("absorb")
+    if not keep or not absorb:
+        raise GrampsError("Pick two people to merge", 400)
+    if keep == absorb:
+        raise GrampsError("Those are the same person", 400)
+    for h in (keep, absorb):  # make sure both still exist before we change anything
+        await g.get(f"/people/{h}", keys="handle")
+    fields = {k: v for k, v in (body.get("fields") or {}).items() if k in FIELDS}
+    if fields:
+        await update_person(g, keep, fields, tags)
+    await g.post(f"/people/{keep}/merge/{absorb}", {"family_merger": True})
+    p = await g.get(f"/people/{keep}", keys="primary_name")
+    nm = p["primary_name"]
+    name = " ".join(x for x in [(nm.get("first_name") or "").strip(), surname_of(nm)] if x)
+    return {"merged": keep, "name": name or "this person"}
+
+
+async def recent_changes(g: Gramps, limit: int = 8) -> list:
+    """The people most recently added or changed (by anyone), with who changed them when Gramps can tell."""
+    people = await g.get("/people/", sort="-change", pagesize=limit, page=1, keys="handle,change")
+    who = {}
+    try:  # the change history names the person who made each change; some roles may not see it
+        for t in await g.get("/transactions/history/", sort="-id", pagesize=80, page=1):
+            user = (t.get("connection") or {}).get("user") or {}
+            for ch in t.get("changes") or []:
+                if ch.get("obj_class") == "Person" and ch.get("obj_handle") not in who:
+                    who[ch["obj_handle"]] = user.get("full_name") or user.get("name")
+    except GrampsError:
+        pass
+    return [{"id": p["handle"], "changed": p.get("change"), "by": who.get(p["handle"])} for p in people]

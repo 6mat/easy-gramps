@@ -1,0 +1,21 @@
+# Easy Gramps — local development / testing stack.
+# Talks to the Gramps Web at GRAMPS_URL and is served on http://localhost:${PORT}${BASE_PATH}/
+# For a server install next to Gramps Web behind Traefik, see deploy/compose.traefik.yaml.
+services:
+  easy-gramps:
+    build: ./app
+    image: easy-gramps:dev
+    container_name: easy-gramps
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      GRAMPS_URL: ${GRAMPS_URL}
+      GRAMPS_PUBLIC_URL: ${GRAMPS_PUBLIC_URL:-}
+      GRAMPS_LINK_LABEL: ${GRAMPS_LINK_LABEL:-Full Gramps}
+      BASE_PATH: ${BASE_PATH:-/family}
+      TREE_TAG: ${TREE_TAG:-Easy Gramps}
+      DEBUG_LOG: ${DEBUG_LOG:-}
+    ports:
+      - "${PORT:-8095}:8000"   # open on the LAN so a tablet can test it; the server install publishes no port
+    volumes:
+      - ./data:/data

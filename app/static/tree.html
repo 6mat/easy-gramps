@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-base="__BASE__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Family Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="__BASE__/static/tree.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="brand" id="brand" href="#" title="Go to the start">Family Tree</a>
+    <div class="search">
+      <input id="q" type="search" placeholder="Search a name" autocomplete="off" aria-label="Search a name">
+      <div id="results" class="results" hidden></div>
+    </div>
+    <div class="menuwrap">
+      <button id="menubtn" aria-haspopup="true" aria-expanded="false">☰ Menu</button>
+      <div class="menu-pop" id="menupop" hidden>
+        <h3>Theme</h3>
+        <div class="seg" role="radiogroup" aria-label="Theme">
+          <label title="Light background"><input type="radio" name="theme" value="light" id="th-light"><span>☀️ Light</span></label>
+          <label title="Dark background, easier at night"><input type="radio" name="theme" value="dark" id="th-dark"><span>🌙 Dark</span></label>
+          <label title="Follow my phone or computer's setting"><input type="radio" name="theme" value="system" id="th-system"><span>⚙️ Auto</span></label>
+        </div>
+        <h3>Display</h3>
+        <label class="swrow">Bigger text <input type="checkbox" class="sw" id="bigtext"></label>
+        <label class="swrow">Line from person to details <input type="checkbox" class="sw" id="showlink"></label>
+        <h3>Help</h3>
+        <button id="tips-again">Show tips again</button>
+        <h3>Go to</h3>
+        <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
+        <button id="logout">Log out</button>
+      </div>
+    </div>
+  </header>
+  <div class="notice">The family tree works best on a wider screen. Turn your phone or tablet sideways, or use a computer.</div>
+  <main class="main">
+    <section class="treepane" aria-label="Family tree">
+      <div class="treebar">
+        <button id="tree-home" class="pill" hidden title="Back to the start, to choose someone else">⌂ Home</button>
+        <button id="tree-back" class="pill" hidden></button>
+        <h1 id="tree-title"></h1>
+        <button id="tree-see" class="pill" hidden></button>
+        <button id="show-panel" class="pill" hidden title="Show the details panel">ⓘ Details</button>
+      </div>
+      <div class="tipbar" id="tipbar" hidden>
+        <span><strong>Tip:</strong> tap a person to see their details. Drag to move around. Pinch, or use the buttons at the bottom, to zoom. Double-tap to centre on someone.</span>
+        <button id="tip-close" aria-label="Hide this tip">✕ Got it</button>
+      </div>
+      <div class="startcard" id="startcard"></div>
+      <div class="treescroll" id="treescroll">
+        <div id="treesize"><div class="treeinner" id="treeinner"><svg id="lines" aria-hidden="true"></svg><div id="rows"></div></div></div>
+      </div>
+      <div class="navstrip">
+        <div class="nav-map">
+          <div id="minimap" class="minimap" role="img"></div>
+        </div>
+        <div class="zoomgrp" role="toolbar" aria-label="Zoom and view">
+          <button id="z-out" title="Zoom out" aria-label="Zoom out">−</button>
+          <span class="pct" id="z-pct">100%</span>
+          <button id="z-in" title="Zoom in" aria-label="Zoom in">+</button>
+          <span class="sep"></span>
+          <button id="z-fit" title="Fit the whole tree on screen">Fit</button>
+          <button id="z-centre" title="Move back to the tree's person">⌖<span class="lbl"> Centre</span></button>
+          <button id="z-full" title="Use the whole screen for the tree">⛶<span class="lbl"> Full screen</span></button>
+          <span class="sep"></span>
+          <button id="nav-hide" class="pill" title="Hide these controls to give the tree more room"><span class="lbl">Hide controls </span>▾</button>
+        </div>
+      </div>
+      <div class="navcorner" id="navcorner" hidden>
+        <button id="nav-show" class="pill" title="Show zoom and map controls">Zoom &amp; map ▴</button>
+      </div>
+      <svg id="selink" aria-hidden="true"></svg>
+      <div class="popcard" id="popcard" hidden></div>
+      <aside class="panel" id="panel" aria-label="Selected person"></aside>
+    </section>
+  </main>
+</div>
+
+<div class="editor" id="editor" hidden>
+  <div class="ed-head">
+    <button id="ed-back" class="pill">← Back to tree</button>
+    <button id="ed-home" class="pill" title="Back to the start, to choose someone else">⌂ Home</button>
+    <div class="titles"><div class="crumbs" id="crumbs"></div><h2 id="ed-title"></h2></div>
+    <span id="ed-status" class="status" role="status">Saved ✓</span>
+  </div>
+  <div class="ed-body" id="ed-body"></div>
+</div>
+
+<div class="dlg-wrap" id="dlg-wrap" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-title"></div></div>
+
+<div class="toast" id="toast" hidden><span id="toast-msg"></span><button id="toast-undo">Undo</button></div>
+
+<div class="gate" id="gate"></div>
+
+<script type="module" src="__BASE__/static/tree.js"></script>
+</body>
+</html>

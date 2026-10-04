@@ -1,0 +1,8 @@
+# secrets and runtime data stay out of git
+.env
+data/
+__pycache__/
+*.pyc
+.playwright-mcp/
+.claude/settings.local.json
+deploy/.env
