@@ -1,6 +1,6 @@
 # Easy Gramps on the same machine as Gramps Web, behind Traefik, on the same domain:
-#   https://tree.example.com/          -> Gramps Web
-#   https://tree.example.com/family/   -> Easy Gramps
+#   https://gramps.example.com/          -> Gramps Web
+#   https://gramps.example.com/family/   -> Easy Gramps
 # Same domain is deliberate: the browser then shares one login between the two apps.
 #
 # Assumes Traefik and Gramps Web are already running and share the external Docker network

@@ -22,8 +22,8 @@ roles and permissions still apply** (a Member can only look, a Contributor can a
 Easy Gramps runs next to Gramps Web on the **same domain**, under a path:
 
 ```
-https://tree.example.com/          -> Gramps Web
-https://tree.example.com/family/   -> Easy Gramps
+https://gramps.example.com/          -> Gramps Web
+https://gramps.example.com/family/   -> Easy Gramps
 ```
 
 1. Build the image: `docker build -t easy-gramps:latest app/`
