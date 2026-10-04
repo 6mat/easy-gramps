@@ -151,7 +151,7 @@ function autosave(id, patch) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 700);
 }
-function flushSaves() {
+function flushSaves(keepalive = false) {  // keepalive: the page is closing, let the save finish anyway
   clearTimeout(saveTimer);
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
@@ -159,7 +159,7 @@ function flushSaves() {
   saveChain = saveChain.then(async () => {
     for (const [id, patch] of work) {
       try {
-        await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+        await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch), keepalive });
       } catch (err) {
         pending[id] = { ...patch, ...pending[id] };  // keep it for "Try again"
         saveFailed = err;
@@ -170,7 +170,9 @@ function flushSaves() {
   });
   return saveChain;
 }
-window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(); e.preventDefault(); } });
+window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(true); e.preventDefault(); } });
+// Phones and tablets often close a hidden tab without any unload event: save when the page is hidden.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Object.keys(pending).length) flushSaves(true); });
 
 // ---------- tree ----------
 // Rows are generations: parents, the person (with siblings and spouses), children.
