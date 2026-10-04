@@ -110,7 +110,7 @@ async function cleanup() {
   await step(page, "more details", async () => { await page.click("#panel .moretoggle"); await page.waitForSelector("#panel .details"); });
   await step(page, "see their tree, back", async () => {
     await page.click("#tree-see"); await page.waitForSelector("#tree-back:not([hidden])");
-    await page.click("#tree-back"); await page.waitForSelector("#tree-back[hidden]");
+    await page.click("#tree-back"); await page.waitForSelector("#tree-back[hidden]", { state: "attached" });
   });
   await step(page, "hide panel, quick card", async () => {
     await page.click("#panel .pill.hide"); await page.waitForSelector("#show-panel:not([hidden])");
