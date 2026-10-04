@@ -58,10 +58,10 @@ async function saved(page) { await page.waitForFunction(() => /Saved/.test(docum
 
 // ---------- Gramps API (cleanup of ZZTEST records) ----------
 async function grampsToken(user) {
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 10; i++) {
     const r = await fetch(`${DEMO}/api/token/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: user, password: user }) });
     if (r.ok) return (await r.json()).access_token;
-    await sleep(1500);  // Gramps allows one login a second
+    await sleep(3000);  // Gramps limits logins per IP
   }
   throw new Error("couldn't log in to the demo");
 }
@@ -97,9 +97,9 @@ async function cleanup() {
   const page = await newPage();
   await step(page, "login screen", async () => { await page.goto(APP); await page.waitForSelector("#lg-user"); });
   await step(page, "log in", () => login(page, "member"));
-  await step(page, "start screen", async () => { await page.waitForSelector("#start-q"); await page.waitForSelector(".recent h3"); });
+  await step(page, "start screen", async () => { await page.waitForSelector("#start-q"); await page.waitForSelector(".recentgrid"); });
   await step(page, "start search + open a tree", async () => {
-    await page.fill("#start-q", "Garner");
+    await page.fill("#start-q", "Stewart");  // a surname in the demo tree
     await page.click("#startcard .pickbtn >> nth=0");
     await page.waitForSelector(".node.focus");
   });
@@ -126,7 +126,7 @@ async function cleanup() {
     await page.click(".node.focus"); for (const k of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"]) await page.keyboard.press(k);
   });
   await step(page, "full screen", async () => { await page.click("#z-full"); await page.waitForSelector("body.fullmode"); await page.click("#z-full"); });
-  await step(page, "top search", async () => { await page.fill("#q", "Garner"); await page.waitForSelector("#results button"); await page.fill("#q", ""); });
+  await step(page, "top search", async () => { await page.fill("#q", "Stewart"); await page.waitForSelector("#results button"); await page.fill("#q", ""); });
   await step(page, "menu: theme, bigger text, line, tips", async () => {
     await page.click("#menubtn");
     for (const t of ["dark", "light", "system"]) await page.click(`label:has(#th-${t})`);
