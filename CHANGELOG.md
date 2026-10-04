@@ -2,7 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 0.9.2 — 2026-10-04
+
+### Security
+- Photo thumbnails are only ever served as JPEG, PNG, GIF or WebP; anything else (a file claiming to
+  be HTML or SVG) goes out as a plain download, so it can't run as a page on this site.
+- Reviewed every place the page builds HTML: names, places and notes that look like code are shown
+  exactly as typed. Groundwork for sharing the Gramps Web login.
 
 ### Added
 - Menu link "Source code ↗" (setting `SOURCE_URL`, defaults to this repository), so anyone running
@@ -15,6 +21,8 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
   lists the places already in the tree; a new place is made only after "Add it as a new place".
   Text boxes save when you leave them or pause for 2 seconds, a year once it has 4 digits.
   `unused_places.py` lists places the tree made that nobody uses and deletes them if you say yes.
+- Two wives who are sisters: their parents are drawn once (WIFE'S FATHER / WIFE'S MOTHER, a line
+  down to each wife), instead of twice with lines going to the wrong copy.
 
 ### Changed
 - The page's script is split into small modules (tree, details panel, editor, merge, start screen),
