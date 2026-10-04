@@ -1,0 +1,433 @@
+// Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
+import { api, LoginNeeded } from "./auth.js";
+import { $, FAMS, P, S, canEdit, canLink, desc, h, loadGraph, matches, name, other, parentFam, photoEl, postJSON, relWord, sameName, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { renderTree } from "./tree.js";
+import { renderPanel } from "./panel.js";
+import { closeMerge } from "./merge.js";
+import { renderAll, showLogin } from "./start.js";
+
+// ---------- undo + toast ----------
+let toastTimer, undoToken = null;
+// undo: what the server says will reverse the change (shown as an "Undo" button for 10 seconds)
+export function toast(msg, undo = null) {
+  undoToken = undo || null;
+  $("#toast-msg").textContent = msg;
+  $("#toast-undo").hidden = !undoToken;
+  $("#toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("#toast").hidden = true; undoToken = null; }, 10000);
+}
+$("#toast-undo").onclick = async () => {
+  const token = undoToken;
+  if (!token) return;
+  undoToken = null;
+  $("#toast").hidden = true;
+  try {
+    await flushSaves();  // typing waiting to be saved goes first, so the reload can't undo it
+    await api("/tree/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token) });
+    await refresh();
+    toast("Undone");
+  } catch (err) {
+    if (err instanceof LoginNeeded) return showLogin();
+    toast(`Couldn't undo: ${err.message}`);
+  }
+};
+// Reload everything from Gramps after a change, keeping the view where it was.
+export async function refresh() {
+  await loadGraph();
+  if (!P[S.focus]) S.focus = null;
+  S.history = S.history.filter(x => P[x]);
+  if (!P[S.sel]) S.sel = S.focus;
+  if (!$("#editor").hidden) {
+    S.stack = S.stack.filter(x => P[x]);
+    if (S.stack.length) await ensureDetails(S.stack.at(-1)).catch(() => {});
+  }
+  S.menu = null;
+  renderAll();
+}
+// ---------- autosave: changes go to Gramps a moment after the last keystroke, one save at a time ----------
+const pending = {};          // person id -> fields waiting to be saved
+let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
+function setStatus(text, cls = "") {
+  const st = $("#ed-status");
+  st.className = `status ${cls}`.trim();
+  st.replaceChildren(text);
+  if (cls === "failed") st.append(" ", h("button", { onclick: () => { saveFailed = null; flushSaves(); } }, "Try again"));
+}
+function autosave(id, patch) {
+  pending[id] = { ...pending[id], ...patch };
+  setStatus("Saving…", "saving");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSaves, 700);
+}
+export function flushSaves(keepalive = false) {  // keepalive: the page is closing, let the save finish anyway
+  clearTimeout(saveTimer);
+  const work = Object.entries(pending);
+  for (const [id] of work) delete pending[id];
+  if (!work.length) return saveChain;
+  saveChain = saveChain.then(async () => {
+    for (const [id, patch] of work) {
+      try {
+        await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch), keepalive });
+      } catch (err) {
+        pending[id] = { ...patch, ...pending[id] };  // keep it for "Try again"
+        saveFailed = err;
+      }
+    }
+    if (Object.keys(pending).length && saveFailed) setStatus(`Not saved: ${saveFailed.message}`, "failed");
+    else if (!Object.keys(pending).length) setStatus("Saved ✓");
+  });
+  return saveChain;
+}
+window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(true); e.preventDefault(); } });
+// Phones and tablets often close a hidden tab without any unload event: save when the page is hidden.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Object.keys(pending).length) flushSaves(true); });
+
+// ---------- full-screen family editor ----------
+async function ensureDetails(id) {
+  if (P[id]._details) return;
+  Object.assign(P[id], await api(`/tree/details/${id}`), { _details: true });
+}
+export async function openEditor(id, rel, famId) {
+  S.stack = [id]; S.edMore = false; S.menu = null;
+  setStatus("Saved ✓");
+  $("#editor").hidden = false;
+  $("#ed-body").replaceChildren(h("p", { class: "muted" }, "Loading…"));
+  try { await ensureDetails(id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  renderEditor();
+  if (rel) openAdd(id, rel, famId);
+  else $("#ed-back").focus();
+}
+export async function closeEditor() {
+  $("#editor").hidden = true; closeDialog();
+  await flushSaves();
+  // Reload so the tree shows exactly what Gramps now holds.
+  try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  if (!P[S.focus]) S.focus = null;
+  if (!P[S.sel]) S.sel = S.focus;
+  renderTree(); renderPanel();
+}
+$("#ed-back").onclick = closeEditor;
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!$("#dlg-wrap").hidden) { e.stopImmediatePropagation(); S.merge ? closeMerge() : closeDialog(); }
+  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); $("#menubtn").focus(); }
+  else if (!$("#editor").hidden) closeEditor();
+}, true);  // capture: before the tree's arrow-key handler
+
+function rcard(id, rel, famObj, base, isNew) {
+  const p = P[id];
+  const card = h("div", { class: `rcard${isNew ? " new" : ""}` },
+    h("span", { class: "role" }, rel === "spouse" ? spouseWord(P[base]) : rel),
+    photoEl(p), h("span", { class: "nm" }, name(p)),
+    h("button", { class: "more", "aria-label": `Options for ${name(p)}`, "aria-expanded": String(S.menu === `${rel}:${id}`),
+      onclick: () => { S.menu = S.menu === `${rel}:${id}` ? null : `${rel}:${id}`; renderEditor(); } }, "⋯"),
+    h("span", { class: "yr" }, years(p) || "No dates"), h("span", { class: "ds" }, p.birthPlace || ""));
+  if (S.menu === `${rel}:${id}`) card.append(menuEl(id, rel, famObj, base));
+  if (S.menu === `confirm:${rel}:${id}`) card.append(confirmEl(id, rel, famObj, base));
+  return card;
+}
+function menuEl(id, rel, famObj, base) {
+  return h("div", { class: "menu" },
+    h("button", { onclick: async () => { await flushSaves(); await ensureDetails(id).catch(() => {}); S.stack.push(id); S.menu = null; S.edMore = false; renderEditor(); } }, `Open ${P[id].first}'s family`),
+    canLink() && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
+}
+function confirmEl(id, rel, famObj, base) {
+  const w = relWord(rel, P[base]);
+  return h("div", { class: "menu" },
+    h("div", { class: "small" }, `Remove ${P[id].first} as ${P[base].first}'s ${w}? ${P[id].first} stays in the tree.`),
+    h("div", { class: "btnrow" },
+      h("button", { class: "danger", onclick: () => removeLink(id, rel, famObj, base) }, "Remove"),
+      h("button", { onclick: () => { S.menu = null; renderEditor(); } }, "Cancel")));
+}
+async function removeLink(id, rel, x, base) {
+  const who = P[id].first, whose = P[base].first, w = relWord(rel, P[base]);
+  S.menu = null;
+  setStatus("Saving…", "saving");
+  try {
+    await flushSaves();
+    const res = await postJSON("/tree/unlink", { person: base, rel, other: id, famId: x.id });
+    await refresh();
+    setStatus("Saved ✓");
+    toast(`Removed ${who} as ${whose}'s ${w}. ${who} is still in the tree.`, res.undo);
+  } catch (err) {
+    if (err instanceof LoginNeeded) return showLogin();
+    setStatus(`Not saved: ${err.message}`, "failed");
+    renderEditor();
+  }
+}
+
+function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
+function bindText(p, key, id, opts = {}) {
+  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
+  el.value = p[key] || "";
+  el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }); });
+  return el;
+}
+function dateInputs(prefix, label, get, set) {
+  const d = get() || {};
+  const yearOnlyStart = !!(d.y && !(d.m && d.d));
+  const pad = n => String(n).padStart(2, "0");
+  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit(), "aria-label": label });
+  cal.value = d.y && d.m && d.d ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : "";
+  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit(), "aria-label": `${label}: year` });
+  yr.value = yearOnlyStart ? d.y : "";
+  const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
+  yo.checked = yearOnlyStart;
+  const sync = () => { cal.hidden = yo.checked; yr.hidden = !yo.checked; };
+  const save = () => {
+    if (yo.checked) set(yr.value ? { y: Number(yr.value) } : null);
+    else if (cal.value) { const [y, m, dd] = cal.value.split("-").map(Number); set({ y, m, d: dd }); }
+    else set(null);
+  };
+  yo.addEventListener("change", () => { if (yo.checked && cal.value) yr.value = cal.value.slice(0, 4); sync(); save(); });
+  cal.addEventListener("change", save); yr.addEventListener("input", save);
+  sync();
+  return h("div", {}, cal, yr, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
+}
+
+function centreCard(p) {
+  const file = h("input", { id: "ed-photo-file", type: "file", accept: "image/*", hidden: true });
+  file.addEventListener("change", () => {
+    const f = file.files[0]; if (!f) return;
+    file.value = "";
+    if (f.size > 20 * 1024 * 1024) return setStatus("Photo not saved: it's too big (20 MB at most)", "failed");
+    // Show it straight away, then upload it as their main photo (the old one comes back if that fails).
+    const old = p.photo, preview = URL.createObjectURL(f);
+    p.photo = preview; renderEditor();
+    const fd = new FormData(); fd.append("photo", f, f.name);
+    setStatus("Saving photo…", "saving");
+    saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
+      .then(res => { p.photo = res.photo; setStatus("Saved ✓"); })
+      .catch(err => {
+        p.photo = old; URL.revokeObjectURL(preview);
+        if (err instanceof LoginNeeded) return showLogin();
+        if (!$("#editor").hidden) renderEditor();
+        setStatus(`Photo not saved: ${err.message}`, "failed");
+      });
+  });
+  const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
+    ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
+      const r = h("input", { type: "radio", name: "ed-gender", id: `ed-g-${v}`, disabled: !canEdit() });
+      r.checked = p.gender === v;
+      r.addEventListener("change", () => { p.gender = v; autosave(p.id, { gender: v }); });
+      return h("label", { class: "inline", for: r.id }, r, l);
+    }));
+  const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
+  passed.checked = !!p.deceased;
+  const deathBox = h("div", { class: "box full" },
+    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
+    field("Place of burial", bindText(p, "burial", "ed-burial")));
+  deathBox.hidden = !p.deceased;
+  passed.addEventListener("change", () => {
+    p.deceased = passed.checked; deathBox.hidden = !passed.checked;
+    if (!passed.checked) { p.death = null; p.burial = ""; }
+    autosave(p.id, { deceased: passed.checked });
+  });
+  // These four come from a separate request; if it failed, don't let empty boxes overwrite real values.
+  const off = { disabled: !p._details };
+  const moreBox = h("div", { class: "box full" },
+    !p._details && h("div", { class: "warn full" }, "Couldn't load these details.",
+      h("button", { onclick: async () => { try { await ensureDetails(p.id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); } renderEditor(); } }, "Try again")),
+    field("Residing at", bindText(p, "residence", "ed-res", off), "full"),
+    p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
+    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
+    field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
+    field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
+    p.otherNotes.length ? h("div", { class: "small muted full" },
+      `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
+  moreBox.hidden = !S.edMore;
+  return h("div", { class: "centre" },
+    h("div", { class: "photo-row full" }, photoEl(p, true),
+      canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
+      !canEdit() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
+    field("First name", bindText(p, "first", "ed-first")),
+    field("Last name", bindText(p, "last", "ed-last")),
+    field("Nickname", bindText(p, "nick", "ed-nick")),
+    gender,
+    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
+    field("Place of birth", bindText(p, "birthPlace", "ed-bplace")),
+    h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
+    deathBox,
+    h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
+      "More details ▸ (residing at, phone, email, notes)"),
+    moreBox);
+}
+
+export function renderEditor() {
+  const id = S.stack.at(-1), p = P[id];
+  $("#ed-title").textContent = `${name(p)}'s family`;
+  $("#crumbs").replaceChildren(...(S.stack.length > 1 ? S.stack.flatMap((x, i) => [
+    i ? " › " : "",
+    i === S.stack.length - 1 ? h("span", {}, P[x].first)
+      : h("button", { onclick: () => { S.stack = S.stack.slice(0, i + 1); S.menu = null; renderEditor(); } }, P[x].first)]) : []));
+  const lastNew = S.newlyAdded;
+  const pf = parentFam(id);
+  const parentsRow = h("div", { class: "ed-row" },
+    pf?.f ? rcard(pf.f, "father", pf, id, lastNew === pf.f) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "father") }, "Add father"),
+    pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
+  const sfs = spouseFams(id);
+  const sw = spouseWord(p);
+  const spouseCol = h("div", { class: "spouses" },
+    ...sfs.filter(x => other(x, id)).map(x => rcard(other(x, id), "spouse", x, id, lastNew === other(x, id))),
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
+      sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`));
+  const kidGroups = sfs.map(x => {
+    const o = other(x, id);
+    const g = h("div", { class: "kidgroup" },
+      h("span", { class: "glabel" }, o ? `Children with ${P[o].first}` : "Children (other parent not added)"),
+      h("div", { class: "ed-row" }, ...byBirth(x.kids).map(k => rcard(k, "child", x, id, lastNew === k)),
+        canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
+    g.style.setProperty("--fc", `var(--f${sfs.indexOf(x) % 6})`);
+    return g;
+  });
+  if (!sfs.length) kidGroups.push(h("div", { class: "kidgroup" }, h("span", { class: "glabel" }, "Children"),
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
+  $("#ed-body").replaceChildren(
+    h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
+    h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
+    h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)));
+}
+
+// ---------- add dialog ----------
+// The pop-up dialog (Add, Merge): focus goes into it, Tab stays inside, and focus returns on close.
+let dlgOpener = null;
+export function showDlg(wide) {
+  dlgOpener = document.activeElement;
+  $("#dlg").classList.toggle("wide", wide);
+  $("#dlg-wrap").hidden = false;
+}
+export function hideDlg() {
+  $("#dlg-wrap").hidden = true;
+  if (dlgOpener?.isConnected) dlgOpener.focus();
+  dlgOpener = null;
+}
+$("#dlg-wrap").addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const f = [...$("#dlg").querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
+  else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+});
+function openAdd(pid, rel, famId) {
+  S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
+  showDlg(false);
+  renderAdd();
+}
+function closeDialog() { hideDlg(); if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
+
+
+
+function linked(pid) {
+  const ids = new Set([pid]);
+  const pf = parentFam(pid); if (pf) [pf.f, pf.m].forEach(x => x && ids.add(x));
+  for (const x of spouseFams(pid)) { const o = other(x, pid); if (o) ids.add(o); x.kids.forEach(k => ids.add(k)); }
+  return ids;
+}
+function impliedGender(rel, base) {
+  if (rel === "father") return "m";
+  if (rel === "mother") return "f";
+  if (rel === "spouse") return base.gender === "m" ? "f" : base.gender === "f" ? "m" : "";
+  return null;
+}
+
+function renderAdd() {
+  const A = S.add, base = P[A.pid], dlg = $("#dlg");
+  const x = A.famId && FAMS.find(f => f.id === A.famId);
+  const o = x && other(x, A.pid);
+  const what = A.rel === "child" ? (o ? `child of ${base.first} and ${P[o].first}` : `child of ${base.first}`)
+    : `${relWord(A.rel, base)} of ${base.first}`;
+  const title = h("h3", { id: "dlg-title" }, `Add ${what}`);
+  // 1) someone already in the tree
+  const skip = linked(A.pid);
+  const q = h("input", { id: "add-q", type: "search", placeholder: "Type a name to look for", autocomplete: "off" });
+  const list = h("div", { class: "pick" });
+  q.addEventListener("input", () => {
+    const words = searchWords(q.value);
+    const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) &&
+      matches(p, words));
+    list.replaceChildren(...hits.map(p => h("div", { class: "row-p" },
+      h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
+      h("button", { onclick: () => doAdd({ existing: p.id }) }, "Choose"))));
+    if (words.length && !hits.length) list.append(h("div", { class: "small muted" }, "No one found. Add them as someone new below."));
+  });
+  // 2) someone new
+  const nw = someoneNew("add", impliedGender(A.rel, base));
+  const submit = () => {
+    const person = nw.check(A.dupOk,
+      p => skip.has(p.id) ? h("span", { class: "small muted" }, "Already in this family") : h("button", { onclick: () => doAdd({ existing: p.id }) }, "Use this person"),
+      () => { A.dupOk = true; submit(); });
+    if (person) doAdd({ new: person });
+  };
+  dlg.replaceChildren(title,
+    h("label", { for: "add-q" }, "Already in the tree?", q), list,
+    h("hr"),
+    h("strong", {}, "Or someone new"),
+    nw.fields, nw.warn,
+    h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: submit }, "Add"), h("button", { onclick: closeDialog }, "Cancel")));
+  q.focus();
+}
+
+async function doAdd(choice) {
+  const A = S.add, base = P[A.pid];
+  const buttons = [...$("#dlg").querySelectorAll("button")];
+  buttons.forEach(b => { b.disabled = true; });
+  setStatus("Saving…", "saving");
+  try {
+    await flushSaves();
+    const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
+    const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
+    hideDlg(); S.add = null;
+    S.newlyAdded = res.added;
+    await refresh();
+    S.newlyAdded = null;
+    setStatus("Saved ✓");
+    toast(`Saved: ${who} added as ${base.first}'s ${relWord(A.rel, base)}.`, res.undo);
+  } catch (err) {
+    if (err instanceof LoginNeeded) return showLogin();
+    buttons.forEach(b => { b.disabled = false; });
+    setStatus("Saved ✓");
+    $("#add-warn")?.replaceChildren(h("div", { class: "warn" }, err.message));
+  }
+}
+
+export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (shown as a note), "" (not asked), null (asked)
+  const first = h("input", { id: `${prefix}-first` }), last = h("input", { id: `${prefix}-last` });
+  let gender = knownGender ?? "";
+  const genderEl = knownGender == null
+    ? h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
+        const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}` });
+        r.addEventListener("change", () => { gender = v; });
+        return h("label", { class: "inline", for: r.id }, r, l);
+      }))
+    : knownGender ? h("div", { class: "small muted" }, `Will be saved as ${knownGender === "m" ? "male" : "female"}.`) : "";
+  let bd = null;
+  const bdOn = h("input", { id: `${prefix}-bd-on`, type: "checkbox" });
+  const bdBox = h("div", {}, dateInputs(`${prefix}-bd`, "Birthday", () => null, v => { bd = v; }));
+  bdBox.hidden = true;
+  bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
+  const warn = h("div", { id: `${prefix}-warn` });
+  const say = msg => warn.replaceChildren(h("div", { class: "warn" }, msg));
+  return {
+    fields: h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
+      h("div", { class: "full" }, h("label", { class: "inline", for: bdOn.id }, bdOn, "Add their birthday"), bdBox)),
+    warn, say,
+    // The person typed in, or null after saying why not: no name yet, or people of that name exist
+    // (each listed with action(p); "No, add as someone new" calls addAnyway).
+    check(dupOk, action, addAnyway) {
+      const fn = first.value.trim(), ln = last.value.trim();
+      if (!fn && !ln) { say("Please write a first or last name."); first.focus(); return null; }
+      const dups = sameName(fn, ln);
+      if (dups.length && !dupOk) {
+        warn.replaceChildren(h("div", { class: "warn" },
+          h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
+          ...dups.map(p => h("div", { class: "row-p" },
+            h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")), action(p))),
+          h("div", {}, h("button", { onclick: addAnyway }, "No, add as someone new"))));
+        return null;
+      }
+      return { first: fn, last: ln, gender, birth: bdOn.checked && bd ? bd : null };
+    },
+  };
+}

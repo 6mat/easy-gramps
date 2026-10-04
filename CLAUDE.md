@@ -31,7 +31,10 @@ app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{l
                     /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
-app/static/         tree.html / tree.css / tree.js (the page), auth.js (tokens + api()), debug.js (?debug)
+app/static/         tree.html + tree.css, and the page's ES modules (no build step):
+                    main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
+                    map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
+                    · merge.js · start.js (start screen, login) · auth.js (tokens + api()) · debug.js (?debug)
 deploy/             compose.traefik.yaml — install next to Gramps Web on the same domain
 LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added dependency compatible
 ```

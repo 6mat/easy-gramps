@@ -1,0 +1,136 @@
+// Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
+import { api, auth, login, LoginNeeded, photoSession } from "./auth.js";
+import { $, ME, P, S, canAdd, desc, h, loadGraph, matches, name, photoEl, postJSON, searchWords, years } from "./common.js";
+import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree } from "./tree.js";
+import { renderPanel } from "./panel.js";
+import { closeEditor, flushSaves, openEditor, renderEditor, someoneNew, toast } from "./editor.js";
+
+export function renderAll() {
+  renderTree(); renderPanel();
+  if (!$("#editor").hidden) { if (S.stack.every(x => P[x])) renderEditor(); else closeEditor(); }
+}
+// ---------- start screen: nobody chosen yet ----------
+export function renderStart() {
+  if (S.startShown) return;  // keep what they've typed while the page redraws
+  S.startShown = true;
+  const card = $("#startcard");
+  const q = h("input", { id: "start-q", type: "search", placeholder: "Type a name", autocomplete: "off", "aria-label": "Type a name" });
+  const list = h("div", { class: "pick" });
+  q.addEventListener("input", () => {
+    const words = searchWords(q.value);
+    const hits = !words.length ? [] : Object.values(P).filter(p => matches(p, words))
+      .sort((a, b) => name(a).localeCompare(name(b))).slice(0, 30);
+    list.replaceChildren(...hits.map(p => h("button", { class: "row-p pickbtn", onclick: () => seeTree(p.id) },
+      photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")))));
+    if (words.length && !hits.length) list.append(h("div", { class: "muted" }, "No one found with that name."));
+  });
+  const parts = [h("h2", {}, "Whose family tree would you like to see?"),
+    h("label", { for: "start-q", class: "flabel" }, "Search for someone", q), list, recentSections()];
+  if (canAdd()) {
+    const form = newPersonForm();
+    form.hidden = true;
+    const open = h("button", { class: "pill", onclick: () => { open.hidden = true; form.hidden = false; form.querySelector("input").focus(); } }, "+ Add a new person");
+    parts.push(h("div", { class: "startor" }, h("span", {}, "or")), open, form);
+  }
+  card.replaceChildren(h("div", { class: "startbox" }, parts));
+  q.focus();
+}
+
+// "Recently viewed" (this device) and "Recently changed" (anyone, from Gramps), each hidden when empty.
+function relTime(ts) {
+  if (!ts) return "";
+  const s = Date.now() / 1000 - ts, day = 86400;
+  if (s < 3600) return "just now";
+  if (s < day && new Date(ts * 1000).toDateString() === new Date().toDateString()) return "today";
+  if (s < 2 * day) return "yesterday";
+  if (s < 30 * day) return `${Math.floor(s / day)} days ago`;
+  return new Date(ts * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function recentCard(p, sub) {
+  return h("button", { class: "recentcard", onclick: () => seeTree(p.id), title: `Open ${name(p)}'s family tree` },
+    photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, sub)));
+}
+function recentSections() {
+  const viewed = recentViewed().slice(0, 6);
+  const viewedBox = h("section", { class: "recent", hidden: !viewed.length },
+    h("h3", {}, "Recently viewed"), h("div", { class: "recentlist" }, viewed.map(id => recentCard(P[id], years(P[id]) || desc(P[id]) || " "))));
+  const changedList = h("div", { class: "recentlist" }, h("span", { class: "small muted" }, "Loading…"));
+  const changedBox = h("section", { class: "recent" }, h("h3", {}, "Recently changed"), changedList);
+  api("/tree/recent").then(rows => {
+    const items = rows.filter(r => P[r.id]).slice(0, 6);
+    changedBox.hidden = !items.length;
+    changedList.replaceChildren(...items.map(r => recentCard(P[r.id], [r.by && `by ${r.by}`, relTime(r.changed)].filter(Boolean).join(" · "))));
+  }).catch(() => { changedBox.hidden = true; });
+  return h("div", { class: "recentgrid" }, viewedBox, changedBox);
+}
+
+// "Someone new": name, Male/Female (unless already known) and birthday, plus the "is it one of these?"
+// check. Shared by the Add dialog and the start screen's "Add a new person".
+function newPersonForm() {
+  const nw = someoneNew("np", null);
+  let dupOk = false;
+  const btn = h("button", { class: "primary", onclick: async () => {
+    const person = nw.check(dupOk, p => h("button", { onclick: () => seeTree(p.id) }, "Open their tree"), () => { dupOk = true; btn.click(); });
+    if (!person) return;
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const res = await postJSON("/tree/person", person);
+      await loadGraph();
+      seeTree(res.added);
+      toast(`Saved: ${person.first || person.last} added. Now add their family.`);
+      openEditor(res.added);
+    } catch (err) {
+      if (err instanceof LoginNeeded) return showLogin();
+      btn.disabled = false; btn.textContent = "Add this person";
+      nw.say(err.message);
+    }
+  } }, "Add this person");
+  return h("div", { class: "newperson" }, h("strong", {}, "Someone new"), nw.fields, nw.warn, h("div", { class: "btnrow" }, btn));
+}
+
+// ---------- start ----------
+function gate(msg, ...kids) {
+  const g = $("#gate");
+  g.hidden = false;
+  g.replaceChildren(h("div", { class: "gate-card" }, msg && h("p", {}, msg), ...kids));
+}
+function hideGate() { $("#gate").hidden = true; }
+export function showLogin(message) {
+  const user = h("input", { id: "lg-user", autocomplete: "username", autocapitalize: "none" });
+  const pass = h("input", { id: "lg-pass", type: "password", autocomplete: "current-password" });
+  const err = h("div", { role: "status" }, message && h("div", { class: "warn" }, message));
+  const btn = h("button", { class: "primary", type: "submit" }, "Log in");
+  const form = h("form", { class: "login-form" },
+    h("h2", {}, "🌳 Family Tree"),
+    h("label", { for: "lg-user" }, "Your name", user),
+    h("label", { for: "lg-pass" }, "Your password", pass), err, btn);
+  form.onsubmit = async e => {
+    e.preventDefault(); btn.disabled = true; btn.textContent = "Checking…";
+    try { await login(user.value, pass.value); await start(); }
+    catch (ex) { err.replaceChildren(h("div", { class: "warn" }, ex.message)); btn.disabled = false; btn.textContent = "Log in"; }
+  };
+  gate("", form);
+  user.focus();
+}
+export async function start() {
+  gate("Loading the family tree…");
+  try {
+    Object.assign(ME, await api("/auth/me"));
+    await photoSession();
+    await loadGraph();
+  } catch (err) {
+    if (err instanceof LoginNeeded) return showLogin();
+    return gate(`Couldn't load the family tree: ${err.message}`, h("button", { onclick: start }, "Try again"));
+  }
+  S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
+  if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
+  const want = decodeURIComponent(location.hash.match(/^#\/p\/(.+)$/)?.[1] || "");
+  S.focus = S.sel = P[want] ? want : null;
+  if (S.focus) noteViewed(S.focus);
+  hideGate();
+  S.scrolledFor = null;
+  rememberFocus();
+  renderAll();
+}
+// Log out: forget the login and reload, so nothing of the tree stays in the page for the next person.
+$("#logout").onclick = async () => { await flushSaves(); auth.clear(); location.replace(location.pathname); };

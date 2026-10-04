@@ -81,7 +81,8 @@ read-only screen check weekly.
 - `app/familytree.py` — reads the whole tree in one go, and every edit (fields, relatives, unlink,
   undo, merge) as Gramps Web API calls.
 - `app/gramps.py` — small Gramps Web API client and object helpers.
-- `app/static/tree.{html,css,js}` — the page; `auth.js` handles login and tokens.
+- `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
+  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`); `auth.js` handles login and tokens.
 
 ## License
 
