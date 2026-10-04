@@ -3,9 +3,10 @@
 Reads go through the viewer's own Gramps Web token, so Gramps decides what they may see
 (private records and private addresses/emails are left out for roles without "view private").
 """
-from gramps import Gramps
+from gramps import GENDER, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
 
-GENDER_CODE = {0: "f", 1: "m"}
+GENDER_CODE = {0: "f", 1: "m"}  # Gramps' numbers -> the page's letters
+GENDER_WORD = {"m": "male", "f": "female"}  # the page's letters -> gramps.GENDER keys
 MOD_ABOUT = 3
 
 
@@ -74,13 +75,10 @@ async def details(g: Gramps, handle: str) -> dict:
     # "Lives in" edits the city; the rest of the address (from Gramps Web) is shown but left alone.
     rest = ", ".join(x for x in (addr.get("state"), addr.get("country")) if x)
     return {"residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
-            "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t],
-            "private": bool(addr.get("private"))}
+            "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t]}
 
 
 # ---------- editing one person, a field at a time (the editor autosaves each change) ----------
-
-from gramps import GENDER, GrampsError, gramps_date, new_handle, note_obj, upload_photo  # noqa: E402
 
 FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",
           "residence", "phone", "email", "notes"}
@@ -173,7 +171,7 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
         last = (changes["last"] or "").strip()
         name["surname_list"] = ([{"_class": "Surname", "surname": last, "primary": True}] if last else []) + rest
     if "gender" in changes:
-        p["gender"] = GENDER.get({"m": "male", "f": "female"}.get(changes["gender"], "unknown"), 2)
+        p["gender"] = GENDER.get(GENDER_WORD.get(changes["gender"], "unknown"), 2)
 
     if "birth" in changes or "birthPlace" in changes:
         date = to_gramps_date(changes.get("birth")) if "birth" in changes else None
@@ -268,8 +266,6 @@ async def set_photo(g: Gramps, handle: str, photo, tags: list) -> dict:
 
 # ---------- adding and removing relatives (every change can be undone) ----------
 
-from gramps import new_person_objs  # noqa: E402
-
 RELS = {"father", "mother", "spouse", "child"}
 
 
@@ -308,7 +304,22 @@ async def _delete_person(g, handle):
 def _family(father, mother, kids, tags):
     return {"_class": "Family", "handle": new_handle(), "type": "Married" if father and mother else "Unknown",
             "father_handle": father, "mother_handle": mother, "tag_list": list(tags),
-            "child_ref_list": [{"_class": "ChildRef", "ref": k, "frel": "Birth", "mrel": "Birth"} for k in kids]}
+            "child_ref_list": [child_ref(k) for k in kids]}
+
+
+def child_ref(handle):
+    return {"_class": "ChildRef", "ref": handle, "frel": "Birth", "mrel": "Birth"}
+
+
+def new_person(details, tags, gender=None):
+    """A new person from the page's {first, last, gender, birth: {y, m, d}} -> (handle, objects)."""
+    first, last = (details.get("first") or "").strip(), (details.get("last") or "").strip()
+    if not (first or last):
+        raise GrampsError("Please write a first or last name")
+    b = details.get("birth") or {}
+    return new_person_objs({"first_name": first, "surname": last,
+                            "birth_date": {"year": b.get("y"), "month": b.get("m"), "day": b.get("d")}},
+                           tags, False, gender or GENDER_WORD.get(details.get("gender"), "unknown"))
 
 
 async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
@@ -332,18 +343,10 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
         if rel == "spouse" and set(person.get("family_list") or []) & set(other.get("family_list") or []):
             raise GrampsError("They're already husband and wife.")
     else:
-        details = body.get("new") or {}
-        if not ((details.get("first") or "").strip() or (details.get("last") or "").strip()):
-            raise GrampsError("Please write a first or last name")
         implied = {"father": "male", "mother": "female"}.get(rel)
         if rel == "spouse":
             implied = {1: "female", 0: "male"}.get(person.get("gender"))
-        gender = implied or {"m": "male", "f": "female"}.get(details.get("gender"), "unknown")
-        oh, objs = new_person_objs({"first_name": details.get("first", ""), "surname": details.get("last", ""),
-                                    "birth_date": {"year": (details.get("birth") or {}).get("y"),
-                                                   "month": (details.get("birth") or {}).get("m"),
-                                                   "day": (details.get("birth") or {}).get("d")}},
-                                   tags, False, gender)
+        oh, objs = new_person(body.get("new") or {}, tags, implied)
         await g.add_objects(objs)
         created = oh
         other = await g.get(f"/people/{oh}")
@@ -370,7 +373,7 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
         if fam:
             if any(c["ref"] == oh for c in fam.get("child_ref_list", [])):
                 raise GrampsError("They're already a child of this family")
-            fam["child_ref_list"].append({"_class": "ChildRef", "ref": oh, "frel": "Birth", "mrel": "Birth"})
+            fam["child_ref_list"].append(child_ref(oh))
             await g.put(f"/families/{fam_id}", fam)
         else:
             is_mother = person.get("gender") == 0
@@ -428,7 +431,7 @@ async def undo(g: Gramps, token: dict, tags: list) -> dict:
             fam = None
         if fam and token["rel"] == "child":
             if not any(c["ref"] == token["other"] for c in fam.get("child_ref_list", [])):  # Undo sent twice
-                fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
+                fam["child_ref_list"].append(child_ref(token["other"]))
                 await g.put(f"/families/{fam['handle']}", fam)
         elif fam and token.get("side") and not fam.get(token["side"]):
             fam[token["side"]] = token["other"]
@@ -442,13 +445,7 @@ async def undo(g: Gramps, token: dict, tags: list) -> dict:
 
 async def create_person(g: Gramps, body: dict, tags: list) -> dict:
     """A new person with no relatives yet (the start screen's "Add a new person")."""
-    first, last = (body.get("first") or "").strip(), (body.get("last") or "").strip()
-    if not (first or last):
-        raise GrampsError("Please write a first or last name")
-    b = body.get("birth") or {}
-    handle, objs = new_person_objs({"first_name": first, "surname": last,
-                                    "birth_date": {"year": b.get("y"), "month": b.get("m"), "day": b.get("d")}},
-                                   tags, False, {"m": "male", "f": "female"}.get(body.get("gender"), "unknown"))
+    handle, objs = new_person(body, tags)
     await g.add_objects(objs)
     return {"added": handle}
 
