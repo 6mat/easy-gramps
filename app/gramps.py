@@ -1,5 +1,6 @@
 """Small Gramps Web API client and object helpers, used with the caller's own token."""
 import datetime
+import logging
 import uuid
 
 import httpx
@@ -19,7 +20,11 @@ def new_handle():
     return uuid.uuid4().hex
 
 
+log = logging.getLogger("easy-gramps")
 _clients: dict = {}
+# What people see when Gramps refuses something; the raw Gramps message goes to the server log.
+PLAIN = {401: "Please log in again.", 403: "You don't have permission to do that.",
+         404: "That person or family isn't in the tree any more."}
 
 
 def shared_client(base_url: str) -> httpx.AsyncClient:
@@ -43,15 +48,29 @@ class Gramps:
     async def _call(self, method, path, **kw):
         r = await self.http.request(method, path, headers={**self.auth, **kw.pop("headers", {})}, **kw)
         if r.status_code >= 400:
-            try:
-                msg = r.json().get("error", {}).get("message") or r.text
-            except ValueError:
-                msg = r.text
-            raise GrampsError(f"Gramps said: {msg}", r.status_code if r.status_code in (401, 403) else 502)
+            raise self._error(method, path, r)
         return r.json() if r.content else None
 
+    @staticmethod
+    def _error(method, path, r):
+        try:
+            msg = r.json().get("error", {}).get("message") or r.text
+        except ValueError:
+            msg = r.text
+        log.warning("Gramps %s %s -> %s: %s", method, path, r.status_code, msg[:300])
+        if r.status_code in PLAIN:
+            return GrampsError(PLAIN[r.status_code], r.status_code)
+        return GrampsError("Gramps couldn't do that. Please try again.", 502)
+
     async def delete(self, path):
-        return await self.http.delete(path, headers=self.auth)
+        """Delete; something already gone counts as done. (Gramps sometimes answers 500 to a
+        family delete that did work, so a 5xx is checked with a GET before it counts as failed.)"""
+        r = await self.http.delete(path, headers=self.auth)
+        if r.status_code < 400 or r.status_code == 404:
+            return
+        if r.status_code >= 500 and (await self.http.get(path, headers=self.auth)).status_code == 404:
+            return
+        raise self._error("DELETE", path, r)
 
     async def get(self, path, **params):
         return await self._call("GET", path, params=params)

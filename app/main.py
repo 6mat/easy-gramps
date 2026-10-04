@@ -262,7 +262,7 @@ async def tree_tags(g):
 @easy.patch("/tree/person/{handle}")
 async def tree_update_person(handle: str, request: Request):
     await who(request)
-    changes = await request.json()
+    changes = await json_body(request)
     g = gramps.Gramps(GRAMPS_URL, bearer(request))
     try:
         return await familytree.update_person(g, handle, changes, await tree_tags(g))
@@ -297,7 +297,7 @@ async def tree_set_photo(handle: str, request: Request):
 
 async def _tree_call(request, fn, *args, with_tags=True):
     await who(request)
-    body = await request.json()
+    body = await json_body(request)
     g = gramps.Gramps(GRAMPS_URL, bearer(request))
     try:
         return await (fn(g, body, await tree_tags(g)) if with_tags else fn(g, body))

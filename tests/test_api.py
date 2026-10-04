@@ -173,3 +173,29 @@ def test_me_says_who_may_see_private_details(fake, client):  # #25
     for role, private in ((0, False), (1, True), (3, True)):
         fake.role = role; main._who_cache.clear()
         assert client.get("/family/auth/me").json()["can_view_private"] is private
+
+
+def test_errors_are_plain_and_bad_input_is_400(fake, client):  # #27
+    r = client.get("/family/tree/details/nosuchperson")
+    assert r.status_code == 404 and r.json()["detail"] == "That person or family isn't in the tree any more."
+    assert client.post("/family/tree/relative", content=b"not json", headers={"Content-Type": "application/json"}).status_code == 400
+    assert client.post("/family/tree/undo", json=None).status_code == 400
+    assert client.patch("/family/tree/person/x", json=[1]).status_code == 400
+    fake.fail[("PUT", "/people/")] = 422
+    p = fake.person("Ann", "", 0)
+    r = client.patch(f"/family/tree/person/{p}", json={"first": "A"})
+    assert r.status_code == 502 and "Gramps said" not in r.json()["detail"]
+
+
+def test_delete_checks_the_answer(fake, g):  # #27
+    from conftest import run
+    import gramps
+    p = fake.person("Ann", "", 0)
+    run(g.delete(f"/people/{p}")); run(g.delete(f"/people/{p}"))  # gone already: fine
+    fake.role = 2
+    q = fake.person("Bob", "", 1)
+    try:
+        run(g.delete(f"/people/{q}"))
+        raise AssertionError("should raise")
+    except gramps.GrampsError as e:
+        assert e.status == 403
