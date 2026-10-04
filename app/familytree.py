@@ -93,6 +93,27 @@ def to_gramps_date(v):
     return gramps_date({"year": v["y"], "month": v.get("m") or 0, "day": v.get("d") or 0, "about": v.get("about")})
 
 
+def place_given(v) -> bool:
+    if isinstance(v, dict):
+        return bool(v.get("id") or (v.get("new") or "").strip())
+    return bool((v or "").strip())
+
+
+async def places(g: Gramps) -> list:
+    """Every place for the editor's list, with the area it's in ("Kent, England") to tell same names apart."""
+    rows = await g.get("/places/", keys="handle,name,placeref_list")
+    by = {r["handle"]: r for r in rows}
+
+    def area(r, depth=0):
+        up = by.get(((r.get("placeref_list") or [{}])[0]).get("ref"))
+        if not up or depth > 3:
+            return []
+        return [up["name"]["value"]] + area(up, depth + 1)
+
+    out = [{"id": r["handle"], "name": r["name"]["value"].strip(), "area": ", ".join(area(r))} for r in rows]
+    return sorted((x for x in out if x["name"]), key=lambda x: (x["name"].lower(), x["area"]))
+
+
 async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> dict:
     unknown = set(changes) - FIELDS
     if unknown:
@@ -102,18 +123,26 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
     new_objs, dirty_events, dropped, dropped_notes = [], {}, [], []
     known_places = None
 
-    async def place_handle(name):
+    async def place_handle(value):
+        """A place picked from the list ({"id"}), a new one the user asked for ({"new"}), or a name
+        (from merge: the place with that name, made if there's none)."""
         nonlocal known_places
-        name = (name or "").strip()
+        if isinstance(value, dict) and value.get("id"):
+            await g.get(f"/places/{value['id']}", keys="handle")  # it must exist
+            return value["id"]
+        is_new = isinstance(value, dict)
+        name = ((value.get("new") if is_new else value) or "").strip()
         if not name:
             return ""
-        if known_places is None:
+        if known_places is None and not is_new:
             known_places = await g.places_by_name()
-        if name.lower() not in known_places:
+        if is_new or name.lower() not in known_places:
             h = new_handle()
-            known_places[name.lower()] = h
+            if not is_new:
+                known_places[name.lower()] = h
             new_objs.append({"_class": "Place", "handle": h, "place_type": "Unknown", "title": "", "tag_list": list(tags),
                              "name": {"_class": "PlaceName", "value": name, "lang": ""}})
+            return h
         return known_places[name.lower()]
 
     loaded = {}  # event handle -> event, fetched at most once
@@ -175,7 +204,7 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
 
     if "birth" in changes or "birthPlace" in changes:
         date = to_gramps_date(changes.get("birth")) if "birth" in changes else None
-        wants = date or (changes.get("birthPlace") or "").strip()
+        wants = date or place_given(changes.get("birthPlace"))
         ev = await event("Birth", "birth_ref_index", create=bool(wants))
         if ev:
             if "birth" in changes:

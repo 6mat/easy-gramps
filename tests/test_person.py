@@ -82,3 +82,45 @@ def test_untick_deceased_deletes_own_death_and_burial(fake, g):
     a = fake.person("Ann", "", 0, event_ref_list=[{"ref": d}, {"ref": bu}], death_ref_index=0)
     run(familytree.update_person(g, a, {"deceased": False}, []))
     assert fake.get("events", d) is None and fake.get("events", bu) is None
+
+
+def place(fake, name, inside=None):
+    return fake.add("places", _class="Place", name={"value": name},
+                    placeref_list=[{"_class": "PlaceRef", "ref": inside}] if inside else [])
+
+
+def birth_place(fake, p):
+    ev = fake.get("events", fake.get("people", p)["event_ref_list"][0]["ref"])
+    return fake.get("places", ev["place"])
+
+
+def test_places_list_names_the_area(fake, g):  # #49
+    eng = place(fake, "England")
+    kent = place(fake, "Kent", eng)
+    place(fake, "Ashford", kent)
+    place(fake, "Ashford")
+    out = run(familytree.places(g))
+    assert [(x["name"], x["area"]) for x in out if x["name"] == "Ashford"] == [("Ashford", ""), ("Ashford", "Kent, England")]
+
+
+def test_picked_place_is_linked_not_made(fake, g):  # #49
+    a = place(fake, "Ashford")
+    p = fake.person("Ann", "", 0)
+    run(familytree.update_person(g, p, {"birthPlace": {"id": a}}, []))
+    assert birth_place(fake, p)["handle"] == a and len(fake.db["places"]) == 1
+
+
+def test_new_place_is_made_even_with_the_same_name(fake, g):  # #49: another Ashford, asked for
+    place(fake, "Ashford")
+    p = fake.person("Ann", "", 0)
+    run(familytree.update_person(g, p, {"burial": {"new": " Ashford "}, "deceased": True}, ["t1"]))
+    assert len(fake.db["places"]) == 2
+    made = [x for x in fake.db["places"].values() if x.get("tag_list") == ["t1"]]
+    assert made[0]["name"]["value"] == "Ashford"
+
+
+def test_place_by_name_still_reuses_an_exact_match(fake, g):  # merge sends names
+    a = place(fake, "Ashford")
+    p = fake.person("Ann", "", 0)
+    run(familytree.update_person(g, p, {"birthPlace": "ashford"}, []))
+    assert birth_place(fake, p)["handle"] == a and len(fake.db["places"]) == 1
