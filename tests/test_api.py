@@ -254,3 +254,37 @@ def test_account_gramps_refuses_is_not_a_logout(fake, client):  # shared login: 
 
 def test_page_knows_where_gramps_web_is(fake, client):  # same site → shared login, pick 5a
     assert 'data-gramps="http://gramps.test"' in client.get("/family/").text
+
+
+def test_installable_as_an_app(fake, client):  # home-screen app: manifest, icons, service worker
+    import io
+    from PIL import Image
+    m = client.get("/family/manifest.webmanifest")
+    assert m.headers["content-type"].startswith("application/manifest+json")
+    j = m.json()
+    assert (j["id"], j["start_url"], j["scope"], j["display"], j["name"]) == ("/family/", "/family/", "/family/", "standalone", "Family Tree")
+    assert {(i["sizes"], i["purpose"]) for i in j["icons"]} == {("192x192", "any"), ("512x512", "any"), ("192x192", "maskable"), ("512x512", "maskable")}
+    for i in j["icons"]:
+        r = client.get(i["src"])
+        assert r.headers["content-type"] == "image/png"
+        assert Image.open(io.BytesIO(r.content)).size == tuple(map(int, i["sizes"].split("x")))
+    assert client.get("/family/icon-77.png").status_code == 404
+    sw = client.get("/family/sw.js")
+    assert sw.headers["content-type"].startswith("text/javascript") and "No internet" in sw.text
+    page = client.get("/family/").text
+    assert 'rel="manifest" href="/family/manifest.webmanifest"' in page and "__ICONV__" not in page
+
+
+def test_own_icon_picture_replaces_every_icon(fake, client, monkeypatch, tmp_path):  # ICON_FILE
+    import io
+    from PIL import Image
+    import main
+    before = client.get("/family/manifest.webmanifest").json()["icons"][0]["src"]
+    pic = tmp_path / "mine.png"
+    Image.new("RGB", (900, 600), (200, 30, 30)).save(pic)  # not square: the middle is used
+    monkeypatch.setattr(main, "ICON_FILE", pic)
+    after = client.get("/family/manifest.webmanifest").json()["icons"][0]["src"]
+    assert after != before  # a new address, so installed phones fetch the new picture
+    im = Image.open(io.BytesIO(client.get(after).content)).convert("RGB")
+    assert im.size == (192, 192) and im.getpixel((96, 96)) == (200, 30, 30)
+    assert f"icon-180.png?v={after.split('v=')[1]}" in client.get("/family/").text

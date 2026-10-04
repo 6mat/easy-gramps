@@ -89,7 +89,19 @@ read-only screen check weekly.
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
+| `ICON_FILE` | Your own app icon: a square picture (PNG or JPG) inside the container. Every icon size is made from it, and installed phones pick up a new one. Defaults to the bundled tree. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
+
+## On a phone or tablet: install it as an app
+
+In Chrome on Android, open `/family/` and choose **Install app** (or **Add to Home screen → Install**);
+on an iPhone, Safari's **Share → Add to Home Screen**. It then opens from its own **Family Tree** icon,
+without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
+the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
+
+To use your own icon, point `ICON_FILE` at a square picture (see the commented lines in the deploy
+files). After changing it, an installed app shows the new icon once the phone next checks (it can take
+a day); removing and re-installing the app shows it at once.
 
 ## Signing in
 

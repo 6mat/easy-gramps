@@ -3,3 +3,4 @@ starlette==1.7.0  # pinned too: it serves the static files (see pip-audit)
 uvicorn==0.54.0
 httpx==0.28.1
 python-multipart==0.0.32
+pillow==12.3.0  # makes the app icons from one picture

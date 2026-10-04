@@ -6,6 +6,7 @@ with that user's own token, so Gramps permissions still apply.
 import asyncio
 import hashlib
 import html
+import io
 import json
 import os
 import pathlib
@@ -15,6 +16,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from PIL import Image, ImageOps
 from starlette.middleware.gzip import GZipMiddleware
 
 import familytree
@@ -412,10 +414,72 @@ async def thumbnail(handle: str, size: int, request: Request):
     return Response(r.content, status_code=r.status_code, headers=keep)
 
 
+# ---------- install as an app (phone / tablet home screen) ----------
+# One square picture makes every icon (ICON_FILE; default the bundled tree). Replace it and the icons
+# follow: their addresses carry a version of the picture, so installed phones pick up the new one.
+ICON_FILE = pathlib.Path(os.environ.get("ICON_FILE") or STATIC / "icon.png")
+ICON_SIZES = (32, 180, 192, 512)  # browser tab, iPhone, and the two Android asks for
+APP_NAME = "Family Tree"
+_icons: dict = {}
+
+
+def icon_master() -> dict:
+    st = ICON_FILE.stat()
+    if _icons.get("key") != (st.st_mtime_ns, st.st_size):
+        data = ICON_FILE.read_bytes()
+        _icons.clear()
+        _icons.update(key=(st.st_mtime_ns, st.st_size), data=data, version=hashlib.sha256(data).hexdigest()[:12])
+    return _icons
+
+
+def icon_png(size: int, maskable: bool) -> bytes:
+    m = icon_master()
+    if (size, maskable) not in m:
+        with Image.open(io.BytesIO(m["data"])) as im:
+            im = ImageOps.exif_transpose(im).convert("RGBA")
+            im = ImageOps.fit(im, (min(im.size),) * 2)  # a square from the middle
+            if maskable:  # Android crops to a circle or rounded square: keep the picture in the middle 80%
+                corner = im.getpixel((0, 0))
+                out = Image.new("RGBA", (size, size), corner if corner[3] == 255 else (255, 255, 255, 255))
+                inner = round(size * 0.8)
+                out.alpha_composite(im.resize((inner, inner), Image.LANCZOS), ((size - inner) // 2,) * 2)
+            else:
+                out = im.resize((size, size), Image.LANCZOS)
+        buf = io.BytesIO()
+        out.save(buf, "PNG", optimize=True)
+        m[(size, maskable)] = buf.getvalue()
+    return m[(size, maskable)]
+
+
+@easy.get("/icon-{size}.png")
+async def icon(size: int, maskable: int = 0):
+    if size not in ICON_SIZES:
+        raise HTTPException(404, "No such icon")
+    return Response(icon_png(size, bool(maskable)), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@easy.get("/manifest.webmanifest")
+async def manifest():
+    v = icon_master()["version"]
+    icons = [{"src": f"{BASE_PATH}/icon-{s}.png?{q}v={v}", "sizes": f"{s}x{s}", "type": "image/png", "purpose": purpose}
+             for purpose, q in (("any", ""), ("maskable", "maskable=1&")) for s in (192, 512)]
+    # Its own id and scope (BASE_PATH), so it's an app of its own next to Gramps Web's (which claims "/").
+    return JSONResponse({"id": f"{BASE_PATH}/", "name": APP_NAME, "short_name": APP_NAME,
+                         "start_url": f"{BASE_PATH}/", "scope": f"{BASE_PATH}/", "display": "standalone",
+                         "background_color": "#f6f3ee", "theme_color": "#f6f3ee", "icons": icons},
+                        media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+
+
+@easy.get("/sw.js")
+async def service_worker():  # served from BASE_PATH (not /static) so it may look after the whole app
+    return Response((STATIC / "sw.js").read_text(), media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
 # ---------- pages ----------
 
 def page(name: str) -> HTMLResponse:
-    text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH)
+    text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH).replace("__ICONV__", icon_master()["version"])
     text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True))
     return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))
 

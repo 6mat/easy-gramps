@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.0.3 — 2026-10-04
+
+### Added
+- **Install it as an app** on phones and tablets ("Install app" in Chrome, "Add to Home Screen" on an
+  iPhone): its own **Family Tree** icon and window, separate from Gramps Web's app. Nothing is kept on
+  the phone; with no internet it shows "No internet" with a Try again button.
+- `ICON_FILE`: use your own picture as the app icon; every size is made from it.
+
 ## 1.0.2 — 2026-10-04
 
 (1.0.1 was tagged but never built: its tag was set before the version bump.)
