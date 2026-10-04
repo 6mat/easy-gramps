@@ -166,3 +166,10 @@ def test_tag_created_once_for_concurrent_first_edits(fake, client):  # #39
     assert len(fake.db["tags"]) == 1 and len({tuple(x) for x in out}) == 1
     client.post("/family/tree/person", json={"first": "A"}); client.post("/family/tree/person", json={"first": "B"})
     assert len(fake.sent("GET", "/tags/")) == 1
+
+
+def test_me_says_who_may_see_private_details(fake, client):  # #25
+    import main
+    for role, private in ((0, False), (1, True), (3, True)):
+        fake.role = role; main._who_cache.clear()
+        assert client.get("/family/auth/me").json()["can_view_private"] is private

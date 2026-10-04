@@ -25,7 +25,7 @@ GRAMPS_LINK_LABEL = os.environ.get("GRAMPS_LINK_LABEL", "Full Gramps")  # menu l
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /family
-ROLE_CONTRIBUTOR, ROLE_EDITOR = 2, 3  # Gramps Web roles: can add / can also change existing records
+ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR = 1, 2, 3  # Gramps Web roles: see private / can add / can change
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
 STATIC = pathlib.Path(__file__).parent / "static"
 
@@ -121,6 +121,7 @@ async def who(request: Request) -> dict:
     r = await upstream.get("/users/-/", headers={"Authorization": f"Bearer {token}"})
     check_login(r)
     user = r.json()
+    user["can_view_private"] = user.get("role", 0) >= ROLE_MEMBER
     user["can_add"] = user.get("role", 0) >= ROLE_CONTRIBUTOR
     user["can_edit"] = user.get("role", 0) >= ROLE_EDITOR
     user["gramps_link"] = {"url": GRAMPS_PUBLIC_URL, "label": GRAMPS_LINK_LABEL}

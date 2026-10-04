@@ -835,7 +835,7 @@ function renderPanel() {
     h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
-    const priv = S.role === "guest";
+    const priv = !ME?.can_view_private;  // Gramps lets Members and up see private details
     const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
     const any = p.burial || p.residence || p.phone || p.email || notes;
     panel.append(h("div", { class: "details" },
