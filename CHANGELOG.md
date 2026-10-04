@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.0.1 — 2026-10-04
 
 ### Changed
 - "Is this person in the tree twice?" is now a tab across the bottom of the details panel, with its own
