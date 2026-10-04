@@ -9,6 +9,10 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
   a changed copy can offer its source as the AGPL asks.
 - README: Easy Gramps is not affiliated with or endorsed by the Gramps project.
 
+### Changed
+- The page's script is split into small modules (tree, details panel, editor, merge, start screen),
+  so each part is easier to read and fix. Nothing changes for users.
+
 ## 0.9.1 — 2026-10-04
 
 ### Security
