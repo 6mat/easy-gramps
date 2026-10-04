@@ -60,7 +60,6 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 /* ---------- page ---------- */
 .app { height: 100%; display: grid; grid-template-rows: auto auto 1fr; padding-inline: 20px; }
 .top { display: flex; align-items: center; gap: 20px; padding-block: 14px; }
-.top strong { font-size: 20px; white-space: nowrap; letter-spacing: -.01em; }
 .search { position: relative; flex: 1; max-width: 560px; }
 .search input { padding-left: 38px; border-radius: 999px; background: var(--card) no-repeat 14px 50% / 16px
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8275' stroke-width='2.5'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M20 20l-4.8-4.8'/%3E%3C/svg%3E"); }
