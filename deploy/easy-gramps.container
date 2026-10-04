@@ -1,0 +1,52 @@
+# Easy Gramps as a rootless Podman Quadlet, next to Gramps Web, behind Traefik.
+#   https://gramps.example.com/          -> Gramps Web
+#   https://gramps.example.com/family/   -> Easy Gramps (same domain: the browser shares one login)
+#
+# Assumes: Traefik reads container labels through the Podman socket, Traefik and Gramps Web are on
+# the network defined in proxy.network, and the Gramps Web container is called "gramps" (port 5000).
+#
+# Install (as the user that runs your containers):
+#   cp deploy/easy-gramps.container ~/.config/containers/systemd/   # then edit the host name below
+#   systemctl --user daemon-reload && systemctl --user start easy-gramps
+# The published image is multi-arch (amd64, arm64). Podman's auto-update keeps it current if
+# podman-auto-update.timer is enabled (systemctl --user enable --now podman-auto-update.timer).
+#
+# Nothing to persist: the app keeps no files (DATA_DIR is only used by the opt-in DEBUG_LOG).
+
+[Unit]
+Description=Easy Gramps (simple family tree for Gramps Web)
+After=network-online.target proxy.network gramps.service
+
+[Container]
+Image=ghcr.io/6mat/easy-gramps:latest
+AutoUpdate=registry
+# Or build it yourself from a checkout of this repo and use the local image (then drop AutoUpdate):
+#   podman build -t localhost/easy-gramps:latest app/
+# Image=localhost/easy-gramps:latest
+ContainerName=easy-gramps
+Network=proxy.network
+
+Environment=GRAMPS_URL=http://gramps:5000
+Environment=GRAMPS_PUBLIC_URL=https://gramps.example.com
+Environment=BASE_PATH=/family
+# Only Traefik can reach this container (no published port), so trust its X-Forwarded-For;
+# the per-visitor login limit depends on it.
+Environment=FORWARDED_ALLOW_IPS=*
+
+Label=traefik.enable=true
+Label=traefik.http.routers.easy-gramps.rule=Host(`gramps.example.com`) && PathPrefix(`/family`)
+Label=traefik.http.routers.easy-gramps.entrypoints=websecure
+Label=traefik.http.routers.easy-gramps.tls.certresolver=letsencrypt
+# Must beat Gramps Web's Host-only router. Traefik ranks routers without a priority by rule length,
+# so a low explicit number here would LOSE; keep it high.
+Label=traefik.http.routers.easy-gramps.priority=100
+Label=traefik.http.services.easy-gramps.loadbalancer.server.port=8000
+# No strip-prefix middleware: the app expects /family in the path.
+# Add your own middlewares (e.g. a CrowdSec bouncer) the same way as on your Gramps Web router:
+# Label=traefik.http.routers.easy-gramps.middlewares=crowdsec-bouncer@file
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

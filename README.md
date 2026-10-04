@@ -41,6 +41,15 @@ each time you paused while typing one ("Lo", "Lond", "London"). This lists the p
 made that nobody uses, and deletes them only if you type `yes` (log in as an Editor or Owner):
 `docker exec -it easy-gramps python unused_places.py`
 
+## Install with Podman (Quadlet)
+
+For a rootless Podman host where Traefik reads container labels through the Podman socket, use
+`deploy/easy-gramps.container` instead of the compose file: copy it into
+`~/.config/containers/systemd/`, set your host name in it, then
+`systemctl --user daemon-reload && systemctl --user start easy-gramps`. It pulls the published
+image (`ghcr.io/6mat/easy-gramps`, amd64 and arm64) and lets Podman auto-update it. The comments in the file
+list what it assumes (network, Gramps Web container name, router priority).
+
 ## Develop locally
 
 ```

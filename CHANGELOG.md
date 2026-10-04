@@ -8,6 +8,7 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 - Menu link "Source code ↗" (setting `SOURCE_URL`, defaults to this repository), so anyone running
   a changed copy can offer its source as the AGPL asks.
 - README: Easy Gramps is not affiliated with or endorsed by the Gramps project.
+- `deploy/easy-gramps.container`: install on a rootless Podman host as a Quadlet, behind Traefik.
 
 ### Fixed
 - Typing a place no longer makes a new place at every pause ("Lo", "Lond", "London"). The box now
