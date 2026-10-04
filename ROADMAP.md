@@ -1,9 +1,8 @@
 # Roadmap
 
-Work plan towards a public **0.9.x** release, then 1.0. Order matters: lock things down before
-sharing the login with Gramps Web.
+Work plan. **1.0 is released**: everything under "Done" below. Next up is the list under "Next".
 
-## Now: 0.9.x — install next to Gramps Web, with Google / single sign-on
+## Done: 0.9.x → 1.0 — install next to Gramps Web, with Google / single sign-on
 
 ### 1. Security hardening (do before the shared login)
 - [x] **Security headers from the app itself** (installs without our Traefik setup need them too):
@@ -44,19 +43,20 @@ share the browser's `localStorage`, where Gramps Web keeps its login (password *
 - [x] Log out logs out of both; logging out in Gramps Web logs this page out. An account Gramps refuses
       sees "ask the owner" and is not logged out.
 - [x] Script-injection review done (#9) on top of the CSP (#1).
-- [ ] Owner tests Google sign-in on a real server (phone and computer).
+- [x] Owner tested Google sign-in on a real server.
 
 ### 3. Release
 - [x] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);
       a Playwright smoke test against the Gramps Web demo (read-only parts).
 - [x] GitHub Actions: lint + tests on push; on a `v*` tag, build a multi-arch (amd64 + arm64) image to GHCR.
 - [x] `LICENSE`: AGPL-3.0-or-later, same as Gramps Web / Gramps Web API.
-- [ ] `CHANGELOG.md`, `SECURITY.md` (how to report), README screenshots (from the Gramps Web demo tree,
-      never a real family).
-- [ ] Name check: ask the Gramps project whether "Easy Gramps" is OK, or rename
-      ("… for Gramps Web").
+- [x] `CHANGELOG.md`, `SECURITY.md` (how to report).
+- [ ] README screenshots (from the Gramps Web demo tree, never a real family) — #12, after 1.0.
+- [x] Name: kept "Easy Gramps"; the README says it isn't affiliated with or endorsed by the Gramps
+      project (#13).
 
-## Later (towards 1.0)
+## Next (after 1.0)
+- **README screenshots** (#12).
 - **Phones:** a portrait layout (tree on top, details below, bigger tap targets). Today phones see
   "turn your phone sideways".
 - **Faster reloads for big trees:** after an edit, re-fetch only what changed (today the whole tree

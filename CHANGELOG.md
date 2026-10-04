@@ -2,7 +2,10 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.0.0 — 2026-10-04
+
+First stable release: installs next to Gramps Web on the same site, with one shared login
+(Google / single sign-on included), the security hardening and the review fixes of 0.9.x.
 
 ### Fixed
 - "Is this person in the tree twice?" stays visible at the bottom of the details panel for editors;
