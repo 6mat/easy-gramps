@@ -248,10 +248,10 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
     await g.put(f"/people/{handle}", p)
     for h in dropped:  # an event can be shared (e.g. a witness): delete it only if no one else uses it
         if not await g.in_use("events", h):
-            await g.http.delete(f"/events/{h}")
+            await g.delete(f"/events/{h}")
     for h in dropped_notes:
         if not await g.in_use("notes", h):
-            await g.http.delete(f"/notes/{h}")
+            await g.delete(f"/notes/{h}")
     return {"ok": True}
 
 
@@ -282,7 +282,7 @@ async def _delete_family(g, fam):
     """Empty the family first, so Gramps clears everyone's links to it, then delete it."""
     fam.update(father_handle=None, mother_handle=None, child_ref_list=[])
     await g.put(f"/families/{fam['handle']}", fam)
-    await g.http.delete(f"/families/{fam['handle']}")
+    await g.delete(f"/families/{fam['handle']}")
 
 
 async def _delete_person(g, handle):
@@ -298,10 +298,10 @@ async def _delete_person(g, handle):
         else:
             await g.put(f"/families/{fh}", fam)
     events = [r["ref"] for r in p.get("event_ref_list") or []]
-    await g.http.delete(f"/people/{handle}")
+    await g.delete(f"/people/{handle}")
     for h in events:
         if not await g.in_use("events", h):
-            await g.http.delete(f"/events/{h}")
+            await g.delete(f"/events/{h}")
 
 
 def _family(father, mother, kids, tags):

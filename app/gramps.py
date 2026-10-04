@@ -19,16 +19,29 @@ def new_handle():
     return uuid.uuid4().hex
 
 
+_clients: dict = {}
+
+
+def shared_client(base_url: str) -> httpx.AsyncClient:
+    """One connection pool to Gramps for the whole app (a new TLS handshake per request was slow)."""
+    key = (base_url, id(TRANSPORT))
+    if key not in _clients:
+        _clients.clear()  # (only changes in tests, which swap TRANSPORT)
+        _clients[key] = httpx.AsyncClient(base_url=f"{base_url}/api", timeout=60, transport=TRANSPORT)
+    return _clients[key]
+
+
 class Gramps:
+    """The Gramps Web API as one user: every call carries that user's own token."""
     def __init__(self, base_url: str, token: str):
-        self.http = httpx.AsyncClient(base_url=f"{base_url}/api", timeout=60, transport=TRANSPORT,
-                                      headers={"Authorization": f"Bearer {token}"})
+        self.http = shared_client(base_url)
+        self.auth = {"Authorization": f"Bearer {token}"}
 
     async def close(self):
-        await self.http.aclose()
+        pass  # the connection pool is shared and stays open
 
     async def _call(self, method, path, **kw):
-        r = await self.http.request(method, path, **kw)
+        r = await self.http.request(method, path, headers={**self.auth, **kw.pop("headers", {})}, **kw)
         if r.status_code >= 400:
             try:
                 msg = r.json().get("error", {}).get("message") or r.text
@@ -36,6 +49,9 @@ class Gramps:
                 msg = r.text
             raise GrampsError(f"Gramps said: {msg}", r.status_code if r.status_code in (401, 403) else 502)
         return r.json() if r.content else None
+
+    async def delete(self, path):
+        return await self.http.delete(path, headers=self.auth)
 
     async def get(self, path, **params):
         return await self._call("GET", path, params=params)

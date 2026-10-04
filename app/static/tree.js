@@ -461,7 +461,9 @@ function drawLines({ couples, fams, arches, pos, rowY, OX, focusFams }) {
   }
   svg.innerHTML = d.join("");
 }
-window.addEventListener("resize", () => renderTree());
+// At most one redraw per frame: resize and scroll fire many times a second.
+const perFrame = fn => { let queued = false; return () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; fn(); }); }; };
+window.addEventListener("resize", perFrame(() => renderTree()));
 
 function select(id, fromClick) {
   S.sel = id; S.more = false;
@@ -617,7 +619,7 @@ document.addEventListener("wheel", e => { if (e.ctrlKey) e.preventDefault(); }, 
     } else lastTap = { t: now, x: e.clientX, y: e.clientY };
   };
   sc.addEventListener("pointerup", end); sc.addEventListener("pointercancel", end);
-  sc.addEventListener("scroll", () => { drawMinimap(); placePopcard(); drawSelink(); });
+  sc.addEventListener("scroll", perFrame(() => { drawMinimap(); placePopcard(); drawSelink(); }));
 })();
 
 // ----- overview map: the whole tree in miniature, with the visible part outlined -----

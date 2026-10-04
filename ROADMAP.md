@@ -62,6 +62,8 @@ share the browser's `localStorage`. Gramps Web stores its login (password *or* O
 ## Later (towards 1.0)
 - **Phones:** a portrait layout (tree on top, details below, bigger tap targets). Today phones see
   "turn your phone sideways".
+- **Faster reloads for big trees:** after an edit, re-fetch only what changed (today the whole tree
+  reloads; ~0.4 MB / 7-10 s for the demo's 4,669 people).
 - **Suggest likely duplicates** on the start screen (same/similar name, overlapping dates).
 - **"Could use some details" list** — people missing parents, a birth year or a photo.
 - **House / family name field** to tell apart people with the same name (undecided).
