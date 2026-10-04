@@ -26,7 +26,7 @@ def surname_of(name):
 async def graph(g: Gramps) -> dict:
     """Every person (the fields the tree and panel need) and every family, in one response."""
     people = await g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
-                                          "birth_ref_index,death_ref_index,family_list,media_list")
+                                          "birth_ref_index,death_ref_index,family_list,parent_family_list,media_list")
     families = await g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list")
     events = {e["handle"]: e for e in await g.get("/events/", keys="handle,type,date,place")}
     places = {p["handle"]: p["name"]["value"] for p in await g.get("/places/", keys="handle,name")}
@@ -56,6 +56,7 @@ async def graph(g: Gramps) -> dict:
             "burial": places.get((burial or {}).get("place"), ""),
             "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
             "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
+            "pfams": p.get("parent_family_list") or [],  # their parents' families; the first is the one shown
         }
     fams = [{"id": f["handle"], "f": f.get("father_handle") or None, "m": f.get("mother_handle") or None,
              "kids": [c["ref"] for c in f.get("child_ref_list") or []]}
@@ -68,9 +69,12 @@ async def details(g: Gramps, handle: str) -> dict:
     p = await g.get(f"/people/{handle}", extend="note_list")
     addr = next(iter(p.get("address_list") or []), {})
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
-    notes = [n["text"]["string"] for n in (p.get("extended") or {}).get("notes", []) if n.get("text", {}).get("string")]
-    residence = ", ".join(x for x in (addr.get("city"), addr.get("state"), addr.get("country")) if x)
-    return {"residence": residence, "phone": addr.get("phone", ""), "email": email, "notes": "\n\n".join(notes),
+    # The editor changes only the first note (the one it shows); any others are shown read-only.
+    notes = [(n.get("text") or {}).get("string", "") for n in (p.get("extended") or {}).get("notes", [])]
+    # "Lives in" edits the city; the rest of the address (from Gramps Web) is shown but left alone.
+    rest = ", ".join(x for x in (addr.get("state"), addr.get("country")) if x)
+    return {"residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
+            "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t],
             "private": bool(addr.get("private"))}
 
 
@@ -80,6 +84,7 @@ from gramps import GENDER, GrampsError, gramps_date, new_handle, note_obj, uploa
 
 FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",
           "residence", "phone", "email", "notes"}
+ADDRESS_PARTS = ("street", "locality", "city", "county", "state", "country", "postal", "phone")
 EMPTY_DATE = {"_class": "Date", "calendar": 0, "modifier": 0, "quality": 0, "dateval": [0, 0, 0, False],
               "sortval": 0, "newyear": 0, "text": "", "year": 0}
 
@@ -207,11 +212,10 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
                           "state": "", "country": "", "postal": "", "phone": ""})
         a = addrs[0]
         if "residence" in changes:
-            a["city"], a["state"], a["country"] = (changes["residence"] or "").strip(), "", ""
+            a["city"] = (changes["residence"] or "").strip()
         if "phone" in changes:
             a["phone"] = (changes["phone"] or "").strip()
-        a["private"] = True
-        if not (a.get("city") or a.get("phone") or a.get("street")):
+        if not any(a.get(k) for k in ADDRESS_PARTS):
             addrs.pop(0)
 
     if "email" in changes:
@@ -230,7 +234,7 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
             await g.put(f"/notes/{first}", note)
         elif first:
             p["note_list"].pop(0)
-            dropped_notes.append(first)  # deleted after the person no longer points to it
+            dropped_notes.append(first)  # deleted after the person no longer points to it, if nothing else does
         elif text:
             n = note_obj(text, tags, False)
             new_objs.append(n)
@@ -243,10 +247,12 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
         if h not in fresh:
             await g.put(f"/events/{h}", ev)
     await g.put(f"/people/{handle}", p)
-    for h in dropped:
-        await g.http.delete(f"/events/{h}")
+    for h in dropped:  # an event can be shared (e.g. a witness): delete it only if no one else uses it
+        if not await g.in_use("events", h):
+            await g.delete(f"/events/{h}")
     for h in dropped_notes:
-        await g.http.delete(f"/notes/{h}")
+        if not await g.in_use("notes", h):
+            await g.delete(f"/notes/{h}")
     return {"ok": True}
 
 
@@ -277,7 +283,7 @@ async def _delete_family(g, fam):
     """Empty the family first, so Gramps clears everyone's links to it, then delete it."""
     fam.update(father_handle=None, mother_handle=None, child_ref_list=[])
     await g.put(f"/families/{fam['handle']}", fam)
-    await g.http.delete(f"/families/{fam['handle']}")
+    await g.delete(f"/families/{fam['handle']}")
 
 
 async def _delete_person(g, handle):
@@ -293,9 +299,10 @@ async def _delete_person(g, handle):
         else:
             await g.put(f"/families/{fh}", fam)
     events = [r["ref"] for r in p.get("event_ref_list") or []]
-    await g.http.delete(f"/people/{handle}")
+    await g.delete(f"/people/{handle}")
     for h in events:
-        await g.http.delete(f"/events/{h}")
+        if not await g.in_use("events", h):
+            await g.delete(f"/events/{h}")
 
 
 def _family(father, mother, kids, tags):
@@ -314,12 +321,16 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
     parent_fam = await _family_parent_of(g, person) if rel in ("father", "mother") else None
     if parent_fam and parent_fam.get(f"{rel}_handle"):
         raise GrampsError(f"They already have a {rel}. Remove that link first.")
+    if rel == "child" and fam_id and fam_id not in (person.get("family_list") or []):
+        raise GrampsError("That family isn't theirs. Please reload and try again.")
     created = None
     if body.get("existing"):
         oh = body["existing"]
         if oh == ph:
             raise GrampsError("Someone can't be their own relative")
         other = await g.get(f"/people/{oh}")
+        if rel == "spouse" and set(person.get("family_list") or []) & set(other.get("family_list") or []):
+            raise GrampsError("They're already husband and wife.")
     else:
         details = body.get("new") or {}
         if not ((details.get("first") or "").strip() or (details.get("last") or "").strip()):
@@ -416,8 +427,9 @@ async def undo(g: Gramps, token: dict, tags: list) -> dict:
         except GrampsError:
             fam = None
         if fam and token["rel"] == "child":
-            fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
-            await g.put(f"/families/{fam['handle']}", fam)
+            if not any(c["ref"] == token["other"] for c in fam.get("child_ref_list", [])):  # Undo sent twice
+                fam["child_ref_list"].append({"_class": "ChildRef", "ref": token["other"], "frel": "Birth", "mrel": "Birth"})
+                await g.put(f"/families/{fam['handle']}", fam)
         elif fam and token.get("side") and not fam.get(token["side"]):
             fam[token["side"]] = token["other"]
             await g.put(f"/families/{fam['handle']}", fam)

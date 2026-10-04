@@ -13,14 +13,27 @@ export const auth = {
   get access() { return store.get("eg_access"); },
   get refresh() { return store.get("eg_refresh"); },
   save(t) { store.set("eg_access", t.access_token); if (t.refresh_token) store.set("eg_refresh", t.refresh_token); },
-  clear() { store.set("eg_access", null); store.set("eg_refresh", null); },
+  clear() {
+    store.set("eg_access", null); store.set("eg_refresh", null);
+    fetch(`${BASE}/auth/session`, { method: "DELETE", keepalive: true }).catch(() => {});
+  },
 };
+
+// Photos load through an HttpOnly cookie (never a token in the URL); renewed with every new token.
+export function photoSession() {
+  if (!auth.access) return Promise.resolve();
+  return fetch(`${BASE}/auth/session`, { method: "POST", headers: { Authorization: `Bearer ${auth.access}` } }).catch(() => {});
+}
 
 let refreshing = null;
 async function tryRefresh() {
   if (!auth.refresh) return false;
   refreshing ||= fetch(`${BASE}/auth/refresh`, { method: "POST", headers: { Authorization: `Bearer ${auth.refresh}` } })
-    .then(async r => { if (!r.ok) return false; auth.save(await r.json()); return true; })
+    .then(async r => {
+      if (r.status >= 500) throw new Error((await r.json().catch(() => ({}))).detail || "Can't reach the family tree right now");
+      if (!r.ok) return false;  // the refresh token itself is no good: log in again
+      auth.save(await r.json()); await photoSession(); return true;
+    })
     .finally(() => { refreshing = null; });
   return refreshing;
 }
@@ -44,6 +57,7 @@ export async function login(username, password) {
   const data = await r.json();
   if (!r.ok) throw new Error(data.detail || "Login failed");
   auth.save(data);
+  await photoSession();
 }
 
 // ---------- tiny DOM helper ----------

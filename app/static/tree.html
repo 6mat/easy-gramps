@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Family Tree</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
 <link rel="stylesheet" href="__BASE__/static/tree.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
 </head>
@@ -57,7 +55,7 @@
       </div>
       <div class="navstrip">
         <div class="nav-map">
-          <div id="minimap" class="minimap" role="img"></div>
+          <div id="minimap" class="minimap" role="img" aria-label="Overview map of the tree"></div>
         </div>
         <div class="zoomgrp" role="toolbar" aria-label="Zoom and view">
           <button id="z-out" title="Zoom out" aria-label="Zoom out">−</button>
@@ -93,7 +91,7 @@
 
 <div class="dlg-wrap" id="dlg-wrap" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-title"></div></div>
 
-<div class="toast" id="toast" hidden><span id="toast-msg"></span><button id="toast-undo">Undo</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toast-msg"></span><button id="toast-undo">Undo</button></div>
 
 <div class="gate" id="gate"></div>
 

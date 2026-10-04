@@ -8,7 +8,7 @@
 # Copy next to your Gramps Web stack, create .env from ../.env.example, then: docker compose up -d
 services:
   easy-gramps:
-    image: easy-gramps:latest          # or build: ./app
+    image: ghcr.io/6mat/easy-gramps:latest   # or build: ./app
     container_name: easy-gramps
     restart: unless-stopped
     user: "1000:1000"

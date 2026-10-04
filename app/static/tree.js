@@ -1,5 +1,5 @@
 // Easy Gramps — family tree view. Data comes from Gramps Web through this app's /tree/* endpoints.
-import { api, auth, login, LoginNeeded, BASE } from "./auth.js";
+import { api, auth, login, LoginNeeded, BASE, photoSession } from "./auth.js";
 
 if (new URLSearchParams(location.search).has("debug")) import("./debug.js");  // screen diagnostics
 
@@ -9,13 +9,12 @@ let ME = null;
 async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];
-  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", phone: "", email: "", notes: "", ...p };
+  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], ...p };
   FAMS.length = 0; FAMS.push(...g.families);
 }
 
 // Switches for the editing features (all on).
 const EDIT_READY = true;
-const REL_READY = true;
 
 const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom: 1, fit: true, panel: true, pop: null, big: false, full: false, role: "guest", stack: [], add: null, more: false, edMore: false, menu: null, snap: null, merge: null };
 
@@ -33,10 +32,15 @@ function h(tag, attrs = {}, ...kids) {
   for (const k of kids.flat()) if (k != null && k !== false) el.append(k.nodeType ? k : String(k));
   return el;
 }
+// People already in the tree with the name being typed: match each part that was given.
+const sameName = (first, last) => Object.values(P).filter(p =>
+  (!first || p.first.toLowerCase() === first.toLowerCase()) && (!last || p.last.toLowerCase() === last.toLowerCase()));
 const canAdd = () => EDIT_READY && S.role !== "guest";
 const canEdit = () => EDIT_READY && S.role === "editor";
+const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
 const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
-const parentFam = id => FAMS.find(f => f.kids.includes(id));
+// Their parents' family: the first in Gramps' own order (the server uses the same one when adding a parent).
+const parentFam = id => FAMS.find(f => f.id === P[id]?.pfams?.[0]) || FAMS.find(f => f.kids.includes(id));
 // A person's own families in marriage order (1st husband or wife first), then any the order doesn't list.
 const spouseFams = id => {
   const mine = f => f && (f.f === id || f.m === id);
@@ -62,11 +66,16 @@ const tint = p => TINTS[[...(p.first + p.last)].reduce((n, ch) => n + ch.charCod
 function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
-    const src = p.photo.startsWith("data:") ? p.photo
-      : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1&jwt=${encodeURIComponent(auth.access || "")}`;
+    const src = /^(data|blob):/.test(p.photo) ? p.photo
+      : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1`;
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);
-    img.onerror = () => { const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2; };
+    let retried = false;
+    img.onerror = async () => {
+      // The photo cookie may have outlived its token: renew the login once, then try again.
+      if (!retried && !src.startsWith("blob:")) { retried = true; if (await renewPhotos()) { img.src = `${src}&r=1`; return; } }
+      const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2;
+    };
     return box;
   }
   const [a, b] = tint(p);
@@ -74,6 +83,12 @@ function photoEl(p, big) {
   const el = h("span", { class: cls, "aria-hidden": "true" }, (p.first[0] || "") + (p.last[0] || ""));
   el.style.background = a; el.style.color = "#1d1b18";
   return el;
+}
+let renewing = null;
+function renewPhotos() {  // one renewal for all the photos that failed at the same time
+  renewing ||= api("/auth/me").then(() => photoSession()).then(() => true, () => false)
+    .finally(() => setTimeout(() => { renewing = null; }, 30000));
+  return renewing;
 }
 const spouseWord = p => (p.gender === "m" ? "wife" : p.gender === "f" ? "husband" : "husband or wife");
 const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
@@ -95,6 +110,7 @@ $("#toast-undo").onclick = async () => {
   undoToken = null;
   $("#toast").hidden = true;
   try {
+    await flushSaves();  // typing waiting to be saved goes first, so the reload can't undo it
     await api("/tree/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token) });
     await refresh();
     toast("Undone");
@@ -135,7 +151,7 @@ function autosave(id, patch) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSaves, 700);
 }
-function flushSaves() {
+function flushSaves(keepalive = false) {  // keepalive: the page is closing, let the save finish anyway
   clearTimeout(saveTimer);
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
@@ -143,7 +159,7 @@ function flushSaves() {
   saveChain = saveChain.then(async () => {
     for (const [id, patch] of work) {
       try {
-        await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+        await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch), keepalive });
       } catch (err) {
         pending[id] = { ...patch, ...pending[id] };  // keep it for "Try again"
         saveFailed = err;
@@ -154,7 +170,9 @@ function flushSaves() {
   });
   return saveChain;
 }
-window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(); e.preventDefault(); } });
+window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(true); e.preventDefault(); } });
+// Phones and tablets often close a hidden tab without any unload event: save when the page is hidden.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && Object.keys(pending).length) flushSaves(true); });
 
 // ---------- tree ----------
 // Rows are generations: parents, the person (with siblings and spouses), children.
@@ -256,12 +274,12 @@ function renderTree() {
       const ks = spouseFams(k).map(y => other(y, k)).find(Boolean);
       return { k, ks, w: ks ? BW * 2 + CG : BW };
     });
-    if (canAdd()) items.push({ slot: true, famId: x.id, w: BW });
+    if (canLink()) items.push({ slot: true, famId: x.id, w: BW });
     if (!items.length) continue;
     const w = items.reduce((t, it) => t + it.w, 0) + SG * (items.length - 1);
     kidUnits.push({ fam: x, items, w, want: drop[x.id].x });
   }
-  if (!sfs.length && canAdd()) kidUnits.push({ fam: null, items: [{ slot: true, famId: null, w: BW }], w: BW, want: fx + BW / 2 });
+  if (!sfs.length && canLink()) kidUnits.push({ fam: null, items: [{ slot: true, famId: null, w: BW }], w: BW, want: fx + BW / 2 });
   spread(kidUnits);
   for (const u of kidUnits) {
     let gx = u.x;
@@ -309,7 +327,8 @@ function renderTree() {
       } else {
         pos[m] = put(m, x, 0);
         const w = m === u.fam?.f ? "father" : "mother";
-        REL[m] = u.own ? { tag: cap(w), phrase: `${cap(w)} of ${fp.first}` } : { tag: `${P[u.of].first}'s ${w}`, phrase: `${P[u.of].first}'s ${w}` };
+        REL[m] = u.own ? { tag: cap(w), phrase: `${cap(w)} of ${fp.first}` }
+          : { tag: `${cap(spouseWord(fp))}'s ${w}`, phrase: `${P[u.of].first}'s ${w}` };  // box: "Wife's father"
       }
     });
     const real = u.members.filter(m => !m.startsWith("slot-"));
@@ -349,7 +368,7 @@ function renderTree() {
     el.style.left = `${n.x + OX}px`; el.style.top = `${n.y}px`;
     el.style.width = `${BW}px`; el.style.height = `${BH}px`;
     return el;
-  }));
+  }), ...nodes.filter(n => !n.slot && n.key === S.sel && canAdd()).slice(0, 1).map(n => plusEl(n, OX)));
   drawLines({ couples, fams, arches, pos, rowY, OX, focusFams: sfs.map(x => x.id) });
 
   // title bar: back on the left, whose tree in the middle, the selected person's tree on the right
@@ -380,16 +399,23 @@ function nodeEl(id, focus) {
   const el = h("div", { class: `node${focus ? " focus" : ""}${S.sel === id ? " sel" : ""}`, "data-key": id, tabindex: "0",
     role: "button", "aria-label": `${rel ? rel + ": " : ""}${name(p)} ${years(p)}`,
     onclick: e => { e.stopPropagation(); if (S.dragged) return; select(id, true); },
-    onkeydown: e => { if (e.key === "Enter") { e.stopPropagation(); select(id); showPanel(); } } },
+    onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); } } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
     h("span", { class: "pl" }, p.birthPlace || " "));
-  if (canAdd() && S.sel === id) el.append(h("button", { class: "plus", title: `Edit ${p.first}`, "aria-label": `Edit ${name(p)}`,
-    onclick: e => { e.stopPropagation(); openEditor(id); } }, "✎"));
+  return el;
+}
+// The ✎ on the selected box sits beside it in the page (a button inside the box's own button
+// confuses screen readers), placed over the box's bottom-right corner as before.
+function plusEl(n, OX) {
+  const p = P[n.key];
+  const el = h("button", { class: "plus", title: `Edit ${p.first}`, "aria-label": `Edit ${name(p)}`,
+    onclick: e => { e.stopPropagation(); openEditor(n.key); } }, "✎");
+  el.style.left = `${n.x + OX + BW - 22}px`; el.style.top = `${n.y + BH - 22}px`;
   return el;
 }
 function slotEl(label, onClick) {
-  return canAdd() && REL_READY ? h("button", { class: "slot tslot", onclick: e => { e.stopPropagation(); onClick(); } }, `Add ${label.slice(2).toLowerCase()}`)
+  return canLink() ? h("button", { class: "slot tslot", onclick: e => { e.stopPropagation(); onClick(); } }, `Add ${label.slice(2).toLowerCase()}`)
     : h("span", { class: "slot tslot" }, `No ${label.slice(2).toLowerCase()} added`);
 }
 
@@ -449,7 +475,9 @@ function drawLines({ couples, fams, arches, pos, rowY, OX, focusFams }) {
   }
   svg.innerHTML = d.join("");
 }
-window.addEventListener("resize", () => renderTree());
+// At most one redraw per frame: resize and scroll fire many times a second.
+const perFrame = fn => { let queued = false; return () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; fn(); }); }; };
+window.addEventListener("resize", perFrame(() => renderTree()));
 
 function select(id, fromClick) {
   S.sel = id; S.more = false;
@@ -605,7 +633,7 @@ document.addEventListener("wheel", e => { if (e.ctrlKey) e.preventDefault(); }, 
     } else lastTap = { t: now, x: e.clientX, y: e.clientY };
   };
   sc.addEventListener("pointerup", end); sc.addEventListener("pointercancel", end);
-  sc.addEventListener("scroll", () => { drawMinimap(); placePopcard(); drawSelink(); });
+  sc.addEventListener("scroll", perFrame(() => { drawMinimap(); placePopcard(); drawSelink(); }));
 })();
 
 // ----- overview map: the whole tree in miniature, with the visible part outlined -----
@@ -638,7 +666,7 @@ function drawMinimap() {
   };
   mm.addEventListener("pointerdown", e => { if (mm.classList.contains("idle")) return; down = true; mm.setPointerCapture(e.pointerId); jump(e); });
   mm.addEventListener("pointermove", e => { if (down) jump(e); });
-  mm.addEventListener("pointerup", () => { down = false; });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) mm.addEventListener(ev, () => { down = false; });
 })();
 
 // ----- side panel: hide it, bring it back with ⓘ; while hidden, a click shows a quick card -----
@@ -746,7 +774,7 @@ $("#showlink").addEventListener("change", () => {
 
 // ----- arrow keys: ↑ parent, ↓ eldest child, ← → neighbours in the row, Enter details, Esc clear -----
 document.addEventListener("keydown", e => {
-  if (!$("#editor").hidden || e.target.closest("input, textarea, select")) return;
+  if (!$("#editor").hidden || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
   const L = S.layout;
   if (!L) return;
   const at = id => L.nodes.find(n => n.key === id);
@@ -812,12 +840,13 @@ function renderPanel() {
     h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
-    const priv = S.role === "guest";
-    const any = p.burial || p.residence || p.phone || p.email || p.notes;
+    const priv = !ME?.can_view_private;  // Gramps lets Members and up see private details
+    const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
+    const any = p.burial || p.residence || p.phone || p.email || notes;
     panel.append(h("div", { class: "details" },
       h("dl", { class: "kv" },
-        row("Buried at", p.burial), row("Lives in", p.residence),
-        row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", p.notes)),
+        row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
+        row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", notes)),
       !priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are private. Guests can't see them.") : "",
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : ""));
@@ -898,7 +927,7 @@ $("#q").addEventListener("input", () => {
   res.replaceChildren(...(hits.length ? hits.map(p => h("button", { onclick: () => {
     res.hidden = true; $("#q").value = ""; seeTree(p.id);
   } }, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")))
-    : [h("div", { class: "small muted", style: "padding:8px" }, "No one found with that name.")]));
+    : [h("div", { class: "small muted pad" }, "No one found with that name.")]));
   res.hidden = false;
 });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) $("#results").hidden = true; });
@@ -930,10 +959,11 @@ async function closeEditor() {
 }
 $("#ed-back").onclick = closeEditor;
 document.addEventListener("keydown", e => {
-  if (e.key !== "Escape" || $("#editor").hidden) return;
-  if (!$("#dlg-wrap").hidden) closeDialog();
+  if (e.key !== "Escape") return;
+  if (!$("#dlg-wrap").hidden) { e.stopImmediatePropagation(); S.merge ? closeMerge() : closeDialog(); }
+  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); $("#menubtn").focus(); }
   else if (!$("#editor").hidden) closeEditor();
-});
+}, true);  // capture: before the tree's arrow-key handler
 
 function rcard(id, rel, famObj, base, isNew) {
   const p = P[id];
@@ -950,7 +980,7 @@ function rcard(id, rel, famObj, base, isNew) {
 function menuEl(id, rel, famObj, base) {
   return h("div", { class: "menu" },
     h("button", { onclick: async () => { await flushSaves(); await ensureDetails(id).catch(() => {}); S.stack.push(id); S.menu = null; S.edMore = false; renderEditor(); } }, `Open ${P[id].first}'s family`),
-    canEdit() && REL_READY && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
+    canLink() && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
 }
 function confirmEl(id, rel, famObj, base) {
   const w = relWord(rel, P[base]);
@@ -965,6 +995,7 @@ async function removeLink(id, rel, x, base) {
   S.menu = null;
   setStatus("Saving…", "saving");
   try {
+    await flushSaves();
     const res = await postJSON("/tree/unlink", { person: base, rel, other: id, famId: x.id });
     await refresh();
     setStatus("Saved ✓");
@@ -978,18 +1009,18 @@ async function removeLink(id, rel, x, base) {
 
 function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
 function bindText(p, key, id, opts = {}) {
-  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit(), rows: opts.area ? 3 : null });
+  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
   el.value = p[key] || "";
   el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }); });
   return el;
 }
-function dateInputs(prefix, get, set) {
+function dateInputs(prefix, label, get, set) {
   const d = get() || {};
   const yearOnlyStart = !!(d.y && !(d.m && d.d));
   const pad = n => String(n).padStart(2, "0");
-  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit() });
+  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit(), "aria-label": label });
   cal.value = d.y && d.m && d.d ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : "";
-  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit() });
+  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit(), "aria-label": `${label}: year` });
   yr.value = yearOnlyStart ? d.y : "";
   const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
   yo.checked = yearOnlyStart;
@@ -1009,15 +1040,21 @@ function centreCard(p) {
   const file = h("input", { id: "ed-photo-file", type: "file", accept: "image/*", hidden: true });
   file.addEventListener("change", () => {
     const f = file.files[0]; if (!f) return;
-    // Show it straight away, then upload it as their main photo.
-    const r = new FileReader();
-    r.onload = () => { p.photo = r.result; renderEditor(); };
-    r.readAsDataURL(f);
+    file.value = "";
+    if (f.size > 20 * 1024 * 1024) return setStatus("Photo not saved: it's too big (20 MB at most)", "failed");
+    // Show it straight away, then upload it as their main photo (the old one comes back if that fails).
+    const old = p.photo, preview = URL.createObjectURL(f);
+    p.photo = preview; renderEditor();
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
     saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
       .then(res => { p.photo = res.photo; setStatus("Saved ✓"); })
-      .catch(err => setStatus(`Photo not saved: ${err.message}`, "failed"));
+      .catch(err => {
+        p.photo = old; URL.revokeObjectURL(preview);
+        if (err instanceof LoginNeeded) return showLogin();
+        if (!$("#editor").hidden) renderEditor();
+        setStatus(`Photo not saved: ${err.message}`, "failed");
+      });
   });
   const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
     ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
@@ -1029,7 +1066,7 @@ function centreCard(p) {
   const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
-    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
+    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
     field("Place of burial", bindText(p, "burial", "ed-burial")));
   deathBox.hidden = !p.deceased;
   passed.addEventListener("change", () => {
@@ -1037,21 +1074,28 @@ function centreCard(p) {
     if (!passed.checked) { p.death = null; p.burial = ""; }
     autosave(p.id, { deceased: passed.checked });
   });
+  // These four come from a separate request; if it failed, don't let empty boxes overwrite real values.
+  const off = { disabled: !p._details };
   const moreBox = h("div", { class: "box full" },
-    field("Residing at", bindText(p, "residence", "ed-res"), "full"),
-    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel" })),
-    field("Email (private)", bindText(p, "email", "ed-email", { type: "email" })),
-    field("Notes", bindText(p, "notes", "ed-notes", { area: true }), "full"));
+    !p._details && h("div", { class: "warn full" }, "Couldn't load these details.",
+      h("button", { onclick: async () => { try { await ensureDetails(p.id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); } renderEditor(); } }, "Try again")),
+    field("Residing at", bindText(p, "residence", "ed-res", off), "full"),
+    p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
+    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
+    field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
+    field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
+    p.otherNotes.length ? h("div", { class: "small muted full" },
+      `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, photoEl(p, true),
       canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
-      !canEdit() && h("span", { class: "small muted" }, "Contributors can add family but not change details.")),
+      !canEdit() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
     field("First name", bindText(p, "first", "ed-first")),
     field("Last name", bindText(p, "last", "ed-last")),
     field("Nickname", bindText(p, "nick", "ed-nick")),
     gender,
-    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
+    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
     field("Place of birth", bindText(p, "birthPlace", "ed-bplace")),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
@@ -1070,25 +1114,25 @@ function renderEditor() {
   const lastNew = S.newlyAdded;
   const pf = parentFam(id);
   const parentsRow = h("div", { class: "ed-row" },
-    pf?.f ? rcard(pf.f, "father", pf, id, lastNew === pf.f) : REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "father") }, "Add father"),
-    pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
+    pf?.f ? rcard(pf.f, "father", pf, id, lastNew === pf.f) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "father") }, "Add father"),
+    pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
   const sfs = spouseFams(id);
   const sw = spouseWord(p);
   const spouseCol = h("div", { class: "spouses" },
     ...sfs.filter(x => other(x, id)).map(x => rcard(other(x, id), "spouse", x, id, lastNew === other(x, id))),
-    REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
       sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`));
   const kidGroups = sfs.map(x => {
     const o = other(x, id);
     const g = h("div", { class: "kidgroup" },
       h("span", { class: "glabel" }, o ? `Children with ${P[o].first}` : "Children (other parent not added)"),
       h("div", { class: "ed-row" }, ...byBirth(x.kids).map(k => rcard(k, "child", x, id, lastNew === k)),
-        REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
+        canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
     g.style.setProperty("--fc", `var(--f${sfs.indexOf(x) % 6})`);
     return g;
   });
   if (!sfs.length) kidGroups.push(h("div", { class: "kidgroup" }, h("span", { class: "glabel" }, "Children"),
-    REL_READY && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
+    canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
   $("#ed-body").replaceChildren(
     h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
     h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
@@ -1096,13 +1140,32 @@ function renderEditor() {
 }
 
 // ---------- add dialog ----------
+// The pop-up dialog (Add, Merge): focus goes into it, Tab stays inside, and focus returns on close.
+let dlgOpener = null;
+function showDlg(wide) {
+  dlgOpener = document.activeElement;
+  $("#dlg").classList.toggle("wide", wide);
+  $("#dlg-wrap").hidden = false;
+}
+function hideDlg() {
+  $("#dlg-wrap").hidden = true;
+  if (dlgOpener?.isConnected) dlgOpener.focus();
+  dlgOpener = null;
+}
+$("#dlg-wrap").addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const f = [...$("#dlg").querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
+  else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+});
 function openAdd(pid, rel, famId) {
   S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
-  $("#dlg").classList.remove("wide");
-  $("#dlg-wrap").hidden = false;
+  showDlg(false);
   renderAdd();
 }
-function closeDialog() { $("#dlg-wrap").hidden = true; if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
+function closeDialog() { hideDlg(); if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
 
 // ---------- merge two records of the same person ----------
 const dateEq = (a, b) => (!a && !b) || (a && b && a.y === b.y && (a.m || 0) === (b.m || 0) && (a.d || 0) === (b.d || 0) && !!a.about === !!b.about);
@@ -1120,9 +1183,9 @@ const MERGE_FIELDS = [
 
 function openMerge(id) {
   S.merge = { keep: id, absorb: null, q: name(P[id]), choice: {}, text: {}, confirm: false, busy: false };
-  $("#dlg").classList.add("wide");
-  $("#dlg-wrap").hidden = false;
+  showDlg(true);
   renderMerge();
+  $("#merge-q")?.focus();
 }
 function swapMerge() {
   const m = S.merge;
@@ -1154,7 +1217,7 @@ function renderMerge() {
         .sort((a, b) => (b.last === keep.last) - (a.last === keep.last) || name(a).localeCompare(name(b))).slice(0, 40);
       return list.length ? list.map(p => h("button", { class: "pickrow", onclick: () => { m.absorb = p.id; renderMerge(); } },
         photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet"))))
-        : [h("div", { class: "small muted", style: "padding:10px" }, "No one else found with that name.")];
+        : [h("div", { class: "small muted pad" }, "No one else found with that name.")];
     }
     dlg.replaceChildren(
       h("h2", { id: "dlg-title" }, "Is this person in the tree twice?"),
@@ -1226,6 +1289,7 @@ async function doMerge() {
   }
   m.busy = true; renderMerge();
   try {
+    await flushSaves();
     const res = await api("/tree/merge", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keep: m.keep, absorb: m.absorb, fields }) });
     closeMerge();
@@ -1241,7 +1305,7 @@ async function doMerge() {
     toast(`Couldn't combine: ${err.message}`);
   }
 }
-function closeMerge() { $("#dlg-wrap").hidden = true; $("#dlg").classList.remove("wide"); S.merge = null; }
+function closeMerge() { hideDlg(); $("#dlg").classList.remove("wide"); S.merge = null; }
 
 
 function linked(pid) {
@@ -1290,14 +1354,14 @@ function renderAdd() {
     : ig ? h("div", { class: "small muted" }, `Will be saved as ${ig === "m" ? "male" : "female"}.`) : "";
   let bd = null;
   const bdOn = h("input", { id: "add-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("add-bd", () => null, v => { bd = v; }));
+  const bdBox = h("div", {}, dateInputs("add-bd", "Birthday", () => null, v => { bd = v; }));
   bdBox.hidden = true;
   bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
   const warn = h("div", { id: "add-warn" });
   const submit = () => {
     const fn = first.value.trim(), ln = last.value.trim();
     if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = Object.values(P).filter(p => p.first.toLowerCase() === (fn || ln).toLowerCase() && (!ln || p.last.toLowerCase() === ln.toLowerCase()));
+    const dups = sameName(fn, ln);
     if (dups.length && !A.dupOk) {
       warn.replaceChildren(h("div", { class: "warn" },
         h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
@@ -1326,9 +1390,10 @@ async function doAdd(choice) {
   buttons.forEach(b => { b.disabled = true; });
   setStatus("Saving…", "saving");
   try {
+    await flushSaves();
     const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
     const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
-    $("#dlg-wrap").hidden = true; S.add = null;
+    hideDlg(); S.add = null;
     S.newlyAdded = res.added;
     await refresh();
     S.newlyAdded = null;
@@ -1411,7 +1476,7 @@ function newPersonForm() {
   }));
   let bd = null;
   const bdOn = h("input", { id: "np-bd-on", type: "checkbox" });
-  const bdBox = h("div", {}, dateInputs("np-bd", () => null, v => { bd = v; }));
+  const bdBox = h("div", {}, dateInputs("np-bd", "Birthday", () => null, v => { bd = v; }));
   bdBox.hidden = true;
   bdOn.addEventListener("change", () => { bdBox.hidden = !bdOn.checked; });
   const warn = h("div");
@@ -1419,7 +1484,7 @@ function newPersonForm() {
   const btn = h("button", { class: "primary", onclick: async () => {
     const fn = first.value.trim(), ln = last.value.trim();
     if (!fn && !ln) { warn.replaceChildren(h("div", { class: "warn" }, "Please write a first or last name.")); first.focus(); return; }
-    const dups = Object.values(P).filter(p => p.first.toLowerCase() === (fn || ln).toLowerCase() && (!ln || p.last.toLowerCase() === ln.toLowerCase()));
+    const dups = sameName(fn, ln);
     if (dups.length && !dupOk) {
       warn.replaceChildren(h("div", { class: "warn" },
         h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
@@ -1477,6 +1542,7 @@ async function start() {
   gate("Loading the family tree…");
   try {
     ME = await api("/auth/me");
+    await photoSession();
     await loadGraph();
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();
@@ -1492,6 +1558,7 @@ async function start() {
   rememberFocus();
   renderAll();
 }
-$("#logout").onclick = () => { auth.clear(); location.hash = ""; showLogin(); };
+// Log out: forget the login and reload, so nothing of the tree stays in the page for the next person.
+$("#logout").onclick = async () => { await flushSaves(); auth.clear(); location.replace(location.pathname); };
 start();
 

@@ -6,23 +6,24 @@ sharing the login with Gramps Web.
 ## Now: 0.9.x — install next to Gramps Web, with Google / single sign-on
 
 ### 1. Security hardening (do before the shared login)
-- [ ] **Security headers from the app itself** (installs without our Traefik setup need them too):
+- [x] **Security headers from the app itself** (installs without our Traefik setup need them too):
       CSP (`default-src 'self'`; images also `data:` `blob:`), `frame-ancestors 'none'` /
       `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
       `Referrer-Policy: strict-origin-when-cross-origin`, a basic `Permissions-Policy`.
       HSTS stays with the TLS proxy. Check every screen with the CSP on (inline styles set from JS,
       the inline SVG favicon, the photo upload).
-- [ ] **Bundle the font.** Atkinson Hyperlegible (OFL) into `app/static/fonts/`, drop Google Fonts
+- [x] **Bundle the font.** Atkinson Hyperlegible (OFL) into `app/static/fonts/`, drop Google Fonts
       (privacy/GDPR, and a simpler CSP).
-- [ ] **No login token in photo URLs.** Thumbnails use `?jwt=` today (Gramps Web's own frontend does the
+- [x] **No login token in photo URLs.** Thumbnails use `?jwt=` today (Gramps Web's own frontend does the
       same, but we can do better). Plan: `POST {BASE}/auth/session` with the Bearer token sets an
       `HttpOnly; Secure; SameSite=Strict` cookie scoped to `{BASE}/gapi/`; call it after login and every
       refresh; the thumbnail route reads the cookie. Photos stay HTTP-cacheable.
-- [ ] **Login rate limit per visitor.** Gramps Web limits `/api/token/` to 1/second **per IP**, and every
+- [x] **Login rate limit per visitor.** Gramps Web limits `/api/token/` to 1/second **per IP**, and every
       login through this app arrives from one IP, so one attacker can lock out everyone's logins here.
       Add our own per-client-IP limit on `/auth/login` (e.g. 5/min with back-off), using the
       `X-Forwarded-For` that uvicorn trusts via `FORWARDED_ALLOW_IPS` (set in the Traefik example).
       Map Gramps' 429 to "Too many tries, please wait a minute" (today it says the password is wrong).
+- [x] Dependencies upgraded past known vulnerabilities (Starlette 1.7, python-multipart 0.0.32); Starlette pinned.
 - [x] Debug log endpoint off by default (`DEBUG_LOG=1` to enable).
 - [x] `/gapi` narrowed to photo thumbnails only.
 - [x] Container runs as a non-root user; Traefik example publishes no port.
@@ -49,9 +50,9 @@ share the browser's `localStorage`. Gramps Web stores its login (password *or* O
       which is why step 1 (CSP) comes first.
 
 ### 3. Release
-- [ ] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);
+- [x] Tests: backend with `httpx.MockTransport` (graph building, add/unlink/undo, merge request shape);
       a Playwright smoke test against the Gramps Web demo (read-only parts).
-- [ ] GitHub Actions: lint + tests on push; on a `v*` tag, build a multi-arch (amd64 + arm64) image to GHCR.
+- [x] GitHub Actions: lint + tests on push; on a `v*` tag, build a multi-arch (amd64 + arm64) image to GHCR.
 - [x] `LICENSE`: AGPL-3.0-or-later, same as Gramps Web / Gramps Web API.
 - [ ] `CHANGELOG.md`, `SECURITY.md` (how to report), README screenshots (from the Gramps Web demo tree,
       never a real family).
@@ -61,6 +62,8 @@ share the browser's `localStorage`. Gramps Web stores its login (password *or* O
 ## Later (towards 1.0)
 - **Phones:** a portrait layout (tree on top, details below, bigger tap targets). Today phones see
   "turn your phone sideways".
+- **Faster reloads for big trees:** after an edit, re-fetch only what changed (today the whole tree
+  reloads; ~0.4 MB / 7-10 s for the demo's 4,669 people).
 - **Suggest likely duplicates** on the start screen (same/similar name, overlapping dates).
 - **"Could use some details" list** — people missing parents, a birth year or a photo.
 - **House / family name field** to tell apart people with the same name (undecided).

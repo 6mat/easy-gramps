@@ -19,14 +19,16 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
 cp .env.example .env    # GRAMPS_URL=https://demo.grampsweb.org for testing
 docker compose up -d --build        # http://localhost:8095/family/
 node --check app/static/tree.js     # quick syntax check after JS edits
+pytest && ruff check app tests      # backend tests (fake Gramps Web in tests/fake_gramps.py)
 ```
+Every screen in a browser: `tests/e2e/screens.mjs` (see README → Tests); `--write` only against the demo.
 Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 `GRAMPS_URL=... BASE_PATH=/family DATA_DIR=../data uvicorn main:app --port 8095`.
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me},
-                    /tree/*, /gapi/media/{h}/thumbnail/{size}, /debug/log (only with DEBUG_LOG=1), / = the page
+app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session},
+                    /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html / tree.css / tree.js (the page), auth.js (tokens + api()), debug.js (?debug)
@@ -37,7 +39,9 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 ## Backend behaviour
 - Users log in with their **own Gramps Web account**; their token is passed straight to Gramps, so
   **Gramps enforces permissions** (Guest/Member view, Contributor add, Editor+ change).
-  `/auth/me` adds `can_add`, `can_edit`. Merge is editors only (checked server-side too).
+  `/auth/me` adds `can_add`, `can_edit`. Contributors can add people but not link them (Gramps refuses
+  a new family that links an existing person), so add relative / unlink / undo / merge are editors only,
+  checked server-side before anything is created; the page hides those buttons for them.
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
   `{y,m,d,about}`, birthplace, burial, first photo, `fams` in marriage order.
 - `GET /tree/details/{h}` — residence, phone, email, notes (loaded on demand).

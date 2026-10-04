@@ -26,7 +26,8 @@ https://gramps.example.com/          -> Gramps Web
 https://gramps.example.com/family/   -> Easy Gramps
 ```
 
-1. Build the image: `docker build -t easy-gramps:latest app/`
+1. The image is published as `ghcr.io/6mat/easy-gramps` (amd64 and arm64). To build it yourself instead:
+   `docker build -t easy-gramps:latest app/` and change `image:` in the compose file.
 2. Copy `deploy/compose.traefik.yaml` next to your Gramps Web stack and create a `.env` from
    `.env.example` (`GRAMPS_HOST`, `CERT_RESOLVER`).
 3. `docker compose -f compose.traefik.yaml up -d`, then open `https://<your gramps host>/family/`.
@@ -44,6 +45,21 @@ docker compose up -d --build
 The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`member`,
 `editor`/`editor`, `owner`/`owner`) works well as a test backend.
 
+## Tests
+
+```
+pip install -r app/requirements.txt -r tests/requirements.txt
+pytest                      # backend, against a fake Gramps Web (no network)
+ruff check app tests
+
+cd tests/e2e && npm ci && npx playwright install chromium && cd ../..
+# with the app running against https://demo.grampsweb.org on port 8095:
+APP=http://localhost:8095/family/ node tests/e2e/screens.mjs           # every screen, read-only
+APP=http://localhost:8095/family/ node tests/e2e/screens.mjs --write   # also edits (ZZTEST records, cleaned up)
+```
+Never run `--write` against a real family tree. CI runs the first three on every push and the
+read-only screen check weekly.
+
 ## Settings
 
 | Setting | Meaning |
@@ -53,6 +69,7 @@ The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`membe
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
 | `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
+| `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
 ## How it fits together
@@ -67,3 +84,4 @@ The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`membe
 
 [GNU AGPL-3.0-or-later](LICENSE), the same license as Gramps Web and the Gramps Web API.
 If you run a modified version for others over a network, you must offer them its source.
+The bundled Atkinson Hyperlegible font (`app/static/fonts/`) is under the SIL Open Font License (`OFL.txt` there).
