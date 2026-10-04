@@ -6,7 +6,7 @@ sharing the login with Gramps Web.
 ## Now: 0.9.x — install next to Gramps Web, with Google / single sign-on
 
 ### 1. Security hardening (do before the shared login)
-- [ ] **Security headers from the app itself** (installs without our Traefik setup need them too):
+- [x] **Security headers from the app itself** (installs without our Traefik setup need them too):
       CSP (`default-src 'self'`; images also `data:` `blob:`), `frame-ancestors 'none'` /
       `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
       `Referrer-Policy: strict-origin-when-cross-origin`, a basic `Permissions-Policy`.
