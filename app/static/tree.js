@@ -9,7 +9,7 @@ let ME = null;
 async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];
-  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", phone: "", email: "", notes: "", otherNotes: [], ...p };
+  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], ...p };
   FAMS.length = 0; FAMS.push(...g.families);
 }
 
@@ -817,7 +817,7 @@ function renderPanel() {
     const any = p.burial || p.residence || p.phone || p.email || notes;
     panel.append(h("div", { class: "details" },
       h("dl", { class: "kv" },
-        row("Buried at", p.burial), row("Lives in", p.residence),
+        row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
         row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", notes)),
       !priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are private. Guests can't see them.") : "",
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
@@ -1040,6 +1040,7 @@ function centreCard(p) {
   });
   const moreBox = h("div", { class: "box full" },
     field("Residing at", bindText(p, "residence", "ed-res"), "full"),
+    p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
     field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel" })),
     field("Email (private)", bindText(p, "email", "ed-email", { type: "email" })),
     field("Notes", bindText(p, "notes", "ed-notes", { area: true }), "full"),

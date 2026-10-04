@@ -70,8 +70,9 @@ async def details(g: Gramps, handle: str) -> dict:
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
     # The editor changes only the first note (the one it shows); any others are shown read-only.
     notes = [(n.get("text") or {}).get("string", "") for n in (p.get("extended") or {}).get("notes", [])]
-    residence = ", ".join(x for x in (addr.get("city"), addr.get("state"), addr.get("country")) if x)
-    return {"residence": residence, "phone": addr.get("phone", ""), "email": email,
+    # "Lives in" edits the city; the rest of the address (from Gramps Web) is shown but left alone.
+    rest = ", ".join(x for x in (addr.get("state"), addr.get("country")) if x)
+    return {"residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
             "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t],
             "private": bool(addr.get("private"))}
 
@@ -82,6 +83,7 @@ from gramps import GENDER, GrampsError, gramps_date, new_handle, note_obj, uploa
 
 FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",
           "residence", "phone", "email", "notes"}
+ADDRESS_PARTS = ("street", "locality", "city", "county", "state", "country", "postal", "phone")
 EMPTY_DATE = {"_class": "Date", "calendar": 0, "modifier": 0, "quality": 0, "dateval": [0, 0, 0, False],
               "sortval": 0, "newyear": 0, "text": "", "year": 0}
 
@@ -209,11 +211,10 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
                           "state": "", "country": "", "postal": "", "phone": ""})
         a = addrs[0]
         if "residence" in changes:
-            a["city"], a["state"], a["country"] = (changes["residence"] or "").strip(), "", ""
+            a["city"] = (changes["residence"] or "").strip()
         if "phone" in changes:
             a["phone"] = (changes["phone"] or "").strip()
-        a["private"] = True
-        if not (a.get("city") or a.get("phone") or a.get("street")):
+        if not any(a.get(k) for k in ADDRESS_PARTS):
             addrs.pop(0)
 
     if "email" in changes:
