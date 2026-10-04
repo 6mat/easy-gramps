@@ -23,6 +23,7 @@ sharing the login with Gramps Web.
       Add our own per-client-IP limit on `/auth/login` (e.g. 5/min with back-off), using the
       `X-Forwarded-For` that uvicorn trusts via `FORWARDED_ALLOW_IPS` (set in the Traefik example).
       Map Gramps' 429 to "Too many tries, please wait a minute" (today it says the password is wrong).
+- [x] Dependencies upgraded past known vulnerabilities (Starlette 1.7, python-multipart 0.0.32); Starlette pinned.
 - [x] Debug log endpoint off by default (`DEBUG_LOG=1` to enable).
 - [x] `/gapi` narrowed to photo thumbnails only.
 - [x] Container runs as a non-root user; Traefik example publishes no port.
