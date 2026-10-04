@@ -981,7 +981,7 @@ async function removeLink(id, rel, x, base) {
 
 function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
 function bindText(p, key, id, opts = {}) {
-  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit(), rows: opts.area ? 3 : null });
+  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
   el.value = p[key] || "";
   el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }); });
   return el;
@@ -1040,12 +1040,16 @@ function centreCard(p) {
     if (!passed.checked) { p.death = null; p.burial = ""; }
     autosave(p.id, { deceased: passed.checked });
   });
+  // These four come from a separate request; if it failed, don't let empty boxes overwrite real values.
+  const off = { disabled: !p._details };
   const moreBox = h("div", { class: "box full" },
-    field("Residing at", bindText(p, "residence", "ed-res"), "full"),
+    !p._details && h("div", { class: "warn full" }, "Couldn't load these details.",
+      h("button", { onclick: async () => { try { await ensureDetails(p.id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); } renderEditor(); } }, "Try again")),
+    field("Residing at", bindText(p, "residence", "ed-res", off), "full"),
     p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
-    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel" })),
-    field("Email (private)", bindText(p, "email", "ed-email", { type: "email" })),
-    field("Notes", bindText(p, "notes", "ed-notes", { area: true }), "full"),
+    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
+    field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
+    field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
     p.otherNotes.length ? h("div", { class: "small muted full" },
       `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
