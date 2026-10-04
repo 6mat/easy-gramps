@@ -45,7 +45,7 @@ export async function refresh() {
   S.menu = null;
   renderAll();
 }
-// ---------- autosave: changes go to Gramps a moment after the last keystroke, one save at a time ----------
+// ---------- autosave: typing is saved when you leave the box or stop for 2 s; ticks and buttons at once ----------
 const pending = {};          // person id -> fields waiting to be saved
 let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
 function setStatus(text, cls = "") {
@@ -54,11 +54,11 @@ function setStatus(text, cls = "") {
   st.replaceChildren(text);
   if (cls === "failed") st.append(" ", h("button", { onclick: () => { saveFailed = null; flushSaves(); } }, "Try again"));
 }
-function autosave(id, patch) {
+function autosave(id, patch, wait = 700) {
   pending[id] = { ...pending[id], ...patch };
   setStatus("Saving…", "saving");
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(flushSaves, 700);
+  saveTimer = setTimeout(flushSaves, wait);
 }
 export function flushSaves(keepalive = false) {  // keepalive: the page is closing, let the save finish anyway
   clearTimeout(saveTimer);
@@ -161,8 +161,66 @@ function field(label, input, cls) { return h("label", { class: cls || "", for: i
 function bindText(p, key, id, opts = {}) {
   const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
   el.value = p[key] || "";
-  el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }); });
+  el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }, 2000); });
+  el.addEventListener("change", () => flushSaves());  // left the box
   return el;
+}
+
+// Place boxes: pick from the places Gramps already has; a new place is made only when you say so (#49).
+let places = null;  // every place, loaded once when a place box is first used
+const loadPlaces = () => places ??= api("/tree/places").catch(err => { places = null; throw err; });
+function placeField(label, p, key, id) {
+  const el = h("input", { id, type: "text", disabled: !canEdit(), autocomplete: "off", role: "combobox",
+    "aria-autocomplete": "list", "aria-expanded": "false", "aria-controls": `${id}-list` });
+  const list = h("ul", { id: `${id}-list`, class: "suggest", role: "listbox", hidden: true });
+  const ask = h("div", { class: "ask small", hidden: true });
+  let shown = [], at = -1, saved = el.value = p[key] || "";
+  const close = () => { list.hidden = true; el.setAttribute("aria-expanded", "false"); el.removeAttribute("aria-activedescendant"); at = -1; };
+  const use = (value, label) => { p[key] = saved = el.value = label; close(); ask.hidden = true; autosave(p.id, { [key]: value }, 0); };
+  const pick = x => use({ id: x.id }, x.name);
+  const mark = i => {
+    at = i;
+    [...list.children].forEach((li, j) => li.setAttribute("aria-selected", String(j === i)));
+    el.setAttribute("aria-activedescendant", `${id}-o${i}`);
+  };
+  el.addEventListener("input", async () => {
+    ask.hidden = true;
+    const words = searchWords(el.value);
+    if (!words.length) return close();
+    let all;
+    try { all = await loadPlaces(); } catch { return close(); }
+    if (searchWords(el.value).join(" ") !== words.join(" ")) return;  // typed on meanwhile
+    const starts = x => x.name.toLowerCase().startsWith(words[0]) ? 0 : 1;
+    shown = all.filter(x => words.every(w => `${x.name} ${x.area}`.toLowerCase().includes(w)))
+      .sort((a, b) => starts(a) - starts(b)).slice(0, 8);
+    list.replaceChildren(...shown.map((x, i) => h("li", { id: `${id}-o${i}`, role: "option", "aria-selected": "false",
+      onmousedown: e => e.preventDefault(), onclick: () => pick(x) },  // mousedown: keep the typing box focused
+      x.name, x.area && h("span", { class: "muted" }, ` · ${x.area}`))));
+    at = -1;
+    list.hidden = !shown.length; el.setAttribute("aria-expanded", String(!!shown.length));
+  });
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); return at >= 0 ? pick(shown[at]) : el.blur(); }
+    if (list.hidden) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); mark((at + (e.key === "ArrowDown" ? 1 : shown.length - 1)) % shown.length); }
+    else if (e.key === "Escape") { e.stopPropagation(); close(); }
+  });
+  el.addEventListener("blur", async () => {  // left the box: use what's typed
+    close();
+    const text = el.value.trim();
+    if (text === saved.trim()) return;
+    if (!text) return use("", "");
+    let all = null;
+    try { all = await loadPlaces(); } catch { /* ask anyway; Gramps then reuses a place with exactly this name */ }
+    const same = all?.find(x => x.name.toLowerCase() === text.toLowerCase());
+    if (same) return pick(same);
+    ask.replaceChildren(`"${text}" isn't one of the places yet.`,
+      h("button", { onclick: () => { use(all ? { new: text } : text, text); places = null; } }, "Add it as a new place"),
+      h("button", { onclick: () => { el.value = saved; ask.hidden = true; setStatus("Saved ✓"); } }, "Change it back"));
+    ask.hidden = false;
+    setStatus("Place not saved yet");
+  });
+  return h("div", { class: "place" }, field(label, el), list, ask);
 }
 function dateInputs(prefix, label, get, set) {
   const d = get() || {};
@@ -175,13 +233,17 @@ function dateInputs(prefix, label, get, set) {
   const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
   yo.checked = yearOnlyStart;
   const sync = () => { cal.hidden = yo.checked; yr.hidden = !yo.checked; };
+  let sent;
   const save = () => {
-    if (yo.checked) set(yr.value ? { y: Number(yr.value) } : null);
-    else if (cal.value) { const [y, m, dd] = cal.value.split("-").map(Number); set({ y, m, d: dd }); }
-    else set(null);
+    let v = null;
+    if (yo.checked) v = yr.value ? { y: Number(yr.value) } : null;
+    else if (cal.value) { const [y, m, dd] = cal.value.split("-").map(Number); v = { y, m, d: dd }; }
+    if (JSON.stringify(v) !== sent) { sent = JSON.stringify(v); set(v); }
   };
   yo.addEventListener("change", () => { if (yo.checked && cal.value) yr.value = cal.value.slice(0, 4); sync(); save(); });
-  cal.addEventListener("change", save); yr.addEventListener("input", save);
+  // The year is saved once it has 4 digits or you leave the box, not at "1", "19", "195".
+  cal.addEventListener("change", save); yr.addEventListener("change", save);
+  yr.addEventListener("input", () => { if (/^\d{4}$/.test(yr.value)) save(); });
   sync();
   return h("div", {}, cal, yr, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
 }
@@ -217,7 +279,7 @@ function centreCard(p) {
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
     h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
-    field("Place of burial", bindText(p, "burial", "ed-burial")));
+    placeField("Place of burial", p, "burial", "ed-burial"));
   deathBox.hidden = !p.deceased;
   passed.addEventListener("change", () => {
     p.deceased = passed.checked; deathBox.hidden = !passed.checked;
@@ -246,7 +308,7 @@ function centreCard(p) {
     field("Nickname", bindText(p, "nick", "ed-nick")),
     gender,
     h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
-    field("Place of birth", bindText(p, "birthPlace", "ed-bplace")),
+    placeField("Place of birth", p, "birthPlace", "ed-bplace"),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
     h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
