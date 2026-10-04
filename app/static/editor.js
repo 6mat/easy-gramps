@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, P, S, canEdit, canLink, desc, h, loadGraph, matches, name, other, parentFam, photoEl, postJSON, relWord, sameName, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, h, loadGraph, matches, name, other, parentFam, photoEl, postJSON, relWord, sameName, searchWords, spouseFams, spouseWord, years } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
