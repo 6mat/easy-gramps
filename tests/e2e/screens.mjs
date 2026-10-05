@@ -214,6 +214,9 @@ if (WRITE) {
   });
   await step(page, "add someone already in the tree", async () => {
     await page.click("button.ed-slot:has-text('Add father')");
+    await page.waitForSelector("#add-first");  // opens on "someone new"; the search is one tap away
+    if (await page.$("#add-q")) throw new Error("search box shown before choosing 'already in the tree'");
+    await page.click("#dlg .addmode:has-text('already in the tree')");
     await page.fill("#add-q", "ZZTEST Kid");
     await page.click("#dlg .row-p button:has-text('Choose')").catch(() => {});  // the Kid is skipped (already family)
     await page.fill("#add-q", "ZZTEST Wife"); await page.waitForTimeout(300);

@@ -424,21 +424,30 @@ function renderAdd() {
   const what = A.rel === "child" ? (o ? `child of ${base.first} and ${P[o].first}` : `child of ${base.first}`)
     : `${relWord(A.rel, base)} of ${base.first}`;
   const title = h("h3", { id: "dlg-title" }, `Add ${what}`);
-  // 1) someone already in the tree
   const skip = linked(A.pid);
-  const q = h("input", { id: "add-q", type: "search", placeholder: "Type a name to look for", autocomplete: "off" });
-  const list = h("div", { class: "pick" });
-  q.addEventListener("input", () => {
-    const words = searchWords(q.value);
-    const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) &&
-      matches(p, words));
-    list.replaceChildren(...hits.map(p => h("div", { class: "row-p" },
-      h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
-      h("button", { onclick: () => doAdd({ existing: p.id }) }, "Choose"))));
-    if (words.length && !hits.length) list.append(h("div", { class: "small muted" }, "No one found. Add them as someone new below."));
-  });
-  // 2) someone new
-  const nw = someoneNew("add", impliedGender(A.rel, base));
+  const show = mode => { A.mode = mode; renderAdd(); };
+  // One thing at a time: someone new (the usual case), or, after a tap, someone already in the tree.
+  if (A.mode === "pick") {
+    const q = h("input", { id: "add-q", type: "search", placeholder: "Type a name to look for", autocomplete: "off" });
+    const list = h("div", { class: "pick" });
+    q.addEventListener("input", () => {
+      const words = searchWords(q.value);
+      const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) && matches(p, words));
+      list.replaceChildren(...hits.map(p => h("div", { class: "row-p" },
+        h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
+        h("button", { onclick: () => doAdd({ existing: p.id }) }, "Choose"))));
+      if (words.length && !hits.length) list.append(h("div", { class: "small muted" }, "No one found. ",
+        h("button", { class: "linkish", onclick: () => show("new") }, "Add them as someone new")));
+    });
+    dlg.replaceChildren(title,
+      h("button", { class: "addmode", onclick: () => show("new") }, "← Back to someone new"),
+      h("label", { for: "add-q" }, "Someone already in the tree: type their name", q), list,
+      h("div", { id: "add-warn" }),
+      h("div", { class: "btnrow" }, h("button", { onclick: closeDialog }, "Cancel")));
+    q.focus();
+    return;
+  }
+  const nw = A.nw ??= someoneNew("add", impliedGender(A.rel, base));  // kept while switching, so typing isn't lost
   const submit = () => {
     const person = nw.check(A.dupOk,
       p => skip.has(p.id) ? h("span", { class: "small muted" }, "Already in this family") : h("button", { onclick: () => doAdd({ existing: p.id }) }, "Use this person"),
@@ -446,12 +455,11 @@ function renderAdd() {
     if (person) doAdd({ new: person });
   };
   dlg.replaceChildren(title,
-    h("label", { for: "add-q" }, "Already in the tree?", q), list,
-    h("hr"),
-    h("strong", {}, "Or someone new"),
+    canLink() && h("button", { class: "addmode", onclick: () => show("pick") }, "🔍 Pick someone already in the tree"),
+    h("strong", {}, "Someone new"),
     nw.fields, nw.warn,
     h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: submit }, "Add"), h("button", { onclick: closeDialog }, "Cancel")));
-  q.focus();
+  dlg.querySelector("#add-first")?.focus();
 }
 
 async function doAdd(choice) {
