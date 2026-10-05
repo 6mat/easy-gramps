@@ -253,6 +253,12 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .centre .photo-row { display: flex; gap: 16px; align-items: center; }
 .centre fieldset, .dlg fieldset, .newperson fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .centre fieldset legend, .dlg fieldset legend, .newperson legend { font-size: 14px; font-weight: 700; color: var(--muted); padding: 0; margin-bottom: 4px; float: left; width: 100%; }
+/* Keyboard keys card */
+.dlg table.keys { border-collapse: collapse; width: 100%; }
+.dlg table.keys th { text-align: left; white-space: nowrap; padding: 6px 14px 6px 0; vertical-align: top; }
+.dlg table.keys td { padding: 6px 0; }
+.dlg kbd { display: inline-block; min-width: 1.6em; padding: 2px 8px; border: 1.5px solid var(--edge); border-bottom-width: 3px;
+  border-radius: 8px; background: var(--card); font-family: inherit; font-weight: 700; font-size: 15px; line-height: 1.3; text-align: center; }
 /* Add pop-up: the switch between "someone new" and "someone already in the tree" */
 .dlg .addmode { align-self: stretch; text-align: left; padding: 12px 14px; border: 1.5px dashed var(--edge); background: var(--bg); font-weight: 700; }
 .dlg .addmode:hover { border-color: var(--accent); background: var(--accent-soft); }

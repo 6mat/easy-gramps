@@ -2,7 +2,7 @@
 import { store } from "./auth.js";
 import { $, P, S, byBirth, canAdd, canLink, desc, h, matches, name, other, parentFam, photoEl, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
-import { closeEditor, openEditor } from "./editor.js";
+import { closeEditor, hideDlg, openEditor, showDlg } from "./editor.js";
 import { renderAll, renderStart } from "./start.js";
 
 // ---------- tree ----------
@@ -197,11 +197,12 @@ export function renderTree() {
   inner.style.width = `${width}px`; inner.style.height = `${height}px`; inner.style.transform = `scale(${z})`;
   size.style.width = `${width * z}px`; size.style.height = `${height * z}px`;
   $("#z-pct").textContent = `${Math.round(z * 100)}%`;
-  S.layout = { OX, width, height, extra, fx, rowY, nodes: nodes.filter(n => !n.slot) };
+  S.layout = { OX, width, height, extra, fx, rowY, nodes: nodes.filter(n => !n.slot), all: nodes };  // all: with the Add boxes
 
   const rows = $("#rows");
   rows.replaceChildren(...nodes.map(n => {
     const el = n.slot ? slotEl(n.label, n.act) : nodeEl(n.key, n.focus);
+    el.dataset.key = n.key;
     el.style.left = `${n.x + OX}px`; el.style.top = `${n.y}px`;
     el.style.width = `${BW}px`; el.style.height = `${BH}px`;
     return el;
@@ -236,7 +237,10 @@ function nodeEl(id, focus) {
   const el = h("div", { class: `node${focus ? " focus" : ""}${S.sel === id ? " sel" : ""}`, "data-key": id, tabindex: "0",
     role: "button", "aria-label": `${rel ? rel + ": " : ""}${name(p)} ${years(p)}`,
     onclick: e => { e.stopPropagation(); if (S.dragged) return; select(id, true); },
-    onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); } } },
+    onkeydown: e => {  // Enter: edit them; Space: their details
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); select(id); openEditor(id); }
+      else if (e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); }
+    } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
     h("span", { class: "pl" }, p.birthPlace || " "));
@@ -606,30 +610,60 @@ $("#showlink").addEventListener("change", () => {
   drawSelink();
 });
 
-// ----- arrow keys: ↑ parent, ↓ eldest child, ← → neighbours in the row, Enter details, Esc clear -----
+// ----- keys: arrows move between people and the Add boxes, Enter edits, / + − 0 H ?, Esc back -----
+export const KEYS = [
+  ["← ↑ → ↓", "Move between people and the “Add” boxes"],
+  ["Enter", "Edit the person (on an “Add” box: add someone there)"],
+  ["Space", "Show the person’s details"],
+  ["Esc", "Go back: close a pop-up or the editor, then back to the tree’s own person"],
+  ["/", "Search for someone"],
+  ["+  −", "Zoom in, zoom out"],
+  ["0", "Fit the whole tree on screen"],
+  ["H", "Home: choose someone else"],
+  ["?", "This list"],
+];
+export function showKeys() {
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Keyboard keys"),
+    h("table", { class: "keys" }, ...KEYS.map(([k, what]) => h("tr", {}, h("th", {}, h("kbd", {}, k)), h("td", {}, what)))),
+    h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: hideDlg }, "Close")));
+  showDlg(false);
+  $("#dlg button.primary").focus();
+}
+$("#menu-keys").onclick = () => { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); showKeys(); };
 document.addEventListener("keydown", e => {
-  if (!$("#editor").hidden || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
+  if (e.key === "?") { e.preventDefault(); return showKeys(); }
+  if (!$("#editor").hidden) return;  // the editor: Tab moves through it; Esc goes back (handled there)
+  if (e.key === "/") { e.preventDefault(); return (S.focus ? $("#q") : $("#start-q"))?.focus(); }
   const L = S.layout;
   if (!L) return;
-  const at = id => L.nodes.find(n => n.key === id);
-  const cur = at(S.sel) || at(S.focus);
-  const nearest = row => L.nodes.filter(n => n.row === row).sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x))[0];
+  const zoomKey = { "+": "#z-in", "=": "#z-in", "-": "#z-out", "0": "#z-fit" }[e.key];
+  if (zoomKey) { e.preventDefault(); return $(zoomKey).click(); }
+  if (e.key === "h" || e.key === "H") { e.preventDefault(); return goHome(); }
+  if (e.key === "Enter" && e.target === document.body) { e.preventDefault(); return S.sel && openEditor(S.sel); }
+  if (e.key === "Escape") { if (S.full) toggleFull(false); else { S.pop = null; select(S.focus); } return; }
+  const all = canLink() ? L.all : L.nodes;  // Add boxes are buttons only for editors
+  const at = id => all.find(n => n.key === id);
+  const onKey = e.target.closest?.("#rows [data-key]")?.dataset.key;  // the box the keys are on (a person or an Add box)
+  const cur = at(onKey) || at(S.sel) || at(S.focus);
+  if (!cur) return;
+  const nearest = row => all.filter(n => n.row === row).sort((a, b) => Math.abs(a.x - cur.x) - Math.abs(b.x - cur.x))[0];
   let next = null;
   if (e.key === "ArrowUp") {
-    const pf = parentFam(cur.key);
+    const pf = !cur.slot && parentFam(cur.key);
     next = (pf && (at(pf.f) || at(pf.m))) || nearest(cur.row - 1);
   } else if (e.key === "ArrowDown") {
-    next = byBirth(spouseFams(cur.key).flatMap(x => x.kids)).map(at).find(Boolean) || nearest(cur.row + 1);
+    next = (!cur.slot && byBirth(spouseFams(cur.key).flatMap(x => x.kids)).map(at).find(Boolean)) || nearest(cur.row + 1);
   } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-    const row = L.nodes.filter(n => n.row === cur.row).sort((a, b) => a.x - b.x);
+    const row = all.filter(n => n.row === cur.row).sort((a, b) => a.x - b.x);
     next = row[row.indexOf(cur) + (e.key === "ArrowLeft" ? -1 : 1)];
-  } else if (e.key === "Enter" && e.target === document.body) { showPanel(); return; }
-  else if (e.key === "Escape") { if (S.full) toggleFull(false); else { S.pop = null; select(S.focus); } return; }
-  else return;
+  } else return;
   e.preventDefault();
   if (!next) return;
-  select(next.key, true);
-  $("#rows").querySelector(`[data-key="${next.key}"]`)?.focus({ preventScroll: true });
+  if (!next.slot) select(next.key, true);
+  const el = $("#rows").querySelector(`[data-key="${CSS.escape(next.key)}"]`);
+  el?.focus({ preventScroll: !next.slot });
+  if (next.slot) el?.scrollIntoView({ block: "nearest", inline: "nearest" });
 });
 
 // ---------- search ----------
