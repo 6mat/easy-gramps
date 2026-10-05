@@ -136,7 +136,11 @@ async function cleanup() {
   await step(page, "keyboard", async () => {
     await page.click(".node.focus"); for (const k of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"]) await page.keyboard.press(k);
   });
-  await step(page, "full screen", async () => { await page.click("#z-full"); await page.waitForSelector("body.fullmode"); await page.click("#z-full"); });
+  await step(page, "full screen", async () => {  // the top bar hides, so ⌂ Home shows in the tree's title strip
+    if (await page.isVisible("#tree-home")) throw new Error("⌂ Home pill shown outside full screen");
+    await page.click("#z-full"); await page.waitForSelector("body.fullmode"); await page.waitForSelector("#tree-home", { state: "visible" });
+    await page.click("#z-full");
+  });
   await step(page, "top search", async () => { await page.fill("#q", "Stewart"); await page.waitForSelector("#results button"); await page.fill("#q", ""); });
   await step(page, "menu: theme, bigger text, line, tips", async () => {
     await page.click("#menubtn");
@@ -246,7 +250,11 @@ if (WRITE) {
     await page.click("#dlg button.primary"); await page.click("#dlg button.danger");
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent));
   });
-  await step(page, "home", async () => { await page.click("#tree-home"); await page.waitForSelector("#start-q"); await page.waitForSelector(".recentcard"); });
+  await step(page, "home", async () => {  // ⌂ Family Tree; the start screen has one search and no leftover line
+    await page.click("#brand"); await page.waitForSelector("#start-q"); await page.waitForSelector(".recentcard");
+    if (await page.isVisible("#q") || await page.isVisible("#tree-title")) throw new Error("top search or title strip on the start screen");
+    if (await page.evaluate(() => document.querySelector("#selink").children.length)) throw new Error("dotted line left on the start screen");
+  });
   // Names, places and notes that look like code must show as typed and never become page elements (#9).
   // (The CSP would stop the scripts anyway, so this looks for the elements themselves, not for alerts.)
   await step(page, "odd characters show as typed", async () => {
@@ -275,7 +283,7 @@ if (WRITE) {
     await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results button"); await check("top search"); await page.fill("#q", "");
     await page.click("#panel .dupbtn"); await page.fill("#merge-q", "ZZTEST"); await page.waitForTimeout(500); await check("merge dialog");
     await page.click("#dlg button:has-text('Cancel')");
-    await page.click("#tree-home"); await page.waitForSelector(".recentcard"); await check("start screen");
+    await page.click("#brand"); await page.waitForSelector(".recentcard"); await check("start screen");
   });
   await page.context().close();
   await sleep(1500);
