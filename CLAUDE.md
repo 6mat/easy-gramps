@@ -12,7 +12,9 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
   ("Easy Gramps") — real users' records carry it.
 - UI wording is plain and non-technical ("Add a father", "Saved ✓", "Not saved — try again").
 - Brainstorm or mock up bigger features before building; the owner answers with numbered picks.
-- Small commits, one step each. `VERSION` holds the version; tag releases `vX.Y.Z`.
+- Small commits, one step each. `VERSION` holds the version (raise it in the PR). Release with GitHub
+  **Actions → Release image → Run workflow** on main: it builds the image, then tags `vX.Y.Z` from `VERSION`
+  and publishes the release with that version's CHANGELOG notes. A hand-made tag must match `VERSION`.
 
 ## Run and check
 ```

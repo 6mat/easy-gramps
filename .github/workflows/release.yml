@@ -1,12 +1,16 @@
-# On a version tag (e.g. v0.9.1, matching the VERSION file): build the image for amd64 + arm64
-# (Raspberry Pi) and publish it to GitHub Container Registry.
+# Release: build the image for amd64 + arm64 (Raspberry Pi) and publish it to GitHub Container
+# Registry as :vX.Y.Z and :latest.
+#   - Easiest: Actions → Release image → Run workflow (on main). It releases the version in VERSION:
+#     builds the image, then creates the tag vX.Y.Z and the GitHub release (notes from CHANGELOG.md).
+#   - Or publish a release / push a tag vX.Y.Z yourself; it must match VERSION.
 name: Release image
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:  # the "Run workflow" button
 
 permissions:
-  contents: read
+  contents: write  # the button creates the tag and the release
   packages: write
 
 jobs:
@@ -14,12 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Tag matches VERSION
+      - name: Which version
+        id: v
         run: |
-          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::The tag is $GITHUB_REF_NAME but VERSION says $(cat VERSION). Nothing was built. Merge a change that sets VERSION to ${GITHUB_REF_NAME#v} first, then release that version (or delete this tag and tag v$(cat VERSION))."
-            exit 1
+          tag="v$(cat VERSION)"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ "$GITHUB_REF_NAME" != main ]; then
+              echo "::error::Run it on main (it was run on $GITHUB_REF_NAME). Nothing was built."; exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              echo "::error::$tag is already released. Merge a change that raises VERSION first, then run this again. Nothing was built."; exit 1
+            fi
+          elif [ "$tag" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but VERSION says $(cat VERSION). Nothing was built. Merge a change that sets VERSION to ${GITHUB_REF_NAME#v} first, then release that version (or delete this tag and tag $tag)."; exit 1
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -33,5 +46,14 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:${{ steps.v.outputs.tag }}
             ghcr.io/${{ github.repository }}:latest
+      - name: Tag and publish the release (Run workflow button only, after the image is built)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          awk -v head="## ${TAG#v} " 'index($0, head) == 1 { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md." > notes.md
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "${TAG#v}" --notes-file notes.md
