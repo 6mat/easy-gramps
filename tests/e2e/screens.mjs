@@ -135,6 +135,12 @@ async function cleanup() {
   });
   await step(page, "keyboard", async () => {
     await page.click(".node.focus"); for (const k of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"]) await page.keyboard.press(k);
+    await page.keyboard.press("?"); await page.waitForSelector("table.keys"); await page.keyboard.press("Escape");
+    const pct = await page.textContent("#z-pct"); await page.keyboard.press("+");
+    if (await page.textContent("#z-pct") === pct) throw new Error("+ didn't zoom");
+    await page.keyboard.press("0");
+    await page.focus(".node.focus"); await page.keyboard.press("Enter"); await page.waitForSelector("#editor:not([hidden])");
+    await page.keyboard.press("Escape"); await page.waitForSelector("#editor", { state: "hidden" });
   });
   await step(page, "full screen", async () => {  // the top bar hides, so ⌂ Home shows in the tree's title strip
     if (await page.isVisible("#tree-home")) throw new Error("⌂ Home pill shown outside full screen");
