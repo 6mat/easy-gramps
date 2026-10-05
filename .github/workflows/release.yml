@@ -15,7 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Tag matches VERSION
-        run: test "v$(cat VERSION)" = "$GITHUB_REF_NAME"
+        run: |
+          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but VERSION says $(cat VERSION). Nothing was built. Merge a change that sets VERSION to ${GITHUB_REF_NAME#v} first, then release that version (or delete this tag and tag v$(cat VERSION))."
+            exit 1
+          fi
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
