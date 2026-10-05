@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.0.6 — 2026-10-05
+
+### Changed
+- The help tip above the tree ("Tip: tap a person to see their details…") is off by default; turn it
+  on with ☰ Menu → Show tips (it stays on until closed).
+
 ## 1.0.5 — 2026-10-05
 
 ### Added
