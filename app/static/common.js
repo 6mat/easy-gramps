@@ -16,6 +16,44 @@ export const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom:
 
 // ---------- helpers ----------
 export const $ = s => document.querySelector(s);
+
+// ---------- the page address: where you are, so a reload comes back to the same view ----------
+// #/p/<tree's person>[/s/<selected>][/edit/<editor's person>[/add/<whose relative>/<relation>[/<family>]]]
+// Opening the editor or the Add pop-up is a step the browser's Back (or a phone's back gesture) undoes.
+const editing = () => !$("#editor").hidden && S.stack.at(-1);
+export function viewHash() {
+  if (!S.focus) return "";
+  let v = `#/p/${encodeURIComponent(S.focus)}`;
+  if (S.sel && S.sel !== S.focus) v += `/s/${encodeURIComponent(S.sel)}`;
+  if (editing()) {
+    v += `/edit/${encodeURIComponent(editing())}`;
+    if (S.add) v += `/add/${encodeURIComponent(S.add.pid)}/${S.add.rel}${S.add.famId ? `/${encodeURIComponent(S.add.famId)}` : ""}`;
+  }
+  return v;
+}
+export function parseView(hash = location.hash) {
+  const seg = hash.replace(/^#\/?/, "").split("/").map(x => { try { return decodeURIComponent(x); } catch { return ""; } });
+  const v = {};
+  for (let i = 0; i < seg.length; i++) {
+    if (seg[i] === "p") v.focus = seg[++i];
+    else if (seg[i] === "s") v.sel = seg[++i];
+    else if (seg[i] === "edit") v.edit = seg[++i];
+    else if (seg[i] === "add") { v.add = { pid: seg[i + 1], rel: seg[i + 2], famId: seg[i + 3] || null }; i += 3; }
+  }
+  return v;
+}
+const depth = (v = parseView()) => v.add ? 2 : v.edit ? 1 : 0;  // 0 tree, 1 editor, 2 Add pop-up
+const address = () => location.pathname + location.search + viewHash();
+export function saveView() { history.replaceState(history.state, "", address()); }
+export function pushView() { history.pushState({ eg: (history.state?.eg || 0) + 1 }, "", address()); }
+let ownSteps = 0;  // history steps we took ourselves (their popstate only tidies the address)
+// After closing the editor or the pop-up: step back over the history entries they added, so Back
+// doesn't reopen them. Only over steps this page added (never out of the page).
+export function dropClosedSteps() {
+  const n = Math.min(depth() - depth(parseView(viewHash())), history.state?.eg || 0);
+  if (n > 0) { ownSteps++; history.go(-n); } else saveView();
+}
+export function ownStep() { if (!ownSteps) return false; ownSteps--; saveView(); return true; }
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);

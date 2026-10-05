@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, h, loadGraph, matches, name, other, parentFam, photoEl, postJSON, relWord, sameName, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -88,10 +88,11 @@ async function ensureDetails(id) {
   if (P[id]._details) return;
   Object.assign(P[id], await api(`/tree/details/${id}`), { _details: true });
 }
-export async function openEditor(id, rel, famId) {
+export async function openEditor(id, rel, famId, restoring = false) {
   S.stack = [id]; S.edMore = false; S.menu = null;
   setStatus("Saved ✓");
   $("#editor").hidden = false;
+  if (!restoring) pushView();  // Back closes it again
   $("#ed-body").replaceChildren(h("p", { class: "muted" }, "Loading…"));
   try { await ensureDetails(id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
   renderEditor();
@@ -99,7 +100,7 @@ export async function openEditor(id, rel, famId) {
   else $("#ed-back").focus();
 }
 export async function closeEditor() {
-  $("#editor").hidden = true; closeDialog();
+  if (!$("#editor").hidden) { S.add = null; $("#editor").hidden = true; hideDlg(); dropClosedSteps(); }
   await flushSaves();
   // Reload so the tree shows exactly what Gramps now holds.
   try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
@@ -318,6 +319,7 @@ function centreCard(p) {
 
 export function renderEditor() {
   const id = S.stack.at(-1), p = P[id];
+  saveView();
   $("#ed-title").textContent = `${name(p)}'s family`;
   $("#crumbs").replaceChildren(...(S.stack.length > 1 ? S.stack.flatMap((x, i) => [
     i ? " › " : "",
@@ -372,12 +374,33 @@ $("#dlg-wrap").addEventListener("keydown", e => {
   if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
   else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
 });
-function openAdd(pid, rel, famId) {
+function openAdd(pid, rel, famId, restoring = false) {
   S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
   showDlg(false);
   renderAdd();
+  if (!restoring) pushView();  // Back closes it again
 }
-function closeDialog() { hideDlg(); if (S.add) S.add.justAdded = null; S.add = null; if (!$("#editor").hidden) renderEditor(); }
+function closeDialog() {
+  const was = S.add;
+  hideDlg(); if (S.add) S.add.justAdded = null; S.add = null;
+  if (was) dropClosedSteps();
+  if (!$("#editor").hidden) renderEditor();
+}
+// The browser's Back (or a phone's back gesture): close whatever the address no longer shows.
+window.addEventListener("popstate", () => {
+  if (ownStep()) return;  // our own step back after closing something
+  const v = parseView();
+  if (!v.add && S.add) closeDialog();
+  else if (!v.edit && !$("#editor").hidden) closeEditor();
+  else saveView();  // nothing to close (e.g. Forward): keep the address true to the screen
+});
+// After a reload: open the editor (and the Add pop-up) the address names, if they still make sense.
+export async function restoreView(v) {
+  if (!v.edit || !P[v.edit]) return saveView();
+  await openEditor(v.edit, null, null, true);
+  if (v.add && P[v.add.pid] && canLink() && ["father", "mother", "spouse", "child"].includes(v.add.rel)) openAdd(v.add.pid, v.add.rel, v.add.famId, true);
+  saveView();
+}
 
 
 
@@ -440,7 +463,7 @@ async function doAdd(choice) {
     await flushSaves();
     const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
     const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
-    hideDlg(); S.add = null;
+    hideDlg(); S.add = null; dropClosedSteps();
     S.newlyAdded = res.added;
     await refresh();
     S.newlyAdded = null;

@@ -1,6 +1,6 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
 import { store } from "./auth.js";
-import { $, P, S, byBirth, canAdd, canLink, desc, h, matches, name, other, parentFam, photoEl, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { $, P, S, byBirth, canAdd, canLink, desc, h, matches, name, other, parentFam, photoEl, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
 import { closeEditor, openEditor } from "./editor.js";
 import { renderAll, renderStart } from "./start.js";
@@ -319,12 +319,10 @@ window.addEventListener("resize", perFrame(() => renderTree()));
 export function select(id, fromClick) {
   S.sel = id; S.more = false;
   S.pop = fromClick && !S.panel ? id : null;
-  renderTree(); renderPanel();
+  renderTree(); renderPanel(); saveView();
   if (fromClick) reveal(id);
 }
-export function rememberFocus() {
-  history.replaceState(null, "", location.pathname + location.search + (S.focus ? `#/p/${S.focus}` : ""));
-}
+export function rememberFocus() { saveView(); }
 const RECENT_KEY = "eg_recent_viewed";
 export function recentViewed() { try { return JSON.parse(store.get(RECENT_KEY) || "[]").filter(id => P[id]); } catch { return []; } }
 export function noteViewed(id) { store.set(RECENT_KEY, JSON.stringify([id, ...recentViewed().filter(x => x !== id)].slice(0, 8))); }
