@@ -575,9 +575,12 @@ $("#menubtn").onclick = e => {
 };
 document.addEventListener("click", e => { if (!e.target.closest(".menuwrap")) { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); } });
 function showTip(on) { $("#tipbar").hidden = !on; renderTree(); }
-$("#tip-close").onclick = () => { store.set("eg_tip_done", "1"); showTip(false); };
-$("#tips-again").onclick = () => { store.set("eg_tip_done", null); $("#menupop").hidden = true; showTip(true); };
-$("#tipbar").hidden = !!store.get("eg_tip_done");
+// The tip is off unless asked for (Menu → Show tips): new people found it confusing. On this device it
+// stays on until closed again.
+$("#tip-close").onclick = () => { store.set("eg_tip_on", null); showTip(false); };
+$("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); $("#menupop").hidden = true; showTip(true); };
+$("#tipbar").hidden = !store.get("eg_tip_on");
+store.set("eg_tip_done", null);  // the old "closed it" setting isn't needed any more
 
 // ----- the zoom & map strip can be hidden; remembered on this device -----
 function showNav(on) {

@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.1.1 — 2026-10-05
+
+(1.1.0 was tagged but never built: `VERSION` still said 1.0.5. 1.1.1 is the first build with 1.0.5's changes.)
+
+### Added
+- Releasing is one click: **Actions → Release image → Run workflow** builds the image and publishes
+  the release for the version in `VERSION`. A mismatched hand-made tag now says what to fix.
+
+### Changed
+- The help tip above the tree ("Tip: tap a person to see their details…") is off by default; turn it
+  on with ☰ Menu → Show tips (it stays on until closed).
+
 ## 1.0.5 — 2026-10-05
 
 ### Added
