@@ -330,8 +330,11 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 .newperson { display: flex; flex-direction: column; gap: 12px; border: 1.5px dashed var(--line); border-radius: 12px; padding: 16px; }
 
 /* ---------- Home ---------- */
-.top .brand { font-size: 20px; font-weight: 700; white-space: nowrap; letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
-.top .brand:hover { color: var(--accent); }
+.top .brand { font-size: 19px; font-weight: 700; white-space: nowrap; letter-spacing: -.01em; color: var(--ink); text-decoration: none;
+  padding: 7px 16px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--card); }  /* ⌂ Home, so it looks tappable */
+.top .brand:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+/* Start screen: its own big search and question are enough (no top search, no "Family tree" strip). */
+body.onstart .top .search, body.onstart .treebar { display: none; }
 
 /* ---------- start screen: recently viewed / recently changed ---------- */
 .recentgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }

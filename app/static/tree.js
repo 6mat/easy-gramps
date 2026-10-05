@@ -38,6 +38,7 @@ export function renderTree() {
   const empty = !S.focus;
   $(".treepane").classList.toggle("empty", empty);
   $(".main").classList.toggle("nopanel", empty || !S.panel);
+  document.body.classList.toggle("onstart", empty);
   if (empty) {
     S.layout = null; S.pop = null;
     $("#tree-title").textContent = "Family tree";
@@ -209,7 +210,7 @@ export function renderTree() {
 
   // title bar: back on the left, whose tree in the middle, the selected person's tree on the right
   $("#tree-title").textContent = `${name(fp)}'s family tree`;
-  $("#tree-home").hidden = false;
+  $("#tree-home").hidden = !S.full;  // otherwise ⌂ Family Tree in the top bar is Home
   const back = $("#tree-back"), prev = S.history.at(-1);
   back.hidden = !prev;
   if (prev) back.textContent = `← Back to ${P[prev].first}'s tree`;
