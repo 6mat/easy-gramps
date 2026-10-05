@@ -87,7 +87,8 @@ dotted grey lines. Every box: relation label (FATHER, WIFE (2ND), SON, DAUGHTER-
 FATHER…), photo or tinted initials, name, years, birthplace; the tree's own person is tagged THIS TREE.
 
 **Selection.** Clicking selects (ring) and shows the person in the panel. Title "X's family tree",
-"See Y's tree →" on the right, "← Back to X's tree" on the left, ⌂ Home. Empty-space click reselects
+"See Y's tree →" on the right, "← Back to X's tree" on the left. **⌂ Family Tree** (top bar, styled as a
+button) is Home; the ⌂ Home pill in the title strip shows only in full screen, where the top bar is hidden. Empty-space click reselects
 the tree's own person. **Colour tells whose details are shown:** the tree's own person = blue ring,
 blue panel edge, blue dotted connector; anyone else = amber (`--sel`). The connector (`#selink`,
 `drawSelink()`) always leaves the box from the **bottom**, runs through the row gap and along the panel
@@ -95,7 +96,7 @@ edge so it doesn't cross boxes; Menu switch "Line from person to details" hides 
 
 **Start screen** (no person chosen): "Whose family tree would you like to see?", search, Recently
 viewed (this device), Recently changed (anyone, with who/when), + Add a new person (duplicate-name
-check). It must **not** open on an automatic person.
+check). One search only: the top-bar search and the title strip are hidden on the start screen. It must **not** open on an automatic person.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo, name, relation, born/died, clickable Parents/Wives/Children, More

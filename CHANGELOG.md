@@ -2,6 +2,17 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.0.4 — 2026-10-05
+
+### Changed
+- **⌂ Family Tree** at the top left is now the Home button (styled as one); the separate ⌂ Home button
+  in the tree's title strip shows only in full screen, where the top bar is hidden.
+- The start screen has one search box and one title: the top-bar search and the "Family tree" strip
+  are hidden there.
+
+### Fixed
+- Going back home no longer leaves the dotted line to the details panel on the start screen.
+
 ## 1.0.3 — 2026-10-04
 
 ### Added
