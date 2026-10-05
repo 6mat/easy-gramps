@@ -2,7 +2,9 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## 1.0.6 — 2026-10-05
+## 1.1.1 — 2026-10-05
+
+(1.1.0 was tagged but never built: `VERSION` still said 1.0.5. 1.1.1 is the first build with 1.0.5's changes.)
 
 ### Changed
 - The help tip above the tree ("Tip: tap a person to see their details…") is off by default; turn it
