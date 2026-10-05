@@ -2,6 +2,19 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.0.5 — 2026-10-05
+
+### Added
+- **Keyboard:** arrow keys also reach the dotted "Add" boxes; Enter edits the person (or opens the Add
+  box); Space shows the details; / search, + − zoom, 0 fit, H home; ? (or Menu → Keyboard keys) lists them.
+- **Reload keeps your place:** the selected person, the editor and the Add pop-up come back after a
+  reload. **Back** (or a phone's back gesture, also in the installed app) closes the Add pop-up, then
+  the editor, instead of leaving the page.
+
+### Changed
+- The Add pop-up opens on **Someone new**; "🔍 Pick someone already in the tree" switches it to the
+  search, so a new person's name can't go into the search box by mistake.
+
 ## 1.0.4 — 2026-10-05
 
 ### Changed
