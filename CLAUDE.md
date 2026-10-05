@@ -111,8 +111,16 @@ switches, Show tips again, Full Gramps ↗, Log out.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
 Ctrl+wheel blocked outside it) — owner's call. Drag anywhere moves the tree, pinch zooms the tree,
-double-tap returns to the opening zoom centred on that person. Arrow keys: ↑ parent, ↓ eldest child,
-← → row neighbours; Esc clears selection / leaves full screen.
+double-tap returns to the opening zoom centred on that person.
+**Keys** (not while typing in a box): arrows move between people **and the dotted Add boxes** (↑ parent,
+↓ eldest child, ← → row neighbours); Enter edits the person (on an Add box: its pop-up), Space shows the
+details; / search, + − zoom, 0 fit, H home; ? (or Menu → Keyboard keys) lists them; Esc steps back
+(pop-up → editor → selection; leaves full screen).
+
+**Page address and Back.** `#/p/<tree>[/s/<selected>][/edit/<person>[/add/<person>/<relation>[/<family>]]]`:
+a reload comes back to the same tree, selection, editor and Add pop-up. Opening the editor or the
+pop-up is a browser-history step, so Back / a phone's back gesture closes them in turn; closing them
+with their own buttons steps back over those entries (Back never reopens them).
 
 **Editor** (full screen): Back to tree, Home, Saving…/Saved ✓/Not saved + Try again. Parents on top,
 the person's card, spouses beside, children grouped by spouse. Fields: photo, first/last/nickname,
@@ -120,7 +128,8 @@ the person's card, spouses beside, children grouped by spouse. Fields: photo, fi
 (reveals death date and burial place), More details (residing at, phone, email, notes). Autosave:
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
 once it has 4 digits. Place boxes list the existing places (with their area) and save only a place
-you pick, or a new one after "Add it as a new place" (never one per keystroke, #49). Add pop-up: search the tree or "Someone new"; **one person
+you pick, or a new one after "Add it as a new place" (never one per keystroke, #49). Add pop-up: opens on **Someone new**; "🔍 Pick someone already in the
+tree" switches it to the search (← Back returns; typing is kept), one kind of box at a time; **one person
 per add**; spouse gender set automatically. ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
 

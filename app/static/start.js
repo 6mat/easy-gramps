@@ -1,9 +1,9 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
 import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
-import { $, ME, P, S, canAdd, desc, h, loadGraph, matches, name, photoEl, postJSON, searchWords, years } from "./common.js";
+import { $, ME, P, S, canAdd, desc, h, loadGraph, matches, name, parseView, photoEl, postJSON, searchWords, years } from "./common.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
-import { closeEditor, flushSaves, openEditor, renderEditor, someoneNew, toast } from "./editor.js";
+import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
 
 export function renderAll() {
   renderTree(); renderPanel();
@@ -174,13 +174,15 @@ export async function start() {
   }
   S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
-  const want = decodeURIComponent(location.hash.match(/^#\/p\/(.+)$/)?.[1] || "");
-  S.focus = S.sel = P[want] ? want : null;
+  const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
+  S.focus = P[v.focus] ? v.focus : null;
+  S.sel = S.focus && P[v.sel] ? v.sel : S.focus;
   if (S.focus) noteViewed(S.focus);
   hideGate();
   S.scrolledFor = null;
   rememberFocus();
   renderAll();
+  if (S.focus) await restoreView(v);
 }
 // Log out: forget the login and reload, so nothing of the tree stays in the page for the next person.
 $("#logout").onclick = async () => { await flushSaves(); auth.clear(); location.replace(location.pathname); };
