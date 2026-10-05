@@ -84,7 +84,17 @@ async function cleanup() {
     await g(`/families/${fh}`, { method: "PUT", body: JSON.stringify({ ...f, father_handle: null, mother_handle: null, child_ref_list: [] }) });
     await g(`/families/${fh}`, { method: "DELETE" });  // the demo answers 500 here even when it worked
   }
-  for (const p of mine) await g(`/people/${p.handle}`, { method: "DELETE" });
+  for (const p of mine) {
+    const r = await g(`/people/${p.handle}`, { method: "DELETE" });
+    if (r.status >= 500) {  // the demo refuses when the person still points at a family that's gone: clear that, retry
+      const cur = await g(`/people/${p.handle}`); if (!cur.ok) continue;
+      const fresh = await cur.json();
+      const alive = async hs => (await Promise.all((hs || []).map(async f => (await g(`/families/${f}`)).ok ? f : null))).filter(Boolean);
+      fresh.family_list = await alive(fresh.family_list); fresh.parent_family_list = await alive(fresh.parent_family_list);
+      await g(`/people/${p.handle}`, { method: "PUT", body: JSON.stringify(fresh) });
+      await g(`/people/${p.handle}`, { method: "DELETE" });
+    }
+  }
   const unused = async (kind, h) => { const r = await g(`/${kind}/${h}?backlinks=1`); if (!r.ok) return false; const j = await r.json(); return !Object.values(j.backlinks || {}).some(v => v.length); };
   for (const [kind, set] of [["events", events], ["notes", notes], ["media", media]])
     for (const h of set) if (await unused(kind, h)) await g(`/${kind}/${h}`, { method: "DELETE" });
