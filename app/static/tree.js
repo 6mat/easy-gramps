@@ -43,6 +43,7 @@ export function renderTree() {
     $("#tree-title").textContent = "Family tree";
     $("#tree-home").hidden = $("#tree-back").hidden = $("#tree-see").hidden = $("#show-panel").hidden = true;
     renderStart();
+    drawSelink();  // no one selected now: clears the line to the details panel
     return;
   }
   S.startShown = false;
