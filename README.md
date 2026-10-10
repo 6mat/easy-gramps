@@ -61,6 +61,12 @@ For a rootless Podman host where Traefik reads container labels through the Podm
 image (`ghcr.io/6mat/easy-gramps`, amd64 and arm64) and lets Podman auto-update it. The comments in the file
 list what it assumes (network, Gramps Web container name, router priority).
 
+**Installed before 1.3.1?** Add the data volume to your copy of the file (it keeps each person's date
+format; without it, saving one says "Not saved to your login"), under `[Container]`:
+`Volume=easy-gramps-data:/data:U`, then `systemctl --user daemon-reload && systemctl --user restart easy-gramps`.
+With the compose file: replace `./data:/data` with the named volume `easy-gramps-data:/data` as in
+`deploy/compose.traefik.yaml`, or make `./data` writable by user 1000 (`sudo chown 1000:1000 data`).
+
 ## Develop locally
 
 ```

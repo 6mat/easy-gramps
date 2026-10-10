@@ -20,7 +20,7 @@ services:
       FORWARDED_ALLOW_IPS: "*"                         # safe only because no port is published: only Traefik can reach us
       # ICON_FILE: /icon/icon.png                      # your own app icon (square picture), with the volume below
     volumes:
-      - ./data:/data
+      - easy-gramps-data:/data   # each person's settings (date format); kept across updates
       # - ./icon.png:/icon/icon.png:ro
     networks: [proxy]
     labels:
@@ -35,6 +35,9 @@ services:
       # - traefik.http.routers.easy-gramps.priority=100
       - traefik.http.services.easy-gramps.loadbalancer.server.port=8000
       # No strip-prefix middleware: the app expects /family in the path.
+
+volumes:
+  easy-gramps-data:
 
 networks:
   proxy:
