@@ -327,3 +327,11 @@ def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
     import main
     main._who_cache.clear()
     assert client.post(f"/family/tree/person/{p}/photos", json={"media": first, "do": "remove"}).status_code == 403
+
+
+def test_settings_say_so_when_the_data_folder_cant_be_written(fake, client, monkeypatch, tmp_path):
+    import main
+    (tmp_path / "file").write_text("")
+    monkeypatch.setattr(main, "SETTINGS_FILE", tmp_path / "file" / "settings.json")  # a folder that can't exist
+    r = client.put("/family/auth/settings", json={"dates": "m/d/y"})
+    assert r.status_code == 503 and "data folder" in r.json()["detail"]

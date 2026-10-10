@@ -594,8 +594,8 @@ $("#datefmt").addEventListener("change", async () => {
   renderAll();
   try {
     await api("/auth/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dates: dateFormat }) });
-  } catch {
-    toast("Not saved to your login, only on this device. Try again later.");
+  } catch (err) {
+    toast(`Not saved to your login, only on this device. ${err.status === 503 ? err.message : "Try again later."}`);
   }
 });
 

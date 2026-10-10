@@ -271,10 +271,14 @@ async def save_settings(request: Request):
         s = read_settings()
         mine = s.setdefault(name, {})
         mine["dates"] = body["dates"]
-        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = SETTINGS_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
-        tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
+        try:
+            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = SETTINGS_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
+            tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
+        except OSError as e:  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
+            gramps.log.error("Can't save settings in %s: %s. Give the container a writable volume there.", SETTINGS_FILE.parent, e)
+            raise HTTPException(503, "The server can't save settings: its data folder isn't writable. Ask the family tree's owner.") from None
     return mine
 
 

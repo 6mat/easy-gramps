@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.3.1 — 2026-10-10
+
+### Fixed
+- Choosing a date format said "Not saved to your login, only on this device" on servers set up with
+  the Podman file: the container had no data folder it could write. The image now has one, the
+  Podman and compose files give it a volume (so the settings survive updates; add the line to an
+  installed copy, see README), and the message says when the server's data folder is the problem.
+
 ## 1.3.0 — 2026-10-10
 
 ### Added
