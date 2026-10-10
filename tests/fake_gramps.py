@@ -114,7 +114,7 @@ class FakeGramps:
             if self.role < 2:
                 return httpx.Response(403, json={})
             h = uuid.uuid4().hex
-            self.db["media"][h] = {"_class": "Media", "handle": h, "desc": "", "tag_list": []}
+            self.db["media"][h] = {"_class": "Media", "handle": h, "desc": "", "mime": request.headers.get("content-type"), "tag_list": []}
             return httpx.Response(201, json=[{"_class": "Media", "type": "add", "handle": h}])
         if len(parts) == 4 and parts[0] == "people" and parts[2] == "merge" and method == "POST":
             if self.role < 3:
