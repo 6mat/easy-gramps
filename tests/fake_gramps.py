@@ -11,7 +11,7 @@ import uuid
 
 import httpx
 
-KINDS = ("people", "families", "events", "notes", "places", "tags", "media")
+KINDS = ("people", "families", "events", "notes", "places", "tags", "media", "citations", "sources", "repositories")
 CLASS = {"Person": "people", "Family": "families", "Event": "events", "Note": "notes", "Place": "places",
          "Tag": "tags", "Media": "media"}
 ROLE = {"guest": 0, "member": 1, "contributor": 2, "editor": 3, "owner": 4}

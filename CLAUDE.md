@@ -8,8 +8,8 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
   commits, issues or logs.** Test against the public Gramps Web demo
   (`https://demo.grampsweb.org`, logins `member`/`member`, `contributor`/`contributor`,
   `editor`/`editor`, `owner`/`owner`). It's shared and public: write only throwaway test records.
-- Name test records **`ZZTEST …`** and clean up by that name. Never bulk-delete by the `TREE_TAG`
-  ("Easy Gramps") — real users' records carry it.
+- Name test records **`ZZTEST …`** and clean up by that name. Never bulk-delete by a tag: real users'
+  records carry "Easy Gramps" (the `TREE_TAG` default before 1.2; now no tag unless one is set).
 - UI wording is plain and non-technical ("Add a father", "Saved ✓", "Not saved — try again").
 - Brainstorm or mock up bigger features before building; the owner answers with numbered picks.
 - Small commits, one step each. `VERSION` holds the version (raise it in the PR). Release with GitHub
@@ -29,15 +29,18 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session,options}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
+app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session,options,settings}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
                     /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
-                    · merge.js · start.js (start screen, login) · auth.js (tokens + api()) · debug.js (?debug)
+                    · merge.js · start.js (start screen, login) · search.js (both searches' results) · auth.js
+                    (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
+app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
+                    or the browser's login for Google users); ask "yes" before changing anything
 deploy/             compose.traefik.yaml — install next to Gramps Web on the same domain
 LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added dependency compatible
 ```
@@ -73,6 +76,9 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 - `POST /tree/merge {keep, absorb, fields}` — writes the chosen field values onto `keep`, then Gramps'
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
   relationships kept; `absorb` deleted). Not covered by Undo.
+- `GET /auth/me` also returns the person's `settings`; `PUT /auth/settings {dates}` saves their date
+  format in `DATA_DIR/settings.json` by Gramps Web user name (follows them to every device).
+- No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
   Gramps maintains `family_list` / `parent_family_list` itself when families change — relied on.
@@ -98,7 +104,12 @@ edge so it doesn't cross boxes; Menu switch "Line from person to details" hides 
 
 **Start screen** (no person chosen): "Whose family tree would you like to see?", search, Recently
 viewed (this device), Recently changed (anyone, with who/when), + Add a new person (duplicate-name
-check). One search only: the top-bar search and the title strip are hidden on the start screen. It must **not** open on an automatic person.
+check). One search only: the top-bar search and the title strip are hidden on the start screen.
+**Search results** (start screen and top bar, `search.js`): photo, name, years · parent · birthplace, and an ⓘ
+that opens a preview under the row (photo, born, passed away, parents, wife/husband, children by name,
+See their tree →); one preview at a time. Keys: ↓ into the results, ↓ ↑, → / ← preview, Enter, Esc.
+No one found = amber box, "+ Add “…” as a new person" (if they can add) opens the start screen's form with
+the name filled in (first word = first name). It must **not** open on an automatic person.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo, name, relation, born/died, clickable Parents/Wives/Children, More
@@ -109,7 +120,8 @@ Fit and centring use only the area not under the panel.
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
-switches, Show tips (the tip bar is off until asked for), Full Gramps ↗, Log out.
+switches, Dates (5 formats, kept with the login; a year alone stays a year), Show tips (the tip bar
+is off until asked for), Full Gramps ↗, Log out.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
 Ctrl+wheel blocked outside it) — owner's call. Drag anywhere moves the tree, pinch zooms the tree,

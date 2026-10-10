@@ -1,9 +1,10 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
-import { store } from "./auth.js";
-import { $, P, S, byBirth, canAdd, canLink, desc, h, matches, name, other, parentFam, photoEl, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { api, store } from "./auth.js";
+import { $, DATE_CHOICES, P, S, byBirth, canAdd, canLink, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
-import { closeEditor, hideDlg, openEditor, showDlg } from "./editor.js";
-import { renderAll, renderStart } from "./start.js";
+import { closeEditor, hideDlg, openEditor, showDlg, toast } from "./editor.js";
+import { renderAll, renderStart, startAdd } from "./start.js";
+import { searchKeys, showHits } from "./search.js";
 
 // ---------- tree ----------
 // Rows are generations: parents, the person (with siblings and spouses), children.
@@ -582,6 +583,22 @@ $("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); $("#menupop").hi
 $("#tipbar").hidden = !store.get("eg_tip_on");
 store.set("eg_tip_done", null);  // the old "closed it" setting isn't needed any more
 
+// ----- date format: kept with the login, so it follows the person to every device (and on this
+// device too, so the page starts with it before the login is checked) -----
+$("#datefmt").replaceChildren(...DATE_CHOICES.map(([k, example]) => h("option", { value: k }, example)));
+function showDates(f) { setDateFormat(f); $("#datefmt").value = dateFormat; store.set("eg_dates", dateFormat); }
+showDates(store.get("eg_dates"));
+export function useSettings(s) { if (s?.dates) showDates(s.dates); }  // at login, before the page is drawn
+$("#datefmt").addEventListener("change", async () => {
+  showDates($("#datefmt").value);
+  renderAll();
+  try {
+    await api("/auth/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dates: dateFormat }) });
+  } catch {
+    toast("Not saved to your login, only on this device. Try again later.");
+  }
+});
+
 // ----- the zoom & map strip can be hidden; remembered on this device -----
 function showNav(on) {
   $(".navstrip").hidden = !on; $("#navcorner").hidden = on;
@@ -634,7 +651,7 @@ export function showKeys() {
 }
 $("#menu-keys").onclick = () => { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); showKeys(); };
 document.addEventListener("keydown", e => {
-  if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select, .hits, .results")) return;
   if (e.key === "?") { e.preventDefault(); return showKeys(); }
   if (!$("#editor").hidden) return;  // the editor: Tab moves through it; Esc goes back (handled there)
   if (e.key === "/") { e.preventDefault(); return (S.focus ? $("#q") : $("#start-q"))?.focus(); }
@@ -670,16 +687,14 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- search ----------
+const doneSearching = () => { $("#results").hidden = true; $("#q").value = ""; };
 $("#q").addEventListener("input", () => {
-  const words = searchWords($("#q").value);
   const res = $("#results");
-  if (!words.length) { res.hidden = true; return; }
-  const hits = Object.values(P).filter(p => matches(p, words))
-    .sort((a, b) => name(a).localeCompare(name(b)));
-  res.replaceChildren(...(hits.length ? hits.map(p => h("button", { onclick: () => {
-    res.hidden = true; $("#q").value = ""; seeTree(p.id);
-  } }, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")))
-    : [h("div", { class: "small muted pad" }, "No one found with that name.")]));
-  res.hidden = false;
+  showHits(res, $("#q").value, {
+    open: p => { doneSearching(); seeTree(p.id); },
+    addNew: text => { doneSearching(); goHome().then(() => startAdd(text)); },
+  });
+  res.hidden = !res.childElementCount;
 });
+searchKeys($("#q"), $("#results"), () => { $("#results").hidden = true; });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) $("#results").hidden = true; });

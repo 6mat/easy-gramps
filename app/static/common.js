@@ -86,7 +86,21 @@ export const spouseFams = id => {
 };
 export const other = (f, id) => (f.f === id ? f.m : f.f);
 export const byBirth = ids => [...ids].sort((a, b) => (P[a].birth?.y ?? 9999) - (P[b].birth?.y ?? 9999));
-export const fmtDate = d => !d ? "" : d.m && d.d ? `${d.d} ${MON[d.m - 1]} ${d.y}` : String(d.y);
+// Dates the way each person likes them (Menu → Dates, kept with their login). A year alone stays a year.
+const MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const pad = n => String(n).padStart(2, "0");
+const DATE_FORMATS = {
+  "d mon y": d => `${d.d} ${MON[d.m - 1]} ${d.y}`,
+  "d/m/y": d => `${pad(d.d)}/${pad(d.m)}/${d.y}`,
+  "m/d/y": d => `${pad(d.m)}/${pad(d.d)}/${d.y}`,
+  "y-m-d": d => `${d.y}-${pad(d.m)}-${pad(d.d)}`,
+  "mon d, y": d => `${MONTH[d.m - 1]} ${d.d}, ${d.y}`,
+};
+const HINT = { "d/m/y": " (day first)", "m/d/y": " (month first)" };
+export const DATE_CHOICES = Object.entries(DATE_FORMATS).map(([k, f]) => [k, f({ y: 1950, m: 3, d: 12 }) + (HINT[k] || "")]);
+export let dateFormat = "d mon y";
+export function setDateFormat(f) { if (DATE_FORMATS[f]) dateFormat = f; }
+export const fmtDate = d => !d ? "" : d.m && d.d ? DATE_FORMATS[dateFormat](d) : String(d.y);
 export function years(p) {
   const b = p.birth?.y, d = p.death?.y;
   return b || d ? `${b || "?"} – ${d || (p.deceased ? "?" : "")}` : "";

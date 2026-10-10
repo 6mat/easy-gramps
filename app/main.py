@@ -241,7 +241,41 @@ async def photo_session_end():
 
 @easy.get("/auth/me")
 async def me(request: Request):
-    return await who(request)
+    user = dict(await who(request))
+    user["settings"] = read_settings().get(user.get("name"), {})
+    return user
+
+
+# ---------- each person's own settings (the date format), kept with their login ----------
+# In DATA_DIR/settings.json by Gramps Web user name, so they follow the person to every device.
+SETTINGS_FILE = DATA / "settings.json"
+DATE_FORMATS = ("d mon y", "d/m/y", "m/d/y", "y-m-d", "mon d, y")
+_settings_lock = asyncio.Lock()
+
+
+def read_settings() -> dict:
+    try:
+        s = json.loads(SETTINGS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+    return s if isinstance(s, dict) else {}
+
+
+@easy.put("/auth/settings")
+async def save_settings(request: Request):
+    name = (await who(request)).get("name")
+    body = await json_body(request)
+    if not name or body.get("dates") not in DATE_FORMATS:
+        raise HTTPException(400, "Something was missing. Please try again.")
+    async with _settings_lock:
+        s = read_settings()
+        mine = s.setdefault(name, {})
+        mine["dates"] = body["dates"]
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = SETTINGS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
+        tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
+    return mine
 
 
 # ---------- family tree ----------
@@ -272,7 +306,7 @@ async def tree_details(handle: str, request: Request):
     return await familytree.details(await gramps_as(request), handle)
 
 
-TREE_TAG = os.environ.get("TREE_TAG", "Easy Gramps")  # tag on records the tree's editor creates
+TREE_TAG = os.environ.get("TREE_TAG", "")  # a tag on records the tree makes, if you want one (none by default)
 
 
 _tag = {"handle": None, "until": 0.0}

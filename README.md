@@ -8,8 +8,9 @@ relatives who find the full Gramps interface too much.
 - **Edit in place:** every field saves as you type; add a father, mother, husband/wife or child
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
+- **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
-  bigger-text option.
+  bigger-text option, and your choice of date format (kept with your login, on every device).
 
 It talks only to the Gramps Web API, using each person's own Gramps Web login, so **Gramps Web's
 roles and permissions still apply** (a Member can only look, a Contributor can add, an Editor can change).
@@ -41,6 +42,14 @@ See the comments in `deploy/compose.traefik.yaml` for the network and router ass
 each time you paused while typing one ("Lo", "Lond", "London"). This lists the places Easy Gramps
 made that nobody uses, and deletes them only if you type `yes` (log in as an Editor or Owner):
 `docker exec -it easy-gramps python unused_places.py`
+
+**Take the "Easy Gramps" tag off (once, after upgrading from 1.1 or older).** Older versions put the
+tag "Easy Gramps" on every record they made; 1.2 adds no tag (unless `TREE_TAG` is set). This takes
+it off every record that has it, then deletes the tag. Nothing else changes and nothing is deleted;
+it shows how many records have it and asks for `yes` first. Run the place clean-up above first if you
+need it (it finds those places by the tag). Log in as an Editor or Owner, with your name and password,
+or, if you log in with Google, with your browser's login (it shows you how):
+`podman exec -it easy-gramps python remove_tag.py` (or `docker exec -it …`)
 
 ## Install with Podman (Quadlet)
 
@@ -86,7 +95,7 @@ read-only screen check weekly.
 | `GRAMPS_URL` | How the app reaches Gramps Web (internal Docker URL on a server). |
 | `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/family/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
-| `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
+| `TREE_TAG` | A tag put on records the tree makes (people, families, events, places, notes, photos), e.g. `Easy Gramps`. Empty by default: no tag. Before 1.2 the default was `Easy Gramps`; `remove_tag.py` takes it off again (see below). |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
@@ -129,7 +138,9 @@ the name-and-password form, as before.
   undo, merge) as Gramps Web API calls.
 - `app/gramps.py` — small Gramps Web API client and object helpers.
 - `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
-  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`); `auth.js` handles login and tokens.
+  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`); `auth.js` handles login and tokens.
+- `app/remove_tag.py`, `app/unused_places.py` — one-off clean-ups the owner runs on the server (`cli_login.py`
+  logs them in). Each person's date format is kept in `data/settings.json`.
 
 ## License
 
