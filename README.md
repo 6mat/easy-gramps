@@ -42,6 +42,14 @@ each time you paused while typing one ("Lo", "Lond", "London"). This lists the p
 made that nobody uses, and deletes them only if you type `yes` (log in as an Editor or Owner):
 `docker exec -it easy-gramps python unused_places.py`
 
+**Take the "Easy Gramps" tag off (once, after upgrading from 1.1 or older).** Older versions put the
+tag "Easy Gramps" on every record they made; 1.2 adds no tag (unless `TREE_TAG` is set). This takes
+it off every record that has it, then deletes the tag. Nothing else changes and nothing is deleted;
+it shows how many records have it and asks for `yes` first. Run the place clean-up above first if you
+need it (it finds those places by the tag). Log in as an Editor or Owner, with your name and password,
+or, if you log in with Google, with your browser's login (it shows you how):
+`podman exec -it easy-gramps python remove_tag.py` (or `docker exec -it …`)
+
 ## Install with Podman (Quadlet)
 
 For a rootless Podman host where Traefik reads container labels through the Podman socket, use

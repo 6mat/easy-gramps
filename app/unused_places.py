@@ -7,17 +7,14 @@ event or anything else points to, and deletes them only after you type "yes".
     docker exec -it easy-gramps python unused_places.py
     (or, without Docker, from app/:  GRAMPS_URL=https://… python unused_places.py)
 
-Log in as an Editor or Owner. --only "ZZTEST" limits it to names starting with that text.
+Log in as an Editor or Owner (name and password, or your browser's login if you use Google). --only "ZZTEST" limits it to names starting with that text.
 """
-# ruff: noqa: ASYNC210, ASYNC250  (a command-line tool: waiting for the user is the point)
+# ruff: noqa: ASYNC250  (a command-line tool: waiting for the user is the point)
 import argparse
 import asyncio
-import getpass
 import os
 
-import httpx
-
-from gramps import Gramps
+from cli_login import login
 
 
 async def main():
@@ -29,11 +26,8 @@ async def main():
     a = ap.parse_args()
     if not a.url:
         ap.error("set GRAMPS_URL or pass --url")
-    user = a.user or input("Gramps Web user name: ")
-    r = httpx.post(f"{a.url}/api/token/", json={"username": user, "password": getpass.getpass("Password: ")}, timeout=60)
-    if r.status_code != 200:
-        raise SystemExit("Login failed.")
-    g = Gramps(a.url, r.json()["access_token"])
+    s = await login(a.url, a.user)
+    g = s.g
 
     tag = next((t["handle"] for t in await g.get("/tags/", keys="handle,name") if t["name"] == a.tag), None)
     if not tag:
