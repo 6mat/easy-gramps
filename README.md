@@ -8,8 +8,9 @@ relatives who find the full Gramps interface too much.
 - **Edit in place:** every field saves as you type; add a father, mother, husband/wife or child
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
+- **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
-  bigger-text option.
+  bigger-text option, and your choice of date format (kept with your login, on every device).
 
 It talks only to the Gramps Web API, using each person's own Gramps Web login, so **Gramps Web's
 roles and permissions still apply** (a Member can only look, a Contributor can add, an Editor can change).
@@ -137,7 +138,9 @@ the name-and-password form, as before.
   undo, merge) as Gramps Web API calls.
 - `app/gramps.py` — small Gramps Web API client and object helpers.
 - `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
-  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`); `auth.js` handles login and tokens.
+  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`); `auth.js` handles login and tokens.
+- `app/remove_tag.py`, `app/unused_places.py` — one-off clean-ups the owner runs on the server (`cli_login.py`
+  logs them in). Each person's date format is kept in `data/settings.json`.
 
 ## License
 

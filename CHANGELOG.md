@@ -2,6 +2,26 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.2.0 — 2026-10-10
+
+### Added
+- **Search preview:** an ⓘ on the right of each search result (start screen and top bar) shows who it
+  is: photo, born, parents, wife or husband, children, and "See their tree →".
+- **Search keys:** ↓ from the search box into the results, ↓ ↑ between them, → shows the preview,
+  ← closes it, Enter opens their tree, Esc back to the box.
+- **Date format** in ☰ Menu → Dates: 12 Mar 1950, 12/03/1950, 03/12/1950, 1950-03-12 or March 12, 1950.
+  It's kept with your login, so it's the same on every phone and computer.
+- `remove_tag.py`: takes the old "Easy Gramps" tag off every record, then deletes the tag (asks first;
+  nothing else changes, nothing is deleted). The server tools can now also log in with your browser's
+  login, for owners who log in with Google.
+
+### Changed
+- **No tag on new records.** Records the tree makes no longer get the "Easy Gramps" tag (set `TREE_TAG`
+  if you want one). Records from older versions keep it until you run `remove_tag.py`.
+- **"No one found" is easy to see:** an amber box, with "+ Add … as a new person" (for people who can
+  add), which opens the new-person form with that name filled in.
+- The top-bar search shows photos, like the start screen's.
+
 ## 1.1.1 — 2026-10-05
 
 (1.1.0 was tagged but never built: `VERSION` still said 1.0.5. 1.1.1 is the first build with 1.0.5's changes.)
