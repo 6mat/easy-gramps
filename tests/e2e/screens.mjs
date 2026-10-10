@@ -297,7 +297,7 @@ if (WRITE) {
     await page.click("#dlg .addmode:has-text('already in the tree')");
     await page.fill("#add-q", "ZZTEST Kid"); await page.waitForTimeout(300);
     if (await page.$("#dlg .hit")) throw new Error("someone already in this family was offered");
-    await page.fill("#add-q", "ZZTEST Wife");
+    await page.fill("#add-q", "Victoria");  // someone outside this family (only previewed, never chosen)
     await page.click("#dlg .hit .info >> nth=0");  // ⓘ: who is it, before linking them
     await page.waitForSelector("#dlg .preview:not([hidden]) button:has-text('Choose')");
     await page.click("#dlg button:has-text('Cancel')");
