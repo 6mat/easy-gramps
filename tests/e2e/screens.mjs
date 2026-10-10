@@ -343,8 +343,10 @@ if (WRITE) {
     const ma = (await api("/tree/relative", { person: pa, rel: "spouse", new: { first: "ZZTEST", last: "Ma" } })).added;
     const son = await api("/tree/relative", { person: pa, rel: "child", new: { first: "ZZTEST", last: "Son" } });  // with Pa only
     await api("/tree/relative", { person: pa, rel: "child", famId: son.famId, new: { first: "ZZTEST", last: "Girl" } });
+    // A fresh load at that address (changing only the #… in place counts as Back/Forward, which keeps the view).
+    const openAt = async hash => { await page.goto("about:blank"); await page.goto(APP + hash); };
     const couples = async () => (await api("/tree/graph")).families.filter(f => f.f === pa && f.m === ma);
-    await page.goto(`${APP}#/p/${son.added}/edit/${son.added}`); await page.reload();
+    await openAt(`#/p/${son.added}/edit/${son.added}`);
     await page.click("#editor:not([hidden]) button.ed-slot:has-text('Add mother')", { timeout: T });
     await page.waitForSelector("#dlg .note:has-text('same family')");  // the sister gets this mother too: said first
     await page.click("#dlg .addmode:has-text('already in the tree')");
@@ -356,7 +358,7 @@ if (WRITE) {
     const tok = await grampsToken("editor");
     await fetch(`${DEMO}/api/objects/`, { method: "POST", headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
       body: JSON.stringify([{ _class: "Family", handle: crypto.randomUUID().replace(/-/g, ""), father_handle: pa, mother_handle: ma, child_ref_list: [], type: "Married" }]) });
-    await page.goto(`${APP}#/p/${pa}/edit/${pa}`); await page.reload();
+    await openAt(`#/p/${pa}/edit/${pa}`);
     await page.click(".twice button:has-text('Combine them')", { timeout: T });
     await page.click(".twice button:has-text('Yes, combine')");
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
