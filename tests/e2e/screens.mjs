@@ -45,6 +45,9 @@ async function step(page, name, fn) {
   console.log(`${steps.at(-1)}  (${Math.round((Date.now() - t0) / 1000)}s)`);
   const csp = await page.evaluate(() => window.__csp.splice(0)).catch(() => []);
   for (const c of csp) problems.push(`CSP (${name}): ${c}`);
+  // A value that slipped onto the screen as a word ("false" under a name, #1.3.2): never shown on purpose.
+  const stray = await page.evaluate(() => document.body.innerText.match(/\b(false|undefined|null|NaN)\b/)?.[0]).catch(() => null);
+  if (stray) problems.push(`"${stray}" shown on screen (${name})`);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${String(steps.length).padStart(2, "0")}-${name.replace(/\W+/g, "-")}.png` }).catch(() => {});
 }
 async function login(page, user) {

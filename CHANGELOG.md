@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.3.2 — 2026-10-10
+
+### Fixed
+- The word "false" showed under a person's name in the details panel when they had one photo or none
+  (since 1.3.0), and at the bottom of the big photo view for people who can't edit. The same slip is
+  fixed on the login screen (when only a sign-in button is offered) and in the Add pop-up. The screen
+  check now fails if "false", "undefined", "null" or "NaN" ever shows on screen.
+
 ## 1.3.1 — 2026-10-10
 
 ### Fixed

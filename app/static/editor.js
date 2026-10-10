@@ -508,7 +508,7 @@ function renderAdd() {
     if (person) doAdd({ new: person });
   };
   dlg.replaceChildren(title,
-    canLink() && h("button", { class: "addmode", onclick: () => show("pick") }, "🔍 Pick someone already in the tree"),
+    canLink() ? h("button", { class: "addmode", onclick: () => show("pick") }, "🔍 Pick someone already in the tree") : "",
     h("strong", {}, "Someone new"),
     nw.fields, nw.warn,
     h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: submit }, "Add"), h("button", { onclick: closeDialog }, "Cancel")));
