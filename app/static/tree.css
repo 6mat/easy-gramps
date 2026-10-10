@@ -347,6 +347,7 @@ hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 .startbox h2 { margin: 0 0 4px; font-size: 26px; text-wrap: balance; }
 .startbox input[type=search] { font-size: 18px; padding: 12px 14px; }
 .startbox .pick { max-height: 45vh; }
+.dlg .pick.hits { max-height: 50vh; }
 .pickbtn { display: flex; gap: 12px; align-items: center; justify-content: flex-start; text-align: left; font-weight: 400; background: var(--card); }
 .pickbtn span:last-child { display: flex; flex-direction: column; }
 .pickbtn:hover { background: var(--accent-soft); }
@@ -384,15 +385,17 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   .main:not(.nopanel) .navcorner { right: 16px; }
 }
 
-/* ---------- "in the tree twice?" + merge dialog ---------- */
-/* A tab pinned to the panel's bottom edge, so editors always see it (#55); its own background, top line
-   and shadow show the panel scrolling underneath. */
-.panel .dupbtn { position: sticky; bottom: -20px; z-index: 1; align-self: stretch; margin: 4px -20px -20px;
-  padding: 12px 20px 14px; background: var(--bg); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px;
-  box-shadow: 0 -6px 12px -8px rgba(40, 30, 10, .35); color: var(--ink); text-align: center; text-decoration: none;
-  font-weight: 700; font-size: 15px; }
-.panel .dupbtn::before { content: "⧉  " / ""; color: var(--muted); }
+/* ---------- "Duplicate profile? Merge." + merge dialog ---------- */
+/* A button in a strip pinned to the panel's bottom edge, so editors always see it (#55); the strip's top
+   line and shadow show the panel scrolling underneath. */
+.panel .dupbar { position: sticky; bottom: -20px; z-index: 1; align-self: stretch; margin: 4px -20px -20px; padding: 10px 16px 14px;
+  background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px; box-shadow: 0 -6px 12px -8px rgba(40, 30, 10, .35); }
+.panel .dupbtn { width: 100%; padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--card);
+  color: var(--accent); font-weight: 700; font-size: 15px; }
+.panel .dupbtn::before { content: "⧉  " / ""; }
 .panel .dupbtn:hover { background: var(--accent-soft); }
+.note { padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
+.spouses .twice { max-width: 320px; }
 .btnrow.end { justify-content: flex-end; }
 .pickrow { display: flex; align-items: center; gap: 12px; text-align: left; font-weight: 400; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .pickrow:hover { background: var(--accent-soft); border-color: var(--accent); }

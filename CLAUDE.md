@@ -74,7 +74,10 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   person (the Media stays in Gramps; never deleted). The graph's `photos` lists their pictures, main first.
 - `POST /tree/person` — new person with no relatives. `POST /tree/relative` — add father / mother /
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
-  returns an undo token. `POST /tree/unlink` — removes a link, never deletes people; a family is
+  returns an undo token. Adding a father/mother to a one-parent family whose parent is already a couple
+with them in another family joins that family instead (Gramps' `POST /api/families/{keep}/merge/{absorb}`;
+`joined: true`; undo `op: split` moves the children back out). `POST /tree/families/merge {keep, absorb}`
+combines the same couple recorded twice (editors; same father and mother). `POST /tree/unlink` — removes a link, never deletes people; a family is
   deleted only when it no longer links two people. `POST /tree/undo` reverses either.
 - `POST /tree/merge {keep, absorb, fields}` — writes the chosen field values onto `keep`, then Gramps'
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
@@ -116,8 +119,8 @@ the name filled in (first word = first name). It must **not** open on an automat
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
-details ▾ (burial, lives in, phone, email, notes); "Is this person in the tree twice?" for editors, a tab pinned to
-the panel's bottom edge (own background, top line) so it shows without scrolling (#55).
+details ▾ (burial, lives in, phone, email, notes); **"⧉ Duplicate profile? Merge."** for editors: a button in a
+strip pinned to the panel's bottom edge (top line, shadow) so it shows without scrolling (#55).
 Fit and centring use only the area not under the panel.
 
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
@@ -147,15 +150,17 @@ the person's card, spouses beside, children grouped by spouse. Fields: photo, Ph
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
 once it has 4 digits. Place boxes list the existing places (with their area) and save only a place
 you pick, or a new one after "Add it as a new place" (never one per keystroke, #49). Add pop-up: opens on **Someone new**; "🔍 Pick someone already in the
-tree" switches it to the search (← Back returns; typing is kept), one kind of box at a time; **one person
-per add**; spouse gender set automatically. ⋯ on a relative: open their family, remove from this
+tree" switches it to the search (← Back returns; typing is kept; rows have the search's ⓘ preview, with
+Choose), one kind of box at a time; **one person per add**; spouse gender set automatically. Adding a father or
+mother says first that brothers and sisters in the same family get them too. The same couple recorded twice:
+an amber "B is listed as A's wife twice" with Combine them (editors, two-step). ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
 
 **Big photo view** (`photos.js`): over everything, dark; ‹ › / ← → / swipe; closes with ✕, Esc, a tap
 beside the photo, or Back (a history step with the same address). Editors: "Use as profile photo",
 "Remove from this person" (two-step; only unlinks).
 
-**Merge dialog:** find the other copy → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
+**Merge dialog** ("Duplicate profile? Merge."): find the other profile (rows with the ⓘ preview) → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
 tap a value to use it; names/places can also be typed, pasted or dragged into the result box;
 ⇄ swaps which is kept; two-step confirm.
 

@@ -63,7 +63,7 @@ function draw() {
       list.length > 1 && h("button", { class: "vstep", "aria-label": "Previous photo", onclick: () => step(-1) }, "‹"),
       img,
       list.length > 1 && h("button", { class: "vstep", "aria-label": "Next photo", onclick: () => step(1) }, "›")),
-    tools);
+    tools || "");  // (replaceChildren would print false or undefined as text)
 }
 // Keys while it's open: ← → between photos, Esc closes; nothing reaches the tree or the editor.
 window.addEventListener("keydown", e => {

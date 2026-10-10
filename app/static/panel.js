@@ -42,9 +42,9 @@ export function renderPanel() {
       : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
         p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`))),
-    p.photos.length > 1 && h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
+    p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
       p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
-        h("img", { src: thumbUrl(m, 96), alt: "", loading: "lazy" })))),
+        h("img", { src: thumbUrl(m, 96), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
     h("dl", { class: "kv" },
       row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
       row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : "")),
@@ -65,8 +65,8 @@ export function renderPanel() {
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : ""));
   }
-  if (canEdit()) panel.append(h("button", { class: "ghost dupbtn", onclick: () => openMerge(p.id) },
-    "Is this person in the tree twice?"));
+  if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
+    "Duplicate profile? Merge.")));
   drawSelink();
 }
 

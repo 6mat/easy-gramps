@@ -5,6 +5,7 @@ import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
 import { openViewer, thumbUrl } from "./photos.js";
+import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
 
 // ---------- undo + toast ----------
@@ -370,6 +371,32 @@ function centreCard(p) {
     moreBox);
 }
 
+function twiceWarn(p, o, fams) {
+  const word = P[o].gender === "f" ? "wife" : P[o].gender === "m" ? "husband" : "husband or wife";
+  const sure = S.menu === `twice:${o}`;
+  const go = async btn => {
+    btn.disabled = true; setStatus("Saving…", "saving");
+    try {
+      await flushSaves();
+      for (const x of fams.slice(1)) await postJSON("/tree/families/merge", { keep: fams[0].id, absorb: x.id });
+      S.menu = null;
+      await refresh();
+      setStatus("Saved ✓");
+      toast(`Combined: ${name(P[o])} is listed once now, with all the children.`);
+    } catch (err) {
+      if (err instanceof LoginNeeded) return showLogin();
+      btn.disabled = false; setStatus(`Not saved: ${err.message}`, "failed");
+    }
+  };
+  return h("div", { class: "warn twice" },
+    h("strong", {}, `${name(P[o])} is listed as ${p.first}'s ${word} ${fams.length === 2 ? "twice" : `${fams.length} times`}.`),
+    !canEdit() ? h("span", {}, "Ask an editor to combine them.")
+      : sure ? h("div", { class: "btnrow" }, h("span", {}, "Combine them into one? The children and dates of both are kept."),
+          h("button", { class: "primary", onclick: e => go(e.currentTarget) }, "Yes, combine"),
+          h("button", { onclick: () => { S.menu = null; renderEditor(); } }, "Cancel"))
+        : h("div", {}, h("button", { onclick: () => { S.menu = `twice:${o}`; renderEditor(); } }, "Combine them")));
+}
+
 export function renderEditor() {
   const id = S.stack.at(-1), p = P[id];
   saveView();
@@ -385,7 +412,10 @@ export function renderEditor() {
     pf?.m ? rcard(pf.m, "mother", pf, id, lastNew === pf.m) : canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "mother") }, "Add mother"));
   const sfs = spouseFams(id);
   const sw = spouseWord(p);
+  // The same couple recorded twice (e.g. tidied up only partly in Gramps Web): say so, and let editors combine them.
+  const twice = [...new Set(sfs.map(x => other(x, id)).filter((o, i, all) => o && all.indexOf(o) !== i))];
   const spouseCol = h("div", { class: "spouses" },
+    ...twice.map(o => twiceWarn(p, o, sfs.filter(x => other(x, id) === o))),
     ...sfs.filter(x => other(x, id)).map(x => rcard(other(x, id), "spouse", x, id, lastNew === other(x, id))),
     canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
       sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`));
@@ -479,21 +509,29 @@ function renderAdd() {
   const title = h("h3", { id: "dlg-title" }, `Add ${what}`);
   const skip = linked(A.pid);
   const show = mode => { A.mode = mode; renderAdd(); };
+  // A father or mother goes on the family, so brothers and sisters in it get them too: say so first.
+  const pf = (A.rel === "father" || A.rel === "mother") && parentFam(A.pid);
+  const sibs = pf ? pf.kids.filter(k => k !== A.pid && P[k]) : [];
+  const sibNames = sibs.slice(0, 4).map(k => P[k].first || name(P[k])).join(", ") + (sibs.length > 4 ? ` and ${sibs.length - 4} more` : "");
+  const sibNote = sibs.length ? h("div", { class: "note" },
+    `${sibNames} ${sibs.length === 1 ? "is" : "are"} in the same family as ${base.first}, so they'll get this ${A.rel} too.`) : "";
   // One thing at a time: someone new (the usual case), or, after a tap, someone already in the tree.
   if (A.mode === "pick") {
     const q = h("input", { id: "add-q", type: "search", placeholder: "Type a name to look for", autocomplete: "off" });
-    const list = h("div", { class: "pick" });
+    const list = h("div", { class: "pick hits" });
     q.addEventListener("input", () => {
       const words = searchWords(q.value);
-      const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) && matches(p, words));
-      list.replaceChildren(...hits.map(p => h("div", { class: "row-p" },
-        h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")),
-        h("button", { onclick: () => doAdd({ existing: p.id }) }, "Choose"))));
+      const hits = !words.length ? [] : Object.values(P).filter(p => !skip.has(p.id) && matches(p, words))
+        .sort((a, b) => name(a).localeCompare(name(b)));
+      // ⓘ shows who it is (born, parents, family) before linking them: fewer wrong relatives.
+      list.replaceChildren(...hitRows(hits, p => doAdd({ existing: p.id }), "Choose"));
       if (words.length && !hits.length) list.append(h("div", { class: "small muted" }, "No one found. ",
         h("button", { class: "linkish", onclick: () => show("new") }, "Add them as someone new")));
     });
+    searchKeys(q, list);
     dlg.replaceChildren(title,
       h("button", { class: "addmode", onclick: () => show("new") }, "← Back to someone new"),
+      sibNote,
       h("label", { for: "add-q" }, "Someone already in the tree: type their name", q), list,
       h("div", { id: "add-warn" }),
       h("div", { class: "btnrow" }, h("button", { onclick: closeDialog }, "Cancel")));
@@ -508,7 +546,8 @@ function renderAdd() {
     if (person) doAdd({ new: person });
   };
   dlg.replaceChildren(title,
-    canLink() && h("button", { class: "addmode", onclick: () => show("pick") }, "🔍 Pick someone already in the tree"),
+    canLink() ? h("button", { class: "addmode", onclick: () => show("pick") }, "🔍 Pick someone already in the tree") : "",
+    sibNote,
     h("strong", {}, "Someone new"),
     nw.fields, nw.warn,
     h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: submit }, "Add"), h("button", { onclick: closeDialog }, "Cancel")));
@@ -529,7 +568,9 @@ async function doAdd(choice) {
     await refresh();
     S.newlyAdded = null;
     setStatus("Saved ✓");
-    toast(`Saved: ${who} added as ${base.first}'s ${relWord(A.rel, base)}.`, res.undo);
+    toast(res.joined  // they were already a couple: the children joined that family (no second one)
+      ? `Saved: ${who} added as ${base.first}'s ${A.rel}, in the family ${who} already had with ${P[parentFam(A.pid)?.[A.rel === "mother" ? "f" : "m"]]?.first || "them"}.`
+      : `Saved: ${who} added as ${base.first}'s ${relWord(A.rel, base)}.`, res.undo);
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();
     buttons.forEach(b => { b.disabled = false; });

@@ -5,6 +5,10 @@ import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, other, parentFam, 
 
 const LIMIT = 30;
 
+// Rows for these people (the Add pop-up's and the merge dialog's lists too): a tap on the row, or the
+// preview's button (`action`, e.g. "Choose"), calls open(p).
+export function hitRows(people, open, action = "See their tree →") { return people.map(p => hit(p, open, action)); }
+
 // Fill `list` with the people matching `text`. open(p): see their tree; addNew(text): add someone of that name.
 export function showHits(list, text, { open, addNew }) {
   const words = searchWords(text);
@@ -21,7 +25,7 @@ export function showHits(list, text, { open, addNew }) {
   }
 }
 
-function hit(p, open) {
+function hit(p, open, action = "See their tree →") {
   const main = h("button", { class: "pickbtn hitmain", onclick: () => open(p) },
     photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")));
   const info = h("button", { class: "info", "aria-expanded": "false", "aria-label": `Preview ${name(p)}`, title: "Preview" }, "ⓘ");
@@ -31,7 +35,7 @@ function hit(p, open) {
     on ??= card.hidden;
     if (on) {
       row.parentElement?.querySelectorAll(".hit").forEach(r => r !== row && r.toggle(false));  // one at a time
-      if (!card.childElementCount) card.append(...preview(p, open));
+      if (!card.childElementCount) card.append(...preview(p, open, action));
     }
     card.hidden = !on; info.setAttribute("aria-expanded", String(on));
     if (on) row.scrollIntoView({ block: card.offsetHeight + 60 > innerHeight / 2 ? "start" : "nearest" });  // keep the name in sight
@@ -40,7 +44,7 @@ function hit(p, open) {
   return row;
 }
 
-function preview(p, open) {
+function preview(p, open, action) {
   const pf = parentFam(p.id);
   const fams = spouseFams(p.id);
   const parents = pf ? [pf.f, pf.m].filter(x => P[x]) : [];
@@ -56,7 +60,7 @@ function preview(p, open) {
     p.deceased && line("Passed away", fmtDate(p.death) || "date not known"),
     line("Parents", names(parents)), line(spouseLabel, names(spouses)), line("Children", names(kids)),
     !parents.length && !spouses.length && !kids.length && h("div", { class: "muted" }, "No family added yet."),
-    h("div", {}, h("button", { class: "primary", onclick: () => open(p) }, "See their tree →")))];
+    h("div", {}, h("button", { class: "primary", onclick: () => open(p) }, action)))];
 }
 
 // Keys: ↓ from the search box into the results, ↓ ↑ between them (↑ from the first: back to the box),

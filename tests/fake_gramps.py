@@ -122,6 +122,15 @@ class FakeGramps:
             self.db["people"].pop(parts[3], None)
             self._sync()
             return httpx.Response(200, json=[])
+        if len(parts) == 4 and parts[0] == "families" and parts[2] == "merge" and method == "POST":
+            if self.role < 3:
+                return httpx.Response(403, json={})
+            keep, gone = self.db["families"][parts[1]], self.db["families"].pop(parts[3])
+            have = {c["ref"] for c in keep.get("child_ref_list") or []}
+            keep["child_ref_list"] = (keep.get("child_ref_list") or []) + [c for c in gone.get("child_ref_list") or [] if c["ref"] not in have]
+            keep["event_ref_list"] = (keep.get("event_ref_list") or []) + (gone.get("event_ref_list") or [])
+            self._sync()
+            return httpx.Response(200, json=[])
         if len(parts) == 4 and parts[0] == "media" and parts[2] == "thumbnail":
             if request.headers.get("authorization") != "Bearer tok":
                 return httpx.Response(401, json={})

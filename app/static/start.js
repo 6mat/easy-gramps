@@ -133,7 +133,7 @@ export async function showLogin(message) {
     };
   } else {
     form.onsubmit = e => e.preventDefault();
-    form.append(err, !sso.length && h("p", {}, "Signing in isn't set up for this page yet. Ask the family tree's owner."));
+    form.append(err, sso.length ? "" : h("p", {}, "Signing in isn't set up for this page yet. Ask the family tree's owner."));
   }
   gate("", form);
   form.querySelector("button, input")?.focus();
