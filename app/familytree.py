@@ -31,6 +31,7 @@ async def graph(g: Gramps) -> dict:
     families = await g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list")
     events = {e["handle"]: e for e in await g.get("/events/", keys="handle,type,date,place")}
     places = {p["handle"]: p["name"]["value"] for p in await g.get("/places/", keys="handle,name")}
+    pictures = {m["handle"] for m in await g.get("/media/", keys="handle,mime") if (m.get("mime") or "").startswith("image/")}
 
     out = {}
     for p in people:
@@ -56,6 +57,7 @@ async def graph(g: Gramps) -> dict:
             "death": ymd((death or {}).get("date")),
             "burial": places.get((burial or {}).get("place"), ""),
             "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
+            "photos": [m["ref"] for m in p.get("media_list") or [] if m["ref"] in pictures],  # every picture, main first
             "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
             "pfams": p.get("parent_family_list") or [],  # their parents' families; the first is the one shown
         }
@@ -283,14 +285,33 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
     return {"ok": True}
 
 
-async def set_photo(g: Gramps, handle: str, photo, tags: list) -> dict:
-    """Upload a photo and make it the person's main (first) photo."""
+async def set_photo(g: Gramps, handle: str, photo, tags: list, main=True) -> dict:
+    """Upload a photo: the person's main (first) photo, or (main=False) one more after the others."""
     p = await g.get(f"/people/{handle}")
     name = (p["primary_name"].get("first_name") or "").strip()
     mh = await upload_photo(g, photo, tags, False, desc=f"Photo of {name}".strip())
-    p["media_list"] = [{"_class": "MediaRef", "ref": mh}] + [m for m in p.get("media_list", []) if m["ref"] != mh]
+    rest = [m for m in p.get("media_list") or [] if m["ref"] != mh]
+    ref = {"_class": "MediaRef", "ref": mh}
+    p["media_list"] = [ref] + rest if main else rest + [ref]
     await g.put(f"/people/{handle}", p)
-    return {"photo": mh}
+    return {"photo": p["media_list"][0]["ref"], "added": mh}
+
+
+async def photo_change(g: Gramps, handle: str, body: dict) -> dict:
+    """{media, do: "main" | "remove"}: make one of their photos the main one, or take it off this
+    person. The photo itself stays in Gramps (others may use it); nothing is deleted."""
+    media, do = body.get("media"), body.get("do")
+    if do not in ("main", "remove") or not media:
+        raise GrampsError("Something was missing. Please try again.")
+    p = await g.get(f"/people/{handle}")
+    refs = p.get("media_list") or []
+    ref = next((m for m in refs if m["ref"] == media), None)
+    if ref is None:
+        raise GrampsError("That photo isn't on this person any more.", 404)
+    rest = [m for m in refs if m["ref"] != media]
+    p["media_list"] = rest if do == "remove" else [ref] + rest
+    await g.put(f"/people/{handle}", p)
+    return {"photo": p["media_list"][0]["ref"] if p["media_list"] else None}
 
 
 # ---------- adding and removing relatives (every change can be undone) ----------

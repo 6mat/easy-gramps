@@ -307,3 +307,23 @@ def test_date_format_is_kept_with_the_login(fake, client):
     assert client.put("/family/auth/settings", json={"dates": "<b>"}).status_code == 400
     assert client.put("/family/auth/settings", json={"dates": "y-m-d"}, headers={"Authorization": "Bearer bad"}).status_code == 401
     assert main.read_settings() == {"tester": {"dates": "m/d/y"}}
+
+
+def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
+    p = fake.person("A")
+    png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
+    first = client.post(f"/family/tree/person/{p}/photo", files=png).json()["photo"]
+    more = client.post(f"/family/tree/person/{p}/photo", files=png, data={"main": "0"}).json()
+    assert more["photo"] == first and more["added"] != first
+    doc = fake.add("media", _class="Media", mime="application/pdf")  # not a picture: not in photos
+    fake.get("people", p)["media_list"].append({"_class": "MediaRef", "ref": doc})
+    assert client.get("/family/tree/graph").json()["people"][p]["photos"] == [first, more["added"]]
+    assert client.post(f"/family/tree/person/{p}/photos", json={"media": more["added"], "do": "main"}).json() == {"photo": more["added"]}
+    assert client.post(f"/family/tree/person/{p}/photos", json={"media": more["added"], "do": "remove"}).json() == {"photo": first}
+    assert more["added"] in fake.db["media"]  # only taken off the person, never deleted
+    assert client.post(f"/family/tree/person/{p}/photos", json={"media": "gone", "do": "main"}).status_code == 404
+    assert client.post(f"/family/tree/person/{p}/photos", json={"media": first, "do": "delete"}).status_code == 400
+    fake.role = 2
+    import main
+    main._who_cache.clear()
+    assert client.post(f"/family/tree/person/{p}/photos", json={"media": first, "do": "remove"}).status_code == 403

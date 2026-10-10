@@ -342,6 +342,7 @@ async def tree_set_photo(handle: str, request: Request):
     if int(request.headers.get("content-length") or 0) > PHOTO_MAX_MB * 1024 * 1024 + 10_000:
         raise too_big
     form = await request.form(max_files=1, max_fields=5)
+    main = form.get("main") != "0"  # main=0: one more photo, after the others
     f = form.get("photo")
     if not hasattr(f, "read"):
         raise HTTPException(400, "Please choose a photo")
@@ -350,7 +351,13 @@ async def tree_set_photo(handle: str, request: Request):
     if (f.size or 0) > PHOTO_MAX_MB * 1024 * 1024:
         raise too_big
     g = await gramps_as(request)
-    return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g))
+    return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g), main)
+
+
+@easy.post("/tree/person/{handle}/photos")
+async def tree_photo_change(handle: str, request: Request):
+    await need_edit(request, "Only editors can change photos.")
+    return await familytree.photo_change(await gramps_as(request), handle, await json_body(request))
 
 
 async def _tree_call(request, fn, with_tags=True):

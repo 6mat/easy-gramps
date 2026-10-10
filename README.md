@@ -7,6 +7,7 @@ relatives who find the full Gramps interface too much.
   children below, with siblings and in-laws' parents. One colour per family.
 - **Edit in place:** every field saves as you type; add a father, mother, husband/wife or child
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
+- **Photos:** tap one to see it big; add more photos to a person and choose their profile photo.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,

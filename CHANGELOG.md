@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.3.0 — 2026-10-10
+
+### Added
+- **See a photo bigger:** tap the photo in the details panel or the editor. ‹ › (or ← →, or a swipe)
+  go between their photos; ✕, Esc, a tap beside the photo or Back closes it.
+- **More photos per person:** the editor has a Photos section with "+ Add photos" (several at once).
+  In the big view, editors can choose "Use as profile photo" or "Remove from this person" (it asks
+  first, and the photo stays in Gramps). The details panel shows a strip of their photos.
+
 ## 1.2.0 — 2026-10-10
 
 ### Added

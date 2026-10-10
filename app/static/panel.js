@@ -4,6 +4,7 @@ import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentF
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast } from "./editor.js";
 import { openMerge } from "./merge.js";
+import { openViewer, thumbUrl } from "./photos.js";
 import { showLogin } from "./start.js";
 
 // ---------- right panel ----------
@@ -36,9 +37,14 @@ export function renderPanel() {
     h("div", { class: "ptop" },
       h("button", { class: "pill hide", onclick: hidePanel, title: "Hide this panel to give the tree more room" }, "Hide panel »"),
       canAdd() && h("button", { class: "pill edit", onclick: () => openEditor(p.id) }, "✎ Edit person")),
-    h("div", { class: "who" }, photoEl(p, true),
+    h("div", { class: "who" }, p.photos[0] && p.photos[0] === p.photo
+      ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
+      : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
         p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`))),
+    p.photos.length > 1 && h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
+      p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
+        h("img", { src: thumbUrl(m, 96), alt: "", loading: "lazy" })))),
     h("dl", { class: "kv" },
       row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
       row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : "")),
