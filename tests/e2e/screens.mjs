@@ -367,11 +367,11 @@ if (WRITE) {
     await openAt(`#/p/${pa}`);
     await page.waitForSelector("#panel .twice button:has-text('Combine them')", { timeout: T });
     await openAt(`#/p/${pa}/edit/${pa}`);
-    await page.click(".twice button:has-text('Combine them')", { timeout: T });
-    await page.click(".twice button:has-text('Yes, combine')");
+    await page.click("#editor .twice button:has-text('Combine them')", { timeout: T });
+    await page.click("#editor .twice button:has-text('Yes, combine')");
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
     c = await couples();
-    if (c.length !== 1 || c[0].kids.length !== 2 || await page.$(".twice")) throw new Error(`still ${c.length} families for the couple`);
+    if (c.length !== 1 || c[0].kids.length !== 2 || await page.$("#editor .twice")) throw new Error(`still ${c.length} families for the couple`);
     await page.click("#ed-back"); await page.waitForSelector(".node.focus");
   });
   await step(page, "home", async () => {  // ⌂ Family Tree; the start screen has one search and no leftover line
