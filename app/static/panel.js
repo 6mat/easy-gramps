@@ -65,8 +65,8 @@ export function renderPanel() {
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : ""));
   }
-  if (canEdit()) panel.append(h("button", { class: "ghost dupbtn", onclick: () => openMerge(p.id) },
-    "Is this person in the tree twice?"));
+  if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
+    "Duplicate profile? Merge.")));
   drawSelink();
 }
 

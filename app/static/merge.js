@@ -1,6 +1,7 @@
-// Easy Gramps — "Is this person in the tree twice?": find the other copy, compare, combine.
+// Easy Gramps — "Duplicate profile? Merge.": find the other profile, compare, combine.
 import { api, LoginNeeded } from "./auth.js";
-import { $, P, S, desc, fmtDate, h, matches, name, photoEl, searchWords } from "./common.js";
+import { $, P, S, fmtDate, h, matches, name, photoEl, searchWords } from "./common.js";
+import { hitRows, searchKeys } from "./search.js";
 import { seeTree } from "./tree.js";
 import { flushSaves, hideDlg, refresh, showDlg, toast } from "./editor.js";
 import { showLogin } from "./start.js";
@@ -48,16 +49,17 @@ function renderMerge() {
       const list = Object.values(P).filter(p => p.id !== m.keep
         && (!ws.length || matches(p, ws)))
         .sort((a, b) => (b.last === keep.last) - (a.last === keep.last) || name(a).localeCompare(name(b))).slice(0, 40);
-      return list.length ? list.map(p => h("button", { class: "pickrow", onclick: () => { m.absorb = p.id; renderMerge(); } },
-        photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet"))))
+      // ⓘ shows who each one is (born, parents, family), so the right profile gets merged.
+      return list.length ? hitRows(list, p => { m.absorb = p.id; renderMerge(); }, "Choose")
         : [h("div", { class: "small muted pad" }, "No one else found with that name.")];
     }
     dlg.replaceChildren(
-      h("h2", { id: "dlg-title" }, "Is this person in the tree twice?"),
-      h("p", { class: "muted" }, "Keeping ", h("strong", {}, name(keep)), ". Find the other copy to combine into them."),
+      h("h2", { id: "dlg-title" }, "Duplicate profile? Merge."),
+      h("p", { class: "muted" }, "Keeping ", h("strong", {}, name(keep)), ". Find their other profile to merge into this one."),
       input,
-      h("div", { id: "merge-list", class: "pick" }, ...candidates()),
+      h("div", { id: "merge-list", class: "pick hits" }, ...candidates()),
       h("div", { class: "btnrow end" }, h("button", { onclick: closeMerge }, "Cancel")));
+    searchKeys(input, $("#merge-list"));
     return;
   }
 

@@ -295,9 +295,11 @@ if (WRITE) {
     await page.waitForSelector("#add-first");  // opens on "someone new"; the search is one tap away
     if (await page.$("#add-q")) throw new Error("search box shown before choosing 'already in the tree'");
     await page.click("#dlg .addmode:has-text('already in the tree')");
-    await page.fill("#add-q", "ZZTEST Kid");
-    await page.click("#dlg .row-p button:has-text('Choose')").catch(() => {});  // the Kid is skipped (already family)
-    await page.fill("#add-q", "ZZTEST Wife"); await page.waitForTimeout(300);
+    await page.fill("#add-q", "ZZTEST Kid"); await page.waitForTimeout(300);
+    if (await page.$("#dlg .hit")) throw new Error("someone already in this family was offered");
+    await page.fill("#add-q", "ZZTEST Wife");
+    await page.click("#dlg .hit .info >> nth=0");  // ⓘ: who is it, before linking them
+    await page.waitForSelector("#dlg .preview:not([hidden]) button:has-text('Choose')");
     await page.click("#dlg button:has-text('Cancel')");
   });
   await step(page, "remove a link + undo", async () => {
@@ -323,13 +325,44 @@ if (WRITE) {
   await step(page, "merge dialog: find, compare, swap, combine", async () => {
     await page.click(".node:has-text('ZZTEST Wife')"); await page.waitForSelector("#panel .dupbtn");
     await page.click("#panel .dupbtn");
+    if (!/Duplicate profile\? Merge\./.test(await page.textContent("#dlg-title"))) throw new Error("old title");
     await page.fill("#merge-q", "ZZTEST Mum");
-    await page.click("#merge-list .pickrow >> nth=0");
+    await page.click("#merge-list .info >> nth=0"); await page.waitForSelector("#merge-list .preview:not([hidden])");
+    await page.click("#merge-list .hitmain >> nth=0");
     await page.waitForSelector(".cmp");
     await page.click(".cmphead .swap"); await page.click(".cmphead .swap");
     await page.fill("#cmp-last", "Merged");
     await page.click("#dlg button.primary"); await page.click("#dlg button.danger");
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent));
+  });
+  await step(page, "a mother who is already his wife: no couple twice; a couple listed twice: combine", async () => {
+    const api = (path, body) => page.evaluate(([path, body]) => fetch(`${document.documentElement.dataset.base}${path}`, {
+      method: body ? "POST" : "GET", body: body && JSON.stringify(body),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.access_token || localStorage.eg_access}` } }).then(r => r.json()), [path, body]);
+    const pa = (await api("/tree/person", { first: "ZZTEST", last: "Pa", gender: "m" })).added;
+    const ma = (await api("/tree/relative", { person: pa, rel: "spouse", new: { first: "ZZTEST", last: "Ma" } })).added;
+    const son = await api("/tree/relative", { person: pa, rel: "child", new: { first: "ZZTEST", last: "Son" } });  // with Pa only
+    await api("/tree/relative", { person: pa, rel: "child", famId: son.famId, new: { first: "ZZTEST", last: "Girl" } });
+    const couples = async () => (await api("/tree/graph")).families.filter(f => f.f === pa && f.m === ma);
+    await page.goto(`${APP}#/p/${son.added}/edit/${son.added}`); await page.reload();
+    await page.click("#editor:not([hidden]) button.ed-slot:has-text('Add mother')", { timeout: T });
+    await page.waitForSelector("#dlg .note:has-text('same family')");  // the sister gets this mother too: said first
+    await page.click("#dlg .addmode:has-text('already in the tree')");
+    await page.fill("#add-q", "ZZTEST Ma"); await page.click("#dlg .hit .hitmain >> nth=0");
+    await page.waitForFunction(() => /already had with/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
+    let c = await couples();
+    if (c.length !== 1 || c[0].kids.length !== 2) throw new Error(`couple recorded ${c.length} times, ${c[0]?.kids.length} children`);
+    // The couple recorded twice straight in Gramps (as a half-done tidy-up there can leave it): the editor offers to combine.
+    const tok = await grampsToken("editor");
+    await fetch(`${DEMO}/api/objects/`, { method: "POST", headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+      body: JSON.stringify([{ _class: "Family", handle: crypto.randomUUID().replace(/-/g, ""), father_handle: pa, mother_handle: ma, child_ref_list: [], type: "Married" }]) });
+    await page.goto(`${APP}#/p/${pa}/edit/${pa}`); await page.reload();
+    await page.click(".twice button:has-text('Combine them')", { timeout: T });
+    await page.click(".twice button:has-text('Yes, combine')");
+    await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
+    c = await couples();
+    if (c.length !== 1 || c[0].kids.length !== 2 || await page.$(".twice")) throw new Error(`still ${c.length} families for the couple`);
+    await page.click("#ed-back"); await page.waitForSelector(".node.focus");
   });
   await step(page, "home", async () => {  // ⌂ Family Tree; the start screen has one search and no leftover line
     await page.click("#brand"); await page.waitForSelector("#start-q"); await page.waitForSelector(".recentcard");
