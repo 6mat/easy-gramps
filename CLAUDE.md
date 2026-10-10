@@ -75,7 +75,7 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 - `POST /tree/person` — new person with no relatives. `POST /tree/relative` — add father / mother /
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
   returns an undo token. Adding a father/mother to a one-parent family whose parent is already a couple
-with them in another family joins that family instead (Gramps' `POST /api/families/{keep}/merge/{absorb}`;
+with them in another family (any family naming both, even one they don't list) joins that family instead (Gramps' `POST /api/families/{keep}/merge/{absorb}`;
 `joined: true`; undo `op: split` moves the children back out). `POST /tree/families/merge {keep, absorb}`
 combines the same couple recorded twice (editors; same father and mother). `POST /tree/unlink` — removes a link, never deletes people; a family is
   deleted only when it no longer links two people. `POST /tree/undo` reverses either.
@@ -153,7 +153,7 @@ you pick, or a new one after "Add it as a new place" (never one per keystroke, #
 tree" switches it to the search (← Back returns; typing is kept; rows have the search's ⓘ preview, with
 Choose), one kind of box at a time; **one person per add**; spouse gender set automatically. Adding a father or
 mother says first that brothers and sisters in the same family get them too. The same couple recorded twice:
-an amber "B is listed as A's wife twice" with Combine them (editors, two-step). ⋯ on a relative: open their family, remove from this
+an amber "B is listed as A's wife twice" with Combine them (editors, two-step), in the editor and the details panel. ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
 
 **Big photo view** (`photos.js`): over everything, dark; ‹ › / ← → / swipe; closes with ✕, Esc, a tap

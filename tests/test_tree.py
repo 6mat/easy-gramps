@@ -136,3 +136,14 @@ def test_combine_the_same_couple_recorded_twice(fake, client):
     main._who_cache.clear()
     f3 = fake.family(a, b)
     assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
+
+
+def test_the_couple_is_found_even_when_gramps_web_took_it_off_both_people(fake, g):
+    """Taking a family off both people in Gramps Web's editor leaves the family naming them as the couple."""
+    a, b, c = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C")
+    couple = fake.family(a, b)
+    only_a = fake.family(a, None, [c])
+    for x in (a, b):
+        fake.db["people"][x]["family_list"] = [f for f in fake.db["people"][x]["family_list"] if f != couple]
+    res = run(familytree.add_relative(g, {"person": c, "rel": "mother", "existing": b}, []))
+    assert res["famId"] == couple and res["joined"] and fake.get("families", only_a) is None

@@ -340,7 +340,14 @@ if (WRITE) {
       method: body ? "POST" : "GET", body: body && JSON.stringify(body),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.access_token || localStorage.eg_access}` } }).then(r => r.json()), [path, body]);
     const pa = (await api("/tree/person", { first: "ZZTEST", last: "Pa", gender: "m" })).added;
-    const ma = (await api("/tree/relative", { person: pa, rel: "spouse", new: { first: "ZZTEST", last: "Ma" } })).added;
+    const wed = await api("/tree/relative", { person: pa, rel: "spouse", new: { first: "ZZTEST", last: "Ma" } }), ma = wed.added;
+    const tok = await grampsToken("editor");
+    const gramps = (path, opts = {}) => fetch(`${DEMO}/api${path}`, { ...opts, headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" } });
+    for (const who of [pa, ma]) {  // their couple's family taken off both in Gramps Web's editor: it still names them
+      const p = await (await gramps(`/people/${who}`)).json();
+      p.family_list = p.family_list.filter(f => f !== wed.famId);
+      await gramps(`/people/${who}`, { method: "PUT", body: JSON.stringify(p) });
+    }
     const son = await api("/tree/relative", { person: pa, rel: "child", new: { first: "ZZTEST", last: "Son" } });  // with Pa only
     await api("/tree/relative", { person: pa, rel: "child", famId: son.famId, new: { first: "ZZTEST", last: "Girl" } });
     // A fresh load at that address (changing only the #… in place counts as Back/Forward, which keeps the view).
@@ -354,16 +361,17 @@ if (WRITE) {
     await page.waitForFunction(() => /already had with/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
     let c = await couples();
     if (c.length !== 1 || c[0].kids.length !== 2) throw new Error(`couple recorded ${c.length} times, ${c[0]?.kids.length} children`);
-    // The couple recorded twice straight in Gramps (as a half-done tidy-up there can leave it): the editor offers to combine.
-    const tok = await grampsToken("editor");
-    await fetch(`${DEMO}/api/objects/`, { method: "POST", headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+    // The couple recorded twice straight in Gramps: the details panel and the editor offer to combine.
+    await gramps("/objects/", { method: "POST",
       body: JSON.stringify([{ _class: "Family", handle: crypto.randomUUID().replace(/-/g, ""), father_handle: pa, mother_handle: ma, child_ref_list: [], type: "Married" }]) });
+    await openAt(`#/p/${pa}`);
+    await page.waitForSelector("#panel .twice button:has-text('Combine them')", { timeout: T });
     await openAt(`#/p/${pa}/edit/${pa}`);
-    await page.click(".twice button:has-text('Combine them')", { timeout: T });
-    await page.click(".twice button:has-text('Yes, combine')");
+    await page.click("#editor .twice button:has-text('Combine them')", { timeout: T });
+    await page.click("#editor .twice button:has-text('Yes, combine')");
     await page.waitForFunction(() => /Combined/.test(document.querySelector("#toast-msg").textContent), null, { timeout: T });
     c = await couples();
-    if (c.length !== 1 || c[0].kids.length !== 2 || await page.$(".twice")) throw new Error(`still ${c.length} families for the couple`);
+    if (c.length !== 1 || c[0].kids.length !== 2 || await page.$("#editor .twice")) throw new Error(`still ${c.length} families for the couple`);
     await page.click("#ed-back"); await page.waitForSelector(".node.focus");
   });
   await step(page, "home", async () => {  // ⌂ Family Tree; the start screen has one search and no leftover line

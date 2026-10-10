@@ -371,7 +371,8 @@ function centreCard(p) {
     moreBox);
 }
 
-function twiceWarn(p, o, fams) {
+// The same couple recorded twice: say so, and let editors combine them (in the editor and the details panel).
+export function twiceWarn(p, o, fams, redraw = renderEditor) {
   const word = P[o].gender === "f" ? "wife" : P[o].gender === "m" ? "husband" : "husband or wife";
   const sure = S.menu === `twice:${o}`;
   const go = async btn => {
@@ -393,8 +394,8 @@ function twiceWarn(p, o, fams) {
     !canEdit() ? h("span", {}, "Ask an editor to combine them.")
       : sure ? h("div", { class: "btnrow" }, h("span", {}, "Combine them into one? The children and dates of both are kept."),
           h("button", { class: "primary", onclick: e => go(e.currentTarget) }, "Yes, combine"),
-          h("button", { onclick: () => { S.menu = null; renderEditor(); } }, "Cancel"))
-        : h("div", {}, h("button", { onclick: () => { S.menu = `twice:${o}`; renderEditor(); } }, "Combine them")));
+          h("button", { onclick: () => { S.menu = null; redraw(); } }, "Cancel"))
+        : h("div", {}, h("button", { onclick: () => { S.menu = `twice:${o}`; redraw(); } }, "Combine them")));
 }
 
 export function renderEditor() {

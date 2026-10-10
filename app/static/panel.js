@@ -2,7 +2,7 @@
 import { api, LoginNeeded } from "./auth.js";
 import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
-import { openEditor, toast } from "./editor.js";
+import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
 import { openViewer, thumbUrl } from "./photos.js";
 import { showLogin } from "./start.js";
@@ -50,6 +50,8 @@ export function renderPanel() {
       row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : "")),
     famRow("Parents", parents),
     famRow(p.gender === "f" ? "Husband" : p.gender === "m" ? (spouses.length > 1 ? "Wives" : "Wife") : "Spouse", spouses),
+    ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
+      .map(o => twiceWarn(p, o, spouseFams(p.id).filter(x => other(x, p.id) === o), renderPanel)),
     famRow("Children", kids),
     h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
       S.more ? "Fewer details ▴" : "More details ▾"));

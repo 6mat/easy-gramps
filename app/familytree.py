@@ -447,17 +447,15 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
 
 
 async def _couple_family(g, fam, side, oh):
-    """Another family where `oh` and the family's other parent are already the couple, or None."""
-    other = fam.get("mother_handle" if side == "father_handle" else "father_handle")
+    """Another family where `oh` and the family's other parent are already the couple, or None.
+    Looks through every family, not just the people's own lists: a family taken off both people in
+    Gramps Web's editor still names them as the couple (and the page still shows it)."""
+    other_side = "mother_handle" if side == "father_handle" else "father_handle"
+    other = fam.get(other_side)
     if not other:
         return None
-    for fh in (await g.get(f"/people/{other}")).get("family_list") or []:
-        if fh == fam["handle"]:
-            continue
-        f = await g.get(f"/families/{fh}")
-        if f.get(side) == oh:
-            return fh
-    return None
+    return next((f["handle"] for f in await g.get("/families/", keys="handle,father_handle,mother_handle")
+                 if f["handle"] != fam["handle"] and f.get(side) == oh and f.get(other_side) == other), None)
 
 
 async def merge_families(g: Gramps, body: dict) -> dict:
