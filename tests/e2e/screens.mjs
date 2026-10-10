@@ -119,9 +119,24 @@ async function cleanup() {
   });
   await step(page, "log in", () => login(page, "member"));
   await step(page, "start screen", async () => { await page.waitForSelector("#start-q"); await page.waitForSelector(".recentgrid"); });
-  await step(page, "start search + open a tree", async () => {
+  await step(page, "start search: preview and keys", async () => {
     await page.fill("#start-q", "Stewart");  // a surname in the demo tree
-    await page.click("#startcard .pickbtn >> nth=0");
+    await page.click("#startcard .hit .info >> nth=0");
+    await page.waitForSelector("#startcard .preview:not([hidden]) button:has-text('See their tree')");
+    await page.focus("#start-q");
+    for (const k of ["ArrowDown", "ArrowDown", "ArrowRight"]) await page.keyboard.press(k);
+    const open = await page.$$eval("#startcard .hit", rows => rows.map(r => !r.querySelector(".preview").hidden));
+    if (open.join() !== [false, true, ...open.slice(2).map(() => false)].join()) throw new Error(`→ opened the wrong preview: ${open}`);
+    for (const k of ["ArrowLeft", "ArrowUp", "ArrowUp"]) await page.keyboard.press(k);
+    if (await page.evaluate(() => document.activeElement.id) !== "start-q") throw new Error("↑ didn't go back to the search box");
+  });
+  await step(page, "no one found", async () => {
+    await page.fill("#start-q", "ZZTEST nobody"); await page.waitForSelector("#startcard .nohit");
+    if (await page.$("#startcard .nohit .addnew")) throw new Error("a Member is offered to add someone");
+  });
+  await step(page, "start search + open a tree", async () => {
+    await page.fill("#start-q", "Stewart");
+    await page.click("#startcard .hitmain >> nth=0");
     await page.waitForSelector(".node.focus");
   });
   await step(page, "select someone, panel", async () => {
@@ -157,7 +172,19 @@ async function cleanup() {
     await page.click("#z-full"); await page.waitForSelector("body.fullmode"); await page.waitForSelector("#tree-home", { state: "visible" });
     await page.click("#z-full");
   });
-  await step(page, "top search", async () => { await page.fill("#q", "Stewart"); await page.waitForSelector("#results button"); await page.fill("#q", ""); });
+  await step(page, "top search: photos, preview, no one found", async () => {
+    await page.fill("#q", "Stewart"); await page.waitForSelector("#results .hit .hitmain .ph");
+    await page.click("#results .hit .info >> nth=0"); await page.waitForSelector("#results .preview:not([hidden])");
+    await page.fill("#q", "ZZTEST nobody"); await page.waitForSelector("#results .nohit");
+    await page.fill("#q", "");
+  });
+  await step(page, "menu: date format, kept with the login", async () => {
+    const saved = () => page.evaluate(() => fetch(`${document.documentElement.dataset.base}/auth/me`,
+      { headers: { Authorization: `Bearer ${localStorage.access_token || localStorage.eg_access}` } }).then(r => r.json()).then(u => u.settings.dates));
+    await page.click("#menubtn"); await page.selectOption("#datefmt", "y-m-d"); await sleep(1000);
+    if (await saved() !== "y-m-d") throw new Error("the date format wasn't saved with the login");
+    await page.selectOption("#datefmt", "d mon y"); await sleep(1000); await page.click("#menubtn");
+  });
   await step(page, "menu: theme, bigger text, line, tips", async () => {
     await page.click("#menubtn");
     for (const t of ["dark", "light", "system"]) await page.click(`label:has(#th-${t})`);
@@ -299,10 +326,19 @@ if (WRITE) {
     await page.click("#panel .moretoggle"); await page.waitForSelector("#panel .details");
     await check("tree and panel");
     if (!(await page.evaluate(t => document.querySelector("#panel").innerText.includes(t), note))) throw new Error("the note isn't shown as typed");
-    await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results button"); await check("top search"); await page.fill("#q", "");
+    await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results .hit"); await page.click("#results .info >> nth=0");
+    await check("top search and preview"); await page.fill("#q", "");
     await page.click("#panel .dupbtn"); await page.fill("#merge-q", "ZZTEST"); await page.waitForTimeout(500); await check("merge dialog");
     await page.click("#dlg button:has-text('Cancel')");
     await page.click("#brand"); await page.waitForSelector(".recentcard"); await check("start screen");
+  });
+  await step(page, "no one found: add them with that name", async () => {
+    await page.fill("#start-q", "ZZTEST Nobody Here"); await page.click("#startcard .nohit .addnew");
+    if (await page.inputValue("#np-first") !== "ZZTEST" || await page.inputValue("#np-last") !== "Nobody Here") throw new Error("the name wasn't filled in");
+    await page.click(".recentcard >> nth=0"); await page.waitForSelector(".node.focus");
+    await page.fill("#q", "ZZTEST Nobody Here"); await page.click("#results .nohit .addnew");
+    await page.waitForSelector("#start-q");
+    if (await page.inputValue("#np-first") !== "ZZTEST" || await page.inputValue("#np-last") !== "Nobody Here") throw new Error("the top search's add didn't fill in the name");
   });
   await page.context().close();
   await sleep(1500);

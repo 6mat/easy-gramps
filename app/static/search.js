@@ -34,7 +34,7 @@ function hit(p, open) {
       if (!card.childElementCount) card.append(...preview(p, open));
     }
     card.hidden = !on; info.setAttribute("aria-expanded", String(on));
-    if (on) card.scrollIntoView({ block: "nearest" });
+    if (on) row.scrollIntoView({ block: card.offsetHeight + 60 > innerHeight / 2 ? "start" : "nearest" });  // keep the name in sight
   };
   info.onclick = e => { e.stopPropagation(); row.toggle(); };
   return row;
@@ -51,7 +51,6 @@ function preview(p, open) {
   const spouseLabel = p.gender === "m" ? (spouses.length > 1 ? "Wives" : "Wife")
     : p.gender === "f" ? (spouses.length > 1 ? "Husbands" : "Husband") : "Husband or wife";
   return [photoEl(p, true), h("div", { class: "pvtext" },
-    h("strong", { class: "pvname" }, name(p)),
     p.nick && h("div", { class: "small muted" }, `Known as ${p.nick}`),
     line("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ")),
     p.deceased && line("Passed away", fmtDate(p.death) || "date not known"),
