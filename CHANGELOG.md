@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.3.4 — 2026-10-10
+
+### Fixed
+- Adding a mother (or father) could still make the couple twice when their family had been taken
+  off both of them in Gramps Web's editor (the family still names them). Now every family is checked.
+- "B is listed as A's wife twice" and **Combine them** now also show in the details panel, not only
+  in the editor.
+
 ## 1.3.3 — 2026-10-10
 
 (Includes 1.3.2, which wasn't released on its own.)
