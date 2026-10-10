@@ -506,6 +506,10 @@ export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (show
     fields: h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
       h("div", { class: "full" }, h("label", { class: "inline", for: bdOn.id }, bdOn, "Add their birthday"), bdBox)),
     warn, say,
+    fill(text) {  // a name from a search: the first word is the first name, the rest the last name
+      const [f = "", ...rest] = text.trim().split(/\s+/);
+      first.value = f; last.value = rest.join(" ");
+    },
     // The person typed in, or null after saying why not: no name yet, or people of that name exist
     // (each listed with action(p); "No, add as someone new" calls addAnyway).
     check(dupOk, action, addAnyway) {

@@ -1,6 +1,7 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
 import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
-import { $, ME, P, S, canAdd, desc, h, loadGraph, matches, name, parseView, photoEl, postJSON, searchWords, years } from "./common.js";
+import { $, ME, P, S, canAdd, desc, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
+import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
@@ -15,26 +16,30 @@ export function renderStart() {
   S.startShown = true;
   const card = $("#startcard");
   const q = h("input", { id: "start-q", type: "search", placeholder: "Type a name", autocomplete: "off", "aria-label": "Type a name" });
-  const list = h("div", { class: "pick" });
-  q.addEventListener("input", () => {
-    const words = searchWords(q.value);
-    const hits = !words.length ? [] : Object.values(P).filter(p => matches(p, words))
-      .sort((a, b) => name(a).localeCompare(name(b))).slice(0, 30);
-    list.replaceChildren(...hits.map(p => h("button", { class: "row-p pickbtn", onclick: () => seeTree(p.id) },
-      photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")))));
-    if (words.length && !hits.length) list.append(h("div", { class: "muted" }, "No one found with that name."));
-  });
+  const list = h("div", { class: "pick hits" });
+  q.addEventListener("input", () => showHits(list, q.value, { open: p => seeTree(p.id), addNew: startAdd }));
+  searchKeys(q, list);
   const parts = [h("h2", {}, "Whose family tree would you like to see?"),
     h("label", { for: "start-q", class: "flabel" }, "Search for someone", q), list, recentSections()];
+  addForm = null;
   if (canAdd()) {
     const form = newPersonForm();
     form.hidden = true;
-    const open = h("button", { class: "pill", onclick: () => { open.hidden = true; form.hidden = false; form.querySelector("input").focus(); } }, "+ Add a new person");
+    const open = h("button", { class: "pill", onclick: () => addForm() }, "+ Add a new person");
+    addForm = text => {
+      open.hidden = true; form.hidden = false;
+      if (text) form.fill(text);
+      form.scrollIntoView({ block: "nearest" });
+      form.querySelector("input").focus();
+    };
     parts.push(h("div", { class: "startor" }, h("span", {}, "or")), open, form);
   }
   card.replaceChildren(h("div", { class: "startbox" }, parts));
   q.focus();
 }
+// "+ Add … as a new person" from a search that found no one: the start screen's form, with that name.
+let addForm = null;
+export function startAdd(text) { addForm?.(text); }
 
 // "Recently viewed" (this device) and "Recently changed" (anyone, from Gramps), each hidden when empty.
 function relTime(ts) {
@@ -85,7 +90,9 @@ function newPersonForm() {
       nw.say(err.message);
     }
   } }, "Add this person");
-  return h("div", { class: "newperson" }, h("strong", {}, "Someone new"), nw.fields, nw.warn, h("div", { class: "btnrow" }, btn));
+  const form = h("div", { class: "newperson" }, h("strong", {}, "Someone new"), nw.fields, nw.warn, h("div", { class: "btnrow" }, btn));
+  form.fill = nw.fill;
+  return form;
 }
 
 // ---------- start ----------

@@ -65,8 +65,25 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8275' stroke-width='2.5'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M20 20l-4.8-4.8'/%3E%3C/svg%3E"); }
 .results { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px); background: var(--card);
   border: 1px solid var(--line); border-radius: 12px; max-height: 60vh; overflow: auto; box-shadow: var(--shadow); padding: 4px; }
-.results button { display: block; width: 100%; text-align: left; border: 0; border-radius: 8px; font-weight: 400; }
-.results button:hover { background: var(--accent-soft); }
+.results { display: flex; flex-direction: column; gap: 2px; }
+.results .hitmain { border: 0; }
+/* search results (start screen and top bar): photo + name, ⓘ preview under the row, "No one found" */
+.hit { display: flex; flex-direction: column; }
+.hitrow { display: flex; gap: 6px; align-items: stretch; }
+.hitmain { flex: 1; min-width: 0; padding: 8px 10px; }
+.hitmain strong { overflow-wrap: anywhere; }
+.info { flex: none; width: 46px; padding: 0; font-size: 22px; font-weight: 400; color: var(--accent); border-color: var(--line); border-radius: 12px; }
+.info[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.preview { display: flex; gap: 16px; align-items: flex-start; margin: 4px 0 8px; padding: 14px; border: 1.5px solid var(--accent);
+  border-radius: 12px; background: var(--canvas); }
+.pvtext { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pvname { font-size: 19px; }
+.pvtext button { margin-top: 6px; }
+.nohit { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px; border: 2px solid var(--sel);
+  border-radius: 12px; background: var(--sel-soft); }
+.nohit strong { font-size: 18px; color: var(--ink); }
+.nohit .addnew { border-color: var(--sel-ink); }
+@media (max-width: 520px) { .preview { flex-direction: column; } }
 .top label { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-left: auto; color: var(--muted); font-size: 14px; }
 .notice { display: none; margin-block: 8px; padding: 10px 14px; border: 1.5px dashed var(--edge); border-radius: 10px; }
 .main { grid-row: 3; display: grid; grid-template-columns: 1fr; min-height: 0; padding-bottom: 20px; }

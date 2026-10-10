@@ -1,9 +1,10 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
 import { store } from "./auth.js";
-import { $, P, S, byBirth, canAdd, canLink, desc, h, matches, name, other, parentFam, photoEl, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { $, P, S, byBirth, canAdd, canLink, h, name, other, parentFam, photoEl, saveView, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
 import { closeEditor, hideDlg, openEditor, showDlg } from "./editor.js";
-import { renderAll, renderStart } from "./start.js";
+import { renderAll, renderStart, startAdd } from "./start.js";
+import { searchKeys, showHits } from "./search.js";
 
 // ---------- tree ----------
 // Rows are generations: parents, the person (with siblings and spouses), children.
@@ -634,7 +635,7 @@ export function showKeys() {
 }
 $("#menu-keys").onclick = () => { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); showKeys(); };
 document.addEventListener("keydown", e => {
-  if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select")) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select, .hits, .results")) return;
   if (e.key === "?") { e.preventDefault(); return showKeys(); }
   if (!$("#editor").hidden) return;  // the editor: Tab moves through it; Esc goes back (handled there)
   if (e.key === "/") { e.preventDefault(); return (S.focus ? $("#q") : $("#start-q"))?.focus(); }
@@ -670,16 +671,14 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- search ----------
+const doneSearching = () => { $("#results").hidden = true; $("#q").value = ""; };
 $("#q").addEventListener("input", () => {
-  const words = searchWords($("#q").value);
   const res = $("#results");
-  if (!words.length) { res.hidden = true; return; }
-  const hits = Object.values(P).filter(p => matches(p, words))
-    .sort((a, b) => name(a).localeCompare(name(b)));
-  res.replaceChildren(...(hits.length ? hits.map(p => h("button", { onclick: () => {
-    res.hidden = true; $("#q").value = ""; seeTree(p.id);
-  } }, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")))
-    : [h("div", { class: "small muted pad" }, "No one found with that name.")]));
-  res.hidden = false;
+  showHits(res, $("#q").value, {
+    open: p => { doneSearching(); seeTree(p.id); },
+    addNew: text => { doneSearching(); goHome().then(() => startAdd(text)); },
+  });
+  res.hidden = !res.childElementCount;
 });
+searchKeys($("#q"), $("#results"), () => { $("#results").hidden = true; });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) $("#results").hidden = true; });
