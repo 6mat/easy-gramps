@@ -403,6 +403,12 @@ async def tree_undo(request: Request):
     return await _tree_call(request, familytree.undo)
 
 
+@easy.post("/tree/families/merge")
+async def tree_merge_families(request: Request):
+    await need_edit(request, "Only editors can combine families.")
+    return await _tree_call(request, familytree.merge_families, with_tags=False)
+
+
 @easy.post("/tree/merge")
 async def tree_merge(request: Request):
     await need_edit(request, "Only people with edit rights can merge")

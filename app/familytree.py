@@ -405,10 +405,19 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
         side = f"{rel}_handle"
         fam = parent_fam
         if fam:
+            # They may already be a couple in another family (A and B married; the children were added
+            # with A only): the children then join that family instead of making the couple twice.
+            couple = await _couple_family(g, fam, side, oh)
             fam[side] = oh
             fam["type"] = "Married" if fam.get("father_handle") and fam.get("mother_handle") else fam.get("type", "Unknown")
             await g.put(f"/families/{fam['handle']}", fam)
             fam_id = fam["handle"]
+            if couple:
+                kids = [c["ref"] for c in fam.get("child_ref_list") or []]
+                await g.post(f"/families/{couple}/merge/{fam_id}")  # Gramps' own merge: children, events, links
+                other_side = "mother_handle" if side == "father_handle" else "father_handle"
+                undo = {"op": "split", "famId": couple, "kids": kids, "side": other_side, "parent": fam.get(other_side)}
+                return {"added": oh, "famId": couple, "undo": undo, "joined": True}
         else:
             fam = _family(oh if rel == "father" else None, oh if rel == "mother" else None, [ph], tags)
             await g.add_objects([fam])
@@ -435,6 +444,34 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
     if created:
         undo["delete"] = created
     return {"added": oh, "famId": fam_id, "undo": undo}
+
+
+async def _couple_family(g, fam, side, oh):
+    """Another family where `oh` and the family's other parent are already the couple, or None."""
+    other = fam.get("mother_handle" if side == "father_handle" else "father_handle")
+    if not other:
+        return None
+    for fh in (await g.get(f"/people/{other}")).get("family_list") or []:
+        if fh == fam["handle"]:
+            continue
+        f = await g.get(f"/families/{fh}")
+        if f.get(side) == oh:
+            return fh
+    return None
+
+
+async def merge_families(g: Gramps, body: dict) -> dict:
+    """The same couple recorded twice: fold `absorb` into `keep` with Gramps' own family merge
+    (children, marriage events and everyone's links end up in one family). Not covered by Undo."""
+    keep, absorb = body.get("keep"), body.get("absorb")
+    if not keep or not absorb or keep == absorb:
+        raise GrampsError("Pick the two families to combine")
+    a, b = await g.get(f"/families/{keep}"), await g.get(f"/families/{absorb}")
+    couple = lambda f: (f.get("father_handle"), f.get("mother_handle"))  # noqa: E731
+    if couple(a) != couple(b) or not all(couple(a)):
+        raise GrampsError("Those aren't the same couple. Please reload and try again.")
+    await g.post(f"/families/{keep}/merge/{absorb}")
+    return {"famId": keep}
 
 
 async def unlink(g: Gramps, body: dict) -> dict:
@@ -470,6 +507,19 @@ async def unlink(g: Gramps, body: dict) -> dict:
 
 
 async def undo(g: Gramps, token: dict, tags: list) -> dict:
+    if token.get("op") == "split":  # undo children joining a couple's family: back to one parent only
+        fam = await g.get(f"/families/{token['famId']}")
+        kids = set(token.get("kids") or [])
+        moved = [c for c in fam.get("child_ref_list") or [] if c["ref"] in kids]
+        if moved:
+            fam["child_ref_list"] = [c for c in fam["child_ref_list"] if c["ref"] not in kids]
+            await g.put(f"/families/{fam['handle']}", fam)
+            parent = token.get("parent")
+            new = _family(parent if token.get("side") == "father_handle" else None,
+                          parent if token.get("side") == "mother_handle" else None, [], tags)
+            new["child_ref_list"] = moved
+            await g.add_objects([new])
+        return {"ok": True}
     if token.get("op") == "unlink":
         await unlink(g, token)
         return {"ok": True}

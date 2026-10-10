@@ -97,3 +97,42 @@ def test_server_checks_the_links_it_is_asked_for(fake, g):  # #38
     r = run(familytree.unlink(g, {"person": a, "rel": "child", "other": kid, "famId": f_ab}))
     run(familytree.undo(g, r["undo"], [])); run(familytree.undo(g, r["undo"], []))
     assert [x["ref"] for x in fake.get("families", f_ab)["child_ref_list"]] == [kid]
+
+
+def test_adding_a_mother_who_is_already_his_wife_joins_their_family(fake, g):
+    """A and B married; C and D added with A only. Making B C's mother must not make the couple twice."""
+    a, b, c, d = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C"), fake.person("D")
+    couple = fake.family(a, b)
+    only_a = fake.family(a, None, [c, d])
+    res = run(familytree.add_relative(g, {"person": c, "rel": "mother", "existing": b}, []))
+    assert res["famId"] == couple and res["joined"]
+    assert fake.get("families", only_a) is None
+    assert [k["ref"] for k in fake.get("families", couple)["child_ref_list"]] == [c, d]
+    assert fake.get("people", a)["family_list"] == [couple] and fake.get("people", b)["family_list"] == [couple]
+    run(familytree.undo(g, res["undo"], []))  # back as it was: the couple, and the children with A only
+    assert fake.get("families", couple)["child_ref_list"] == []
+    split = next(f for f in fake.db["families"].values() if f["handle"] != couple)
+    assert (split["father_handle"], split["mother_handle"]) == (a, None)
+    assert [k["ref"] for k in split["child_ref_list"]] == [c, d]
+
+
+def test_adding_a_mother_who_isnt_his_wife_still_fills_the_family(fake, g):
+    a, b, other, c = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("X", "", 0), fake.person("C")
+    fake.family(a, other)
+    only_a = fake.family(a, None, [c])
+    res = run(familytree.add_relative(g, {"person": c, "rel": "mother", "existing": b}, []))
+    assert res["famId"] == only_a and "joined" not in res and fake.get("families", only_a)["mother_handle"] == b
+
+
+def test_combine_the_same_couple_recorded_twice(fake, client):
+    a, b, c = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C")
+    f1, f2 = fake.family(a, b), fake.family(a, b, [c])
+    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f2}).json() == {"famId": f1}
+    assert fake.get("families", f2) is None and [k["ref"] for k in fake.get("families", f1)["child_ref_list"]] == [c]
+    x = fake.family(a, fake.person("X", "", 0))
+    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": x}).status_code == 400  # not the same couple
+    fake.role = 2
+    import main
+    main._who_cache.clear()
+    f3 = fake.family(a, b)
+    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
