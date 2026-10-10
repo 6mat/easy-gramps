@@ -36,7 +36,8 @@ app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, ne
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
-                    · merge.js · start.js (start screen, login) · search.js (both searches' results) · auth.js
+                    · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
+                    (the big photo view) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -68,7 +69,9 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   residence phone email notes`. `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
   name (merge: reuses an exact match, else makes it). Unticking deceased removes Death and Burial. Residence/phone go in a
   **private** Address, email in a **private** Url.
-- `POST /tree/person/{h}/photo` — upload and make it the main photo.
+- `POST /tree/person/{h}/photo` — upload and make it the main photo (`main=0`: add it after the others).
+  `POST /tree/person/{h}/photos {media, do: main|remove}` — make one the main photo, or take it off the
+  person (the Media stays in Gramps; never deleted). The graph's `photos` lists their pictures, main first.
 - `POST /tree/person` — new person with no relatives. `POST /tree/relative` — add father / mother /
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
   returns an undo token. `POST /tree/unlink` — removes a link, never deletes people; a family is
@@ -112,7 +115,7 @@ No one found = amber box, "+ Add “…” as a new person" (if they can add) op
 the name filled in (first word = first name). It must **not** open on an automatic person.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
-panel » / ✎ Edit person; photo, name, relation, born/died, clickable Parents/Wives/Children, More
+panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
 details ▾ (burial, lives in, phone, email, notes); "Is this person in the tree twice?" for editors, a tab pinned to
 the panel's bottom edge (own background, top line) so it shows without scrolling (#55).
 Fit and centring use only the area not under the panel.
@@ -137,7 +140,8 @@ pop-up is a browser-history step, so Back / a phone's back gesture closes them i
 with their own buttons steps back over those entries (Back never reopens them).
 
 **Editor** (full screen): Back to tree, Home, Saving…/Saved ✓/Not saved + Try again. Parents on top,
-the person's card, spouses beside, children grouped by spouse. Fields: photo, first/last/nickname,
+the person's card, spouses beside, children grouped by spouse. Fields: photo, Photos (tiles, ★ = profile,
++ Add photos), first/last/nickname,
 **Male / Female only**, birthday (calendar or "I only know the year"), place of birth, Passed away?
 (reveals death date and burial place), More details (residing at, phone, email, notes). Autosave:
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
@@ -146,6 +150,10 @@ you pick, or a new one after "Add it as a new place" (never one per keystroke, #
 tree" switches it to the search (← Back returns; typing is kept), one kind of box at a time; **one person
 per add**; spouse gender set automatically. ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
+
+**Big photo view** (`photos.js`): over everything, dark; ‹ › / ← → / swipe; closes with ✕, Esc, a tap
+beside the photo, or Back (a history step with the same address). Editors: "Use as profile photo",
+"Remove from this person" (two-step; only unlinks).
 
 **Merge dialog:** find the other copy → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
 tap a value to use it; names/places can also be typed, pasted or dragged into the result box;
