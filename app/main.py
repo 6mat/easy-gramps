@@ -272,7 +272,7 @@ async def tree_details(handle: str, request: Request):
     return await familytree.details(await gramps_as(request), handle)
 
 
-TREE_TAG = os.environ.get("TREE_TAG", "Easy Gramps")  # tag on records the tree's editor creates
+TREE_TAG = os.environ.get("TREE_TAG", "")  # a tag on records the tree makes, if you want one (none by default)
 
 
 _tag = {"handle": None, "until": 0.0}

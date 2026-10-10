@@ -24,7 +24,7 @@ async def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--url", default=os.environ.get("GRAMPS_URL", "").rstrip("/"), help="Gramps Web address")
     ap.add_argument("--user", help="your Gramps Web user name")
-    ap.add_argument("--tag", default=os.environ.get("TREE_TAG", "Easy Gramps"), help="the tree's tag")
+    ap.add_argument("--tag", default=os.environ.get("TREE_TAG") or "Easy Gramps", help="the tree's tag (before 1.2: Easy Gramps)")
     ap.add_argument("--only", default="", help="only names starting with this")
     a = ap.parse_args()
     if not a.url:

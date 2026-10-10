@@ -8,8 +8,8 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
   commits, issues or logs.** Test against the public Gramps Web demo
   (`https://demo.grampsweb.org`, logins `member`/`member`, `contributor`/`contributor`,
   `editor`/`editor`, `owner`/`owner`). It's shared and public: write only throwaway test records.
-- Name test records **`ZZTEST …`** and clean up by that name. Never bulk-delete by the `TREE_TAG`
-  ("Easy Gramps") — real users' records carry it.
+- Name test records **`ZZTEST …`** and clean up by that name. Never bulk-delete by a tag: real users'
+  records carry "Easy Gramps" (the `TREE_TAG` default before 1.2; now no tag unless one is set).
 - UI wording is plain and non-technical ("Add a father", "Saved ✓", "Not saved — try again").
 - Brainstorm or mock up bigger features before building; the owner answers with numbered picks.
 - Small commits, one step each. `VERSION` holds the version (raise it in the PR). Release with GitHub

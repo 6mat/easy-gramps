@@ -16,7 +16,7 @@ services:
       GRAMPS_URL: http://grampsweb:5000                # inside Docker; never leaves the machine
       GRAMPS_PUBLIC_URL: https://${GRAMPS_HOST}        # the "Full Gramps" link; same site = one shared login
       BASE_PATH: /family
-      TREE_TAG: ${TREE_TAG:-Easy Gramps}
+      TREE_TAG: ${TREE_TAG:-}
       FORWARDED_ALLOW_IPS: "*"                         # safe only because no port is published: only Traefik can reach us
       # ICON_FILE: /icon/icon.png                      # your own app icon (square picture), with the volume below
     volumes:

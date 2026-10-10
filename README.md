@@ -86,7 +86,7 @@ read-only screen check weekly.
 | `GRAMPS_URL` | How the app reaches Gramps Web (internal Docker URL on a server). |
 | `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/family/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
 | `BASE_PATH` | Path the app is served under. Default `/family`. |
-| `TREE_TAG` | Tag put on records the editor creates. Default `Easy Gramps`. |
+| `TREE_TAG` | A tag put on records the tree makes (people, families, events, places, notes, photos), e.g. `Easy Gramps`. Empty by default: no tag. Before 1.2 the default was `Easy Gramps`; `remove_tag.py` takes it off again (see below). |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |

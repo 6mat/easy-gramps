@@ -288,3 +288,11 @@ def test_own_icon_picture_replaces_every_icon(fake, client, monkeypatch, tmp_pat
     im = Image.open(io.BytesIO(client.get(after).content)).convert("RGB")
     assert im.size == (192, 192) and im.getpixel((96, 96)) == (200, 30, 30)
     assert f"icon-180.png?v={after.split('v=')[1]}" in client.get("/family/").text
+
+
+def test_no_tag_unless_one_is_set(fake, client, monkeypatch):
+    import main
+    monkeypatch.setattr(main, "TREE_TAG", "")
+    client.post("/family/tree/person", json={"first": "A", "birth": {"y": 1950}})
+    assert not fake.db["tags"] and fake.sent("POST", "/objects/")
+    assert all(not x.get("tag_list") for kind in ("people", "events") for x in fake.db[kind].values())
