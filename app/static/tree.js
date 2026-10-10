@@ -1,8 +1,8 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
-import { store } from "./auth.js";
-import { $, P, S, byBirth, canAdd, canLink, h, name, other, parentFam, photoEl, saveView, spouseFams, spouseWord, years } from "./common.js";
+import { api, store } from "./auth.js";
+import { $, DATE_CHOICES, P, S, byBirth, canAdd, canLink, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
-import { closeEditor, hideDlg, openEditor, showDlg } from "./editor.js";
+import { closeEditor, hideDlg, openEditor, showDlg, toast } from "./editor.js";
 import { renderAll, renderStart, startAdd } from "./start.js";
 import { searchKeys, showHits } from "./search.js";
 
@@ -582,6 +582,22 @@ $("#tip-close").onclick = () => { store.set("eg_tip_on", null); showTip(false); 
 $("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); $("#menupop").hidden = true; showTip(true); };
 $("#tipbar").hidden = !store.get("eg_tip_on");
 store.set("eg_tip_done", null);  // the old "closed it" setting isn't needed any more
+
+// ----- date format: kept with the login, so it follows the person to every device (and on this
+// device too, so the page starts with it before the login is checked) -----
+$("#datefmt").replaceChildren(...DATE_CHOICES.map(([k, example]) => h("option", { value: k }, example)));
+function showDates(f) { setDateFormat(f); $("#datefmt").value = dateFormat; store.set("eg_dates", dateFormat); }
+showDates(store.get("eg_dates"));
+export function useSettings(s) { if (s?.dates) showDates(s.dates); }  // at login, before the page is drawn
+$("#datefmt").addEventListener("change", async () => {
+  showDates($("#datefmt").value);
+  renderAll();
+  try {
+    await api("/auth/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dates: dateFormat }) });
+  } catch {
+    toast("Not saved to your login, only on this device. Try again later.");
+  }
+});
 
 // ----- the zoom & map strip can be hidden; remembered on this device -----
 function showNav(on) {

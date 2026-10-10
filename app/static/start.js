@@ -1,8 +1,8 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
 import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
-import { $, ME, P, S, canAdd, desc, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
+import { $, ME, P, S, canAdd, desc, fmtDate, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
 import { searchKeys, showHits } from "./search.js";
-import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree } from "./tree.js";
+import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
 
@@ -49,7 +49,8 @@ function relTime(ts) {
   if (s < day && new Date(ts * 1000).toDateString() === new Date().toDateString()) return "today";
   if (s < 2 * day) return "yesterday";
   if (s < 30 * day) return `${Math.floor(s / day)} days ago`;
-  return new Date(ts * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const t = new Date(ts * 1000);
+  return fmtDate({ y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() });
 }
 function recentCard(p, sub) {
   return h("button", { class: "recentcard", onclick: () => seeTree(p.id), title: `Open ${name(p)}'s family tree` },
@@ -180,6 +181,7 @@ export async function start() {
     return gate(`Couldn't load the family tree: ${err.message}`, h("button", { onclick: start }, "Try again"));
   }
   S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
+  useSettings(ME.settings);
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
   S.focus = P[v.focus] ? v.focus : null;

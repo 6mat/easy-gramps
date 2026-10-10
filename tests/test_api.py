@@ -296,3 +296,14 @@ def test_no_tag_unless_one_is_set(fake, client, monkeypatch):
     client.post("/family/tree/person", json={"first": "A", "birth": {"y": 1950}})
     assert not fake.db["tags"] and fake.sent("POST", "/objects/")
     assert all(not x.get("tag_list") for kind in ("people", "events") for x in fake.db[kind].values())
+
+
+def test_date_format_is_kept_with_the_login(fake, client):
+    import main
+    main.SETTINGS_FILE.unlink(missing_ok=True)
+    assert client.get("/family/auth/me").json()["settings"] == {}
+    assert client.put("/family/auth/settings", json={"dates": "m/d/y"}).json() == {"dates": "m/d/y"}
+    assert client.get("/family/auth/me").json()["settings"] == {"dates": "m/d/y"}
+    assert client.put("/family/auth/settings", json={"dates": "<b>"}).status_code == 400
+    assert client.put("/family/auth/settings", json={"dates": "y-m-d"}, headers={"Authorization": "Bearer bad"}).status_code == 401
+    assert main.read_settings() == {"tester": {"dates": "m/d/y"}}
