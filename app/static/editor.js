@@ -4,6 +4,7 @@ import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loa
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
+import { openViewer, thumbUrl } from "./photos.js";
 import { renderAll, showLogin } from "./start.js";
 
 // ---------- undo + toast ----------
@@ -249,6 +250,43 @@ function dateInputs(prefix, label, get, set) {
   return h("div", {}, cal, yr, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
 }
 
+// More photos, one after another (each after the person's other photos).
+function addPhotos(p, files) {
+  const ok = files.filter(f => f.size <= 20 * 1024 * 1024);
+  if (ok.length < files.length) setStatus("A photo was too big (20 MB at most) and wasn't added", "failed");
+  ok.forEach((f, i) => {
+    saveChain = saveChain.then(async () => {
+      setStatus(ok.length > 1 ? `Saving photo ${i + 1} of ${ok.length}…` : "Saving photo…", "saving");
+      const fd = new FormData(); fd.append("photo", f, f.name); fd.append("main", "0");
+      const res = await api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd });
+      p.photos = [...p.photos, res.added]; p.photo = res.photo;
+      if (!$("#editor").hidden) renderEditor();
+    });
+  });
+  if (ok.length) saveChain = saveChain.then(() => { setStatus("Saved ✓"); renderTree(); renderPanel(); }, err => {
+    if (err instanceof LoginNeeded) return showLogin();
+    setStatus(`Photo not saved: ${err.message}`, "failed");
+  });
+}
+// From the big view: make a photo the profile photo, or take it off this person. Resolves to their photos.
+async function photoAct(p, m, what) {
+  setStatus("Saving…", "saving");
+  try {
+    await flushSaves();
+    const res = await postJSON(`/tree/person/${p.id}/photos`, { media: m, do: what });
+    p.photos = what === "remove" ? p.photos.filter(x => x !== m) : [m, ...p.photos.filter(x => x !== m)];
+    p.photo = res.photo;
+    setStatus("Saved ✓");
+    if (!$("#editor").hidden) renderEditor();
+    renderTree(); renderPanel();
+    return p.photos;
+  } catch (err) {
+    if (err instanceof LoginNeeded) showLogin();
+    else setStatus(`Not saved: ${err.message}`, "failed");
+    throw err;
+  }
+}
+
 function centreCard(p) {
   const file = h("input", { id: "ed-photo-file", type: "file", accept: "image/*", hidden: true });
   file.addEventListener("change", () => {
@@ -261,7 +299,7 @@ function centreCard(p) {
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
     saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
-      .then(res => { p.photo = res.photo; setStatus("Saved ✓"); })
+      .then(res => { p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)]; setStatus("Saved ✓"); })
       .catch(err => {
         p.photo = old; URL.revokeObjectURL(preview);
         if (err instanceof LoginNeeded) return showLogin();
@@ -269,6 +307,20 @@ function centreCard(p) {
         setStatus(`Photo not saved: ${err.message}`, "failed");
       });
   });
+  // More photos: added after the others; tap one to see it big (editors: make it the profile photo, or take it off).
+  const more = h("input", { id: "ed-photos-file", type: "file", accept: "image/*", multiple: true, hidden: true });
+  more.addEventListener("change", () => { const files = [...more.files]; more.value = ""; addPhotos(p, files); });
+  const view = i => openViewer(p.photos, i, name(p), canEdit() && { main: m => photoAct(p, m, "main"), remove: m => photoAct(p, m, "remove") });
+  const mainPhoto = p.photos[0] && p.photos[0] === p.photo
+    ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => view(0) }, photoEl(p, true))
+    : photoEl(p, true);
+  const photos = (p.photos.length > 1 || canEdit()) && h("div", { class: "photos full" },
+    h("div", { class: "flabel" }, p.photos.length ? `Photos (${p.photos.length})` : "Photos"),
+    h("div", { class: "phgrid" },
+      ...p.photos.map((m, i) => h("button", { class: "phtile", title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => view(i) },
+        h("img", { src: thumbUrl(m), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
+      canEdit() && h("button", { class: "phadd", onclick: () => more.click() }, "+ Add photos")),
+    more);
   const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
     ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
       const r = h("input", { type: "radio", name: "ed-gender", id: `ed-g-${v}`, disabled: !canEdit() });
@@ -301,9 +353,10 @@ function centreCard(p) {
       `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
   return h("div", { class: "centre" },
-    h("div", { class: "photo-row full" }, photoEl(p, true),
+    h("div", { class: "photo-row full" }, mainPhoto,
       canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
       !canEdit() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
+    photos,
     field("First name", bindText(p, "first", "ed-first")),
     field("Last name", bindText(p, "last", "ed-last")),
     field("Nickname", bindText(p, "nick", "ed-nick")),

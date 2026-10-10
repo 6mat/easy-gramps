@@ -435,3 +435,29 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 @media (max-width: 620px) {
   .cmpres-lbl { display: block; }
 }
+
+/* ---------- photos: the big view, the editor's Photos, the panel's strip ---------- */
+.phbtn { padding: 0; border: 0; background: none; border-radius: 16px; cursor: zoom-in; flex: none; }
+.phbtn:hover .ph { box-shadow: 0 0 0 3px var(--accent); }
+.photos { display: flex; flex-direction: column; gap: 8px; }
+.phgrid { display: flex; flex-wrap: wrap; gap: 10px; }
+.phtile, .phadd { position: relative; width: 96px; height: 96px; padding: 0; border-radius: 12px; overflow: hidden; flex: none; cursor: zoom-in; }
+.phtile img, .phstrip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.phtile .star { position: absolute; left: 4px; top: 4px; background: var(--card); color: var(--sel-ink); border-radius: 999px; padding: 0 6px; font-size: 13px; }
+.phadd { border-style: dashed; font-size: 14px; cursor: pointer; }
+.phstrip { display: flex; flex-wrap: wrap; gap: 6px; }
+.phstrip button { width: 52px; height: 52px; padding: 0; border-radius: 8px; overflow: hidden; cursor: zoom-in; }
+.viewer { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 12px; touch-action: none;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); background: rgba(12, 11, 10, .94); color: #f3efe8; }
+.viewer button { background: #25231f; color: #f3efe8; border-color: #5a554c; }
+.viewer button.danger { color: #ff8a7e; border-color: #ff8a7e; }
+.vbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 17px; }
+.vstage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 12px; }
+.vstage img { max-width: calc(100% - 150px); max-height: 100%; object-fit: contain; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
+.vstep { flex: none; width: 60px; height: 80px; padding: 0; font-size: 40px; line-height: 1; border-radius: 14px; }
+.vactions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+@media (max-width: 600px) {
+  .vstage img { max-width: 100%; }
+  .vstep { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 64px; opacity: .85; }
+  .vstep:first-child { left: 0; } .vstep:last-child { right: 0; }
+}

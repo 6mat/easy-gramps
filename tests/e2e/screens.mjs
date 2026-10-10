@@ -98,6 +98,9 @@ async function cleanup() {
   const unused = async (kind, h) => { const r = await g(`/${kind}/${h}?backlinks=1`); if (!r.ok) return false; const j = await r.json(); return !Object.values(j.backlinks || {}).some(v => v.length); };
   for (const [kind, set] of [["events", events], ["notes", notes], ["media", media]])
     for (const h of set) if (await unused(kind, h)) await g(`/${kind}/${h}`, { method: "DELETE" });
+  // Photos taken off a ZZTEST person stay in Gramps (on purpose): delete those too.
+  for (const m of await (await g("/media/?keys=handle,desc")).json())
+    if ((m.desc || "").startsWith("Photo of ZZTEST") && await unused("media", m.handle)) await g(`/media/${m.handle}`, { method: "DELETE" });
   const places = await (await g("/places/?keys=handle,name")).json();
   for (const pl of places) if (pl.name.value.startsWith("ZZTEST") && await unused("places", pl.handle)) await g(`/places/${pl.handle}`, { method: "DELETE" });
   const left = (await (await g("/people/?keys=handle,primary_name")).json()).filter(zz).length;
@@ -172,6 +175,15 @@ async function cleanup() {
     await page.click("#z-full"); await page.waitForSelector("body.fullmode"); await page.waitForSelector("#tree-home", { state: "visible" });
     await page.click("#z-full");
   });
+  await step(page, "photo bigger from the panel; Esc and Back close it", async () => {
+    await page.fill("#q", "Elizabeth II"); await page.click("#results .hitmain >> nth=0");
+    await page.click("#panel .phbtn"); await page.waitForSelector("#viewer:not([hidden]) .vstage img");
+    await page.keyboard.press("Escape"); await page.waitForSelector("#viewer", { state: "hidden" });
+    const at = page.url();
+    await page.click("#panel .phbtn"); await page.waitForSelector("#viewer:not([hidden])");
+    await page.goBack(); await page.waitForSelector("#viewer", { state: "hidden" });
+    if (page.url() !== at || !(await page.isVisible(".node.focus"))) throw new Error("Back did more than close the photo");
+  });
   await step(page, "top search: photos, preview, no one found", async () => {
     await page.fill("#q", "Stewart"); await page.waitForSelector("#results .hit .hitmain .ph");
     await page.click("#results .hit .info >> nth=0"); await page.waitForSelector("#results .preview:not([hidden])");
@@ -236,6 +248,26 @@ if (WRITE) {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
     await page.setInputFiles("#ed-photo-file", { name: "zztest.png", mimeType: "image/png", buffer: png });
     await page.waitForFunction(() => /Saved/.test(document.querySelector("#ed-status").textContent) && !document.querySelector(".centre .ph img")?.src.startsWith("data:"));
+  });
+  await step(page, "more photos: add, big view, profile photo, remove, Back", async () => {
+    const png = c => Buffer.from(`iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`, "base64");
+    await page.setInputFiles("#ed-photos-file", [{ name: "zztest2.png", mimeType: "image/png", buffer: png() }, { name: "zztest3.png", mimeType: "image/png", buffer: png() }]);
+    await page.waitForFunction(() => document.querySelectorAll(".phtile").length === 3 && /Saved/.test(document.querySelector("#ed-status").textContent), null, { timeout: T });
+    const bar = () => page.textContent("#viewer .vbar");
+    await page.click(".phtile >> nth=2"); await page.waitForSelector("#viewer:not([hidden])");
+    if (!/3 of 3/.test(await bar())) throw new Error(`opened at ${await bar()}`);
+    await page.keyboard.press("ArrowLeft"); if (!/2 of 3/.test(await bar())) throw new Error("← didn't go back a photo");
+    const second = await page.getAttribute("#viewer .vstage img", "src");
+    await page.click("#viewer button:has-text('Use as profile photo')");
+    await page.waitForSelector("#viewer :text('★ Profile photo')");
+    if (!/1 of 3/.test(await bar()) || await page.getAttribute("#viewer .vstage img", "src") !== second) throw new Error("the profile photo didn't move first");
+    await page.click("#viewer button:has-text('Remove from this person')"); await page.click("#viewer button:has-text('Yes, remove it')");
+    await page.waitForFunction(() => /1 of 2/.test(document.querySelector("#viewer .vbar").textContent));
+    await page.keyboard.press("Escape"); await page.waitForSelector("#viewer", { state: "hidden" });
+    if (await page.locator(".phtile").count() !== 2) throw new Error("the removed photo is still in the editor");
+    await page.click(".phtile >> nth=1"); await page.waitForSelector("#viewer:not([hidden])");
+    await page.goBack(); await page.waitForSelector("#viewer", { state: "hidden" });
+    if (!(await page.isVisible("#editor"))) throw new Error("Back closed the editor too");
   });
   const addNew = async (slot, first, last) => {
     await page.click(`button.ed-slot:has-text('${slot}') >> nth=0`);

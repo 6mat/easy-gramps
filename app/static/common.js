@@ -7,7 +7,7 @@ export const ME = {};  // the logged-in user (from /auth/me), filled in by start
 export async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];
-  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], ...p };
+  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], photos: [], ...p };
   FAMS.length = 0; FAMS.push(...g.families);
 }
 
@@ -136,7 +136,7 @@ export function photoEl(p, big) {
   return el;
 }
 let renewing = null;
-function renewPhotos() {  // one renewal for all the photos that failed at the same time
+export function renewPhotos() {  // one renewal for all the photos that failed at the same time
   renewing ||= api("/auth/me").then(() => photoSession()).then(() => true, () => false)
     .finally(() => setTimeout(() => { renewing = null; }, 30000));
   return renewing;
