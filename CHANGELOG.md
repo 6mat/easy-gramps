@@ -2,9 +2,26 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## 1.3.2 — 2026-10-10
+## 1.3.3 — 2026-10-10
+
+(Includes 1.3.2, which wasn't released on its own.)
+
+### Added
+- **ⓘ preview when picking someone:** in the Add pop-up's "Pick someone already in the tree" and in the
+  merge dialog, the same preview as in the search (born, parents, wife or husband, children), so the
+  right person gets linked or merged. Keys work there too (↓ ↑, → / ←).
+- **A couple listed twice can be combined:** the editor says "B is listed as A's wife twice" and editors
+  can **Combine them** (Gramps' own family merge: the children and dates of both are kept). This repairs
+  families tidied up only partly in Gramps Web.
+
+### Changed
+- "Is this person in the tree twice?" is now **"⧉ Duplicate profile? Merge."**, a real button.
+- The Add pop-up says when a new father or mother also goes to brothers and sisters in the same family.
 
 ### Fixed
+- Adding a mother (or father) who was already the other parent's wife (or husband) made the couple
+  twice: A got B as a second wife, B got A as a second husband. Now the children join the couple's
+  family instead, and Undo puts it back as it was.
 - The word "false" showed under a person's name in the details panel when they had one photo or none
   (since 1.3.0), and at the bottom of the big photo view for people who can't edit. The same slip is
   fixed on the login screen (when only a sign-in button is offered) and in the Add pop-up. The screen
