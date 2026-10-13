@@ -50,6 +50,7 @@ export async function refresh() {
 // ---------- autosave: typing is saved when you leave the box or stop for 2 s; ticks and buttons at once ----------
 const pending = {};          // person id -> fields waiting to be saved
 let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
+let sentSaves = false;  // anything saved since the editor opened: closing it then reloads the tree
 function setStatus(text, cls = "") {
   const st = $("#ed-status");
   st.className = `status ${cls}`.trim();
@@ -67,6 +68,7 @@ export function flushSaves(keepalive = false) {  // keepalive: the page is closi
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
   if (!work.length) return saveChain;
+  sentSaves = true;
   saveChain = saveChain.then(async () => {
     for (const [id, patch] of work) {
       try {
@@ -104,8 +106,11 @@ export async function openEditor(id, rel, famId, restoring = false) {
 export async function closeEditor() {
   if (!$("#editor").hidden) { S.add = null; $("#editor").hidden = true; hideDlg(); dropClosedSteps(); }
   await flushSaves();
-  // Reload so the tree shows exactly what Gramps now holds.
-  try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  // Something was saved: reload so the tree shows exactly what Gramps now holds. Only looked: nothing to reload.
+  if (sentSaves) {
+    sentSaves = false;
+    try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  }
   if (!P[S.focus]) S.focus = null;
   if (!P[S.sel]) S.sel = S.focus;
   renderTree(); renderPanel();
@@ -255,6 +260,7 @@ function dateInputs(prefix, label, get, set) {
 function addPhotos(p, files) {
   const ok = files.filter(f => f.size <= 20 * 1024 * 1024);
   if (ok.length < files.length) setStatus("A photo was too big (20 MB at most) and wasn't added", "failed");
+  if (ok.length) sentSaves = true;
   ok.forEach((f, i) => {
     saveChain = saveChain.then(async () => {
       setStatus(ok.length > 1 ? `Saving photo ${i + 1} of ${ok.length}…` : "Saving photo…", "saving");
@@ -274,6 +280,7 @@ async function photoAct(p, m, what) {
   setStatus("Saving…", "saving");
   try {
     await flushSaves();
+    sentSaves = true;
     const res = await postJSON(`/tree/person/${p.id}/photos`, { media: m, do: what });
     p.photos = what === "remove" ? p.photos.filter(x => x !== m) : [m, ...p.photos.filter(x => x !== m)];
     p.photo = res.photo;
@@ -299,6 +306,7 @@ function centreCard(p) {
     p.photo = preview; renderEditor();
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
+    sentSaves = true;
     saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
       .then(res => { p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)]; setStatus("Saved ✓"); })
       .catch(err => {
