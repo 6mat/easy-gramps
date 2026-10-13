@@ -7,8 +7,11 @@ def test_graph_people_families_and_marriage_order(fake, g):
     dad, mum, mum2, kid = fake.person("Tom", "Lee", 1), fake.person("Ann", "Lee", 0), fake.person("Bea", "Ray", 0), fake.person("Sam", "Lee", 1)
     f1 = fake.family(dad, mum, [kid])
     f2 = fake.family(dad, mum2)
-    fake.add("events", _class="Event", handle="ev1", type="Birth", date={"dateval": [3, 4, 1950, False], "modifier": 3}, place="pl1")
-    fake.add("places", handle="pl1", name={"value": "Cork"})
+    fake.add("events", _class="Event", handle="ev1", gramps_id="E0001", type="Birth", date={"dateval": [3, 4, 1950, False], "modifier": 3}, place="pl1")
+    fake.add("places", handle="pl1", gramps_id="P0001", name={"value": "Cork"})
+    fake.add("media", handle="m1", gramps_id="O0001", mime="image/jpeg")
+    fake.add("media", handle="m2", gramps_id="O0002", mime="application/pdf")
+    fake.db["families"][f1]["gramps_id"] = "F0001"
     fake.db["people"][dad].update(event_ref_list=[{"ref": "ev1"}], birth_ref_index=0)
     out = run(familytree.graph(g))
     p = out["people"][dad]
@@ -16,7 +19,10 @@ def test_graph_people_families_and_marriage_order(fake, g):
     assert p["birth"] == {"y": 1950, "m": 4, "d": 3, "about": True} and p["birthPlace"] == "Cork"
     assert p["fams"] == [f1, f2]  # 1st marriage first
     fam = next(f for f in out["families"] if f["id"] == f1)
-    assert fam == {"id": f1, "f": dad, "m": mum, "kids": [kid]}
+    assert fam == {"id": f1, "gid": "F0001", "f": dad, "m": mum, "kids": [kid]}
+    # Gramps IDs for the "open in Gramps Web" links: only those that exist; pictures only
+    assert p["gids"] == {"birth": "E0001", "birthPlace": "P0001"} and out["people"][kid]["gids"] == {}
+    assert out["media"] == {"m1": "O0001"}
 
 
 def test_add_new_father_creates_family_and_undo_removes_both(fake, g):

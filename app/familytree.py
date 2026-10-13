@@ -31,13 +31,14 @@ async def graph(g: Gramps) -> dict:
     people, families, events, places, media = await asyncio.gather(
         g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
                                "birth_ref_index,death_ref_index,family_list,parent_family_list,media_list"),
-        g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list"),
-        g.get("/events/", keys="handle,type,date,place"),
-        g.get("/places/", keys="handle,name"),
-        g.get("/media/", keys="handle,mime"))
+        g.get("/families/", keys="handle,gramps_id,father_handle,mother_handle,child_ref_list"),
+        g.get("/events/", keys="handle,gramps_id,type,date,place"),
+        g.get("/places/", keys="handle,gramps_id,name"),
+        g.get("/media/", keys="handle,gramps_id,mime"))
     events = {e["handle"]: e for e in events}
+    place_gid = {p["handle"]: p.get("gramps_id", "") for p in places}
     places = {p["handle"]: p["name"]["value"] for p in places}
-    pictures = {m["handle"] for m in media if (m.get("mime") or "").startswith("image/")}
+    pictures = {m["handle"]: m.get("gramps_id", "") for m in media if (m.get("mime") or "").startswith("image/")}
 
     out = {}
     for p in people:
@@ -66,11 +67,16 @@ async def graph(g: Gramps) -> dict:
             "photos": [m["ref"] for m in p.get("media_list") or [] if m["ref"] in pictures],  # every picture, main first
             "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
             "pfams": p.get("parent_family_list") or [],  # their parents' families; the first is the one shown
+            # Gramps IDs for "open in Gramps Web" links (only the ones that exist).
+            "gids": {k: v for k, v in (("birth", (birth or {}).get("gramps_id")), ("death", (death or {}).get("gramps_id")),
+                                       ("burial", (burial or {}).get("gramps_id")),
+                                       ("birthPlace", place_gid.get((birth or {}).get("place"))),
+                                       ("burialPlace", place_gid.get((burial or {}).get("place")))) if v},
         }
-    fams = [{"id": f["handle"], "f": f.get("father_handle") or None, "m": f.get("mother_handle") or None,
-             "kids": [c["ref"] for c in f.get("child_ref_list") or []]}
+    fams = [{"id": f["handle"], "gid": f.get("gramps_id", ""), "f": f.get("father_handle") or None,
+             "m": f.get("mother_handle") or None, "kids": [c["ref"] for c in f.get("child_ref_list") or []]}
             for f in families]
-    return {"people": out, "families": fams}
+    return {"people": out, "families": fams, "media": pictures}  # media: each picture's Gramps ID
 
 
 async def details(g: Gramps, handle: str) -> dict:
