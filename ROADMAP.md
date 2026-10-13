@@ -28,7 +28,7 @@ Work plan. **1.0 is released**: everything under "Done" below. Next up is the li
 - [x] Container runs as a non-root user; Traefik example publishes no port.
 
 ### 2. Shared login with Gramps Web (Google / OIDC users included)
-Easy Gramps is served on the **same origin** as Gramps Web (`https://host/family/`), so both apps
+Easy Gramps is served on the **same origin** as Gramps Web (`https://host/easy-gramps/`), so both apps
 share the browser's `localStorage`, where Gramps Web keeps its login (password *or* OIDC) under
 `access_token`, `refresh_token`, `access_token_expires` and `id_token`. Owner's picks: 1a 2a 3a 4a 5a.
 - [x] `auth.js` uses Gramps Web's keys on the same origin (automatic, no setting); an old `eg_*` login

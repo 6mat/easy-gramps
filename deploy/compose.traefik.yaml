@@ -1,6 +1,6 @@
 # Easy Gramps on the same machine as Gramps Web, behind Traefik, on the same domain:
-#   https://gramps.example.com/          -> Gramps Web
-#   https://gramps.example.com/family/   -> Easy Gramps
+#   https://gramps.example.com/               -> Gramps Web
+#   https://gramps.example.com/easy-gramps/   -> Easy Gramps
 # Same domain is deliberate: the browser then shares one login between the two apps.
 #
 # Assumes Traefik and Gramps Web are already running and share the external Docker network
@@ -15,7 +15,7 @@ services:
     environment:
       GRAMPS_URL: http://grampsweb:5000                # inside Docker; never leaves the machine
       GRAMPS_PUBLIC_URL: https://${GRAMPS_HOST}        # the "Full Gramps" link; same site = one shared login
-      BASE_PATH: /family
+      BASE_PATH: /easy-gramps
       TREE_TAG: ${TREE_TAG:-}
       FORWARDED_ALLOW_IPS: "*"                         # safe only because no port is published: only Traefik can reach us
       # ICON_FILE: /icon/icon.png                      # your own app icon (square picture), with the volume below
@@ -26,7 +26,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.routers.easy-gramps.rule=Host(`${GRAMPS_HOST}`) && PathPrefix(`/family`)
+      - traefik.http.routers.easy-gramps.rule=Host(`${GRAMPS_HOST}`) && PathPrefix(`/easy-gramps`)
       - traefik.http.routers.easy-gramps.entrypoints=websecure
       - traefik.http.routers.easy-gramps.tls=true
       - traefik.http.routers.easy-gramps.tls.certresolver=${CERT_RESOLVER:-letsencrypt}
@@ -34,7 +34,7 @@ services:
       # router sets an explicit priority, set a higher one here:
       # - traefik.http.routers.easy-gramps.priority=100
       - traefik.http.services.easy-gramps.loadbalancer.server.port=8000
-      # No strip-prefix middleware: the app expects /family in the path.
+      # No strip-prefix middleware: the app expects /easy-gramps in the path.
 
 volumes:
   easy-gramps-data:

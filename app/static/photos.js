@@ -2,7 +2,7 @@
 // a person's photos, and for editors "Use as profile photo" / "Remove from this person".
 // It's a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { BASE } from "./auth.js";
-import { $, h, renewPhotos, trapTab } from "./common.js";
+import { $, MEDIA, grampsLink, h, renewPhotos, trapTab } from "./common.js";
 
 const bigUrl = m => `${BASE}/gapi/media/${m}/thumbnail/1024`;
 
@@ -57,7 +57,8 @@ function draw() {
   $("#viewer").replaceChildren(
     h("div", { class: "vbar" },
       h("span", {}, h("strong", {}, who), list.length > 1 && ` · ${at + 1} of ${list.length}`),
-      h("button", { class: "vclose", onclick: closeViewer }, "✕ Close")),
+      h("span", { class: "vtools" }, grampsLink("media", MEDIA[m], "Open in Full Gramps ↗", "Open this photo in Full Gramps"),
+        h("button", { class: "vclose", onclick: closeViewer }, "✕ Close"))),
     h("div", { class: "vstage", onclick: e => { if (e.target === e.currentTarget) closeViewer(); } },
       list.length > 1 && h("button", { class: "vstep", "aria-label": "Previous photo", onclick: () => step(-1) }, "‹"),
       img,

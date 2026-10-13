@@ -7,8 +7,11 @@ def test_graph_people_families_and_marriage_order(fake, g):
     dad, mum, mum2, kid = fake.person("Tom", "Lee", 1), fake.person("Ann", "Lee", 0), fake.person("Bea", "Ray", 0), fake.person("Sam", "Lee", 1)
     f1 = fake.family(dad, mum, [kid])
     f2 = fake.family(dad, mum2)
-    fake.add("events", _class="Event", handle="ev1", type="Birth", date={"dateval": [3, 4, 1950, False], "modifier": 3}, place="pl1")
-    fake.add("places", handle="pl1", name={"value": "Cork"})
+    fake.add("events", _class="Event", handle="ev1", gramps_id="E0001", type="Birth", date={"dateval": [3, 4, 1950, False], "modifier": 3}, place="pl1")
+    fake.add("places", handle="pl1", gramps_id="P0001", name={"value": "Cork"})
+    fake.add("media", handle="m1", gramps_id="O0001", mime="image/jpeg")
+    fake.add("media", handle="m2", gramps_id="O0002", mime="application/pdf")
+    fake.db["families"][f1]["gramps_id"] = "F0001"
     fake.db["people"][dad].update(event_ref_list=[{"ref": "ev1"}], birth_ref_index=0)
     out = run(familytree.graph(g))
     p = out["people"][dad]
@@ -16,7 +19,10 @@ def test_graph_people_families_and_marriage_order(fake, g):
     assert p["birth"] == {"y": 1950, "m": 4, "d": 3, "about": True} and p["birthPlace"] == "Cork"
     assert p["fams"] == [f1, f2]  # 1st marriage first
     fam = next(f for f in out["families"] if f["id"] == f1)
-    assert fam == {"id": f1, "f": dad, "m": mum, "kids": [kid]}
+    assert fam == {"id": f1, "gid": "F0001", "f": dad, "m": mum, "kids": [kid]}
+    # Gramps IDs for the "open in Gramps Web" links: only those that exist; pictures only
+    assert p["gids"] == {"birth": "E0001", "birthPlace": "P0001"} and out["people"][kid]["gids"] == {}
+    assert out["media"] == {"m1": "O0001"}
 
 
 def test_add_new_father_creates_family_and_undo_removes_both(fake, g):
@@ -127,15 +133,15 @@ def test_adding_a_mother_who_isnt_his_wife_still_fills_the_family(fake, g):
 def test_combine_the_same_couple_recorded_twice(fake, client):
     a, b, c = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C")
     f1, f2 = fake.family(a, b), fake.family(a, b, [c])
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f2}).json() == {"famId": f1}
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": f2}).json() == {"famId": f1}
     assert fake.get("families", f2) is None and [k["ref"] for k in fake.get("families", f1)["child_ref_list"]] == [c]
     x = fake.family(a, fake.person("X", "", 0))
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": x}).status_code == 400  # not the same couple
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": x}).status_code == 400  # not the same couple
     fake.role = 2
     import main
     main._who_cache.clear()
     f3 = fake.family(a, b)
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
 
 
 def test_the_couple_is_found_even_when_gramps_web_took_it_off_both_people(fake, g):

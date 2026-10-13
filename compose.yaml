@@ -13,7 +13,7 @@ services:
       GRAMPS_PUBLIC_URL: ${GRAMPS_PUBLIC_URL:-}
       GRAMPS_LINK_LABEL: ${GRAMPS_LINK_LABEL:-Full Gramps}
       SOURCE_URL: ${SOURCE_URL:-}
-      BASE_PATH: ${BASE_PATH:-/family}
+      BASE_PATH: ${BASE_PATH:-/easy-gramps}
       TREE_TAG: ${TREE_TAG:-}
       DEBUG_LOG: ${DEBUG_LOG:-}
     ports:

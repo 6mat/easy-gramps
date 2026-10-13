@@ -2,13 +2,15 @@
 import { api, BASE, photoSession } from "./auth.js";
 
 // ---------- family data ----------
-export const P = {}, FAMS = [];
+export const P = {}, FAMS = [], MEDIA = {};  // MEDIA: each picture's Gramps ID, for links to Gramps Web
 export const ME = {};  // the logged-in user (from /auth/me), filled in by start()
 export async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];
-  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], photos: [], ...p };
+  for (const [id, p] of Object.entries(g.people)) P[id] = { residence: "", residenceRest: "", phone: "", email: "", notes: "", otherNotes: [], photos: [], gids: {}, ...p };
   FAMS.length = 0; FAMS.push(...g.families);
+  for (const k of Object.keys(MEDIA)) delete MEDIA[k];
+  Object.assign(MEDIA, g.media);
 }
 
 
@@ -82,6 +84,14 @@ export const sameName = (first, last) => Object.values(P).filter(p =>
 export const canAdd = () => S.role !== "guest";
 export const canEdit = () => S.role === "editor";
 export const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
+// A link to a record's own page in Gramps Web (person, family, event, place, media), opened in a new tab.
+// Editors only, so the people the simple tree is for don't land in the full Gramps Web by accident.
+export function grampsLink(kind, gid, text = "Full Gramps ↗", label = text) {
+  const base = ME.gramps_link?.url;
+  if (!canEdit() || !base || !gid) return "";  // ("" not false: replaceChildren would print it)
+  return h("a", { class: "glink", href: `${base}/${kind}/${encodeURIComponent(gid)}`, target: "_blank", rel: "noopener",
+    title: "Opens in Gramps Web, in a new tab", "aria-label": label }, text);
+}
 export const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
 // Their parents' family: the first in Gramps' own order (the server uses the same one when adding a parent).
 export const parentFam = id => FAMS.find(f => f.id === P[id]?.pfams?.[0]) || FAMS.find(f => f.kids.includes(id));

@@ -449,6 +449,13 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .viewer button { background: #25231f; color: #f3efe8; border-color: #5a554c; }
 .viewer button.danger { color: #ff8a7e; border-color: #ff8a7e; }
 .vbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 17px; }
+.vtools { display: flex; align-items: center; gap: 16px; }
+/* links to a record's own page in Gramps Web (editors only) */
+.glink { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.glink:hover { text-decoration: underline; }
+.glinks { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.viewer .glink { color: #7ab0e6; }
+.ed-head .glink { font-size: 14px; }
 .vstage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 12px; }
 .vstage img { max-width: calc(100% - 150px); max-height: 100%; object-fit: contain; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
 .vstep { flex: none; width: 60px; height: 80px; padding: 0; font-size: 40px; line-height: 1; border-radius: 14px; }

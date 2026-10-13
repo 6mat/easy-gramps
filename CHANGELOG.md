@@ -2,6 +2,20 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.5.0 — 2026-10-13
+
+### Added
+- **Open in Full Gramps ↗** (editors only, #70): straight to a record's own page in Gramps Web, in a new tab.
+  In the details panel under More details (this person, birth, place of birth, death, burial, burial
+  place), in the editor's header (the person) and on each "Children with …" group (the family), and in
+  the big photo view (the photo, e.g. to add a caption or tag the people in it).
+
+### Changed
+- **The default address is now `/easy-gramps`** instead of `/family` (#103). Gramps Web's own family pages
+  are `/family/F…`, so family links need Easy Gramps elsewhere. An install that sets `BASE_PATH=/family`
+  keeps working there; the README (Install → "Move from `/family` to `/easy-gramps`") says how to move.
+  Old bookmarks and phones that installed the page as an app need the new address.
+
 ## 1.4.1 — 2026-10-13
 
 ### Changed
