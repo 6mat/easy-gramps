@@ -172,8 +172,7 @@ export async function start() {
   gate("Loading the family tree…");
   try {
     Object.assign(ME, await api("/auth/me"));
-    await photoSession();
-    await loadGraph();
+    await Promise.all([photoSession(), loadGraph()]);  // the tree doesn't need the photo cookie: both at once
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();
     if (err.status === 403) return gate(err.message, h("button", { onclick: start }, "Try again"),
