@@ -185,20 +185,15 @@ export function renderTree() {
   }
 
   // ----- size the canvas; fit it to the screen (never below 60%) unless zoomed by hand -----
-  const scroll = $("#treescroll"), inner = $("#treeinner"), size = $("#treesize");
+  const scroll = $("#treescroll");
   const minX = Math.min(...nodes.map(n => n.x)), maxX = Math.max(...nodes.map(n => n.x + BW));
-  const cw = maxX - minX + 80, ch = Math.max(...nodes.map(n => n.y + BH)) + 40;
   const newTree = S.scrolledFor !== f;
   if (newTree) { S.fit = true; S.fitAll = false; }
-  const vw = viewW(), cover = scroll.clientWidth - vw;
-  if (S.fit) S.zoom = Math.min(1, Math.max(S.fitAll ? 0.25 : 0.6, Math.min(vw / cw, scroll.clientHeight / ch)));
-  const z = S.zoom, extra = cover / z;  // extra room on the right, so everyone can be moved out from under the panel
-  const width = Math.max(cw, vw / z) + extra, height = Math.max(ch, scroll.clientHeight / z);
-  const OX = (width - extra - (maxX - minX)) / 2 - minX;
-  inner.style.width = `${width}px`; inner.style.height = `${height}px`; inner.style.transform = `scale(${z})`;
-  size.style.width = `${width * z}px`; size.style.height = `${height * z}px`;
-  $("#z-pct").textContent = `${Math.round(z * 100)}%`;
-  S.layout = { OX, width, height, extra, fx, rowY, nodes: nodes.filter(n => !n.slot), all: nodes };  // all: with the Add boxes
+  S.layout = { minX, span: maxX - minX, cw: maxX - minX + 80, ch: Math.max(...nodes.map(n => n.y + BH)) + 40,
+    fx, rowY, nodes: nodes.filter(n => !n.slot), all: nodes };  // all: with the Add boxes
+  applyZoom();
+  const OX = S.layout.OX0 = S.layout.OX, z = S.zoom, vw = viewW();
+  $("#rows").style.transform = $("#lines").style.transform = "";
 
   const rows = $("#rows");
   rows.replaceChildren(...nodes.map(n => {
@@ -209,8 +204,36 @@ export function renderTree() {
     return el;
   }), ...nodes.filter(n => !n.slot && n.key === S.sel && canAdd()).slice(0, 1).map(n => plusEl(n, OX)));
   drawLines({ couples, fams, arches, pos, rowY, OX, focusFams: sfs.map(x => x.id) });
+  titleBar();
 
-  // title bar: back on the left, whose tree in the middle, the selected person's tree on the right
+  if (newTree) {
+    S.scrolledFor = f;
+    scroll.scrollLeft = (fx + OX + BW / 2) * z - vw / 2;
+    scroll.scrollTop = (rowY[1] + BH / 2) * z - scroll.clientHeight / 2;
+  }
+  drawMinimap();
+  placePopcard();
+  drawSelink();
+}
+
+// Zoom only rescales the drawn tree: the boxes stay, and a shift keeps them centred (no rebuild per pinch frame).
+function applyZoom() {
+  const L = S.layout, scroll = $("#treescroll"), inner = $("#treeinner"), size = $("#treesize");
+  const vw = viewW(), cover = scroll.clientWidth - vw;
+  if (S.fit) S.zoom = Math.min(1, Math.max(S.fitAll ? 0.25 : 0.6, Math.min(vw / L.cw, scroll.clientHeight / L.ch)));
+  const z = S.zoom, extra = cover / z;  // extra room on the right, so everyone can be moved out from under the panel
+  const width = Math.max(L.cw, vw / z) + extra, height = Math.max(L.ch, scroll.clientHeight / z);
+  L.OX = (width - extra - L.span) / 2 - L.minX;
+  Object.assign(L, { width, height, extra });
+  inner.style.width = `${width}px`; inner.style.height = `${height}px`; inner.style.transform = `scale(${z})`;
+  size.style.width = `${width * z}px`; size.style.height = `${height * z}px`;
+  $("#z-pct").textContent = `${Math.round(z * 100)}%`;
+  if (L.OX0 != null) $("#rows").style.transform = $("#lines").style.transform = `translateX(${L.OX - L.OX0}px)`;
+}
+
+// Title bar: back on the left, whose tree in the middle, the selected person's tree on the right.
+function titleBar() {
+  const fp = P[S.focus];
   $("#tree-title").textContent = `${name(fp)}'s family tree`;
   $("#tree-home").hidden = !S.full;  // otherwise ⌂ Family Tree in the top bar is Home
   const back = $("#tree-back"), prev = S.history.at(-1);
@@ -222,15 +245,6 @@ export function renderTree() {
   $("#show-panel").hidden = S.panel;
   $("#z-full").innerHTML = S.full ? '✕<span class="lbl"> Exit full screen</span>' : '⛶<span class="lbl"> Full screen</span>';
   $("#z-full").title = S.full ? "Leave full screen" : "Use the whole screen for the tree";
-
-  if (newTree) {
-    S.scrolledFor = f;
-    scroll.scrollLeft = (fx + OX + BW / 2) * z - vw / 2;
-    scroll.scrollTop = (rowY[1] + BH / 2) * z - scroll.clientHeight / 2;
-  }
-  drawMinimap();
-  placePopcard();
-  drawSelink();
 }
 
 function nodeEl(id, focus) {
@@ -324,7 +338,15 @@ window.addEventListener("resize", perFrame(() => renderTree()));
 export function select(id, fromClick) {
   S.sel = id; S.more = false;
   S.pop = fromClick && !S.panel ? id : null;
-  renderTree(); renderPanel(); saveView();
+  const rows = $("#rows"), n = S.layout?.nodes.find(x => x.key === id);
+  if (n) {  // someone already drawn: move the ring and the ✎, nothing else changes
+    rows.querySelectorAll(".node.sel").forEach(el => el.classList.remove("sel"));
+    rows.querySelector(`.node[data-key="${CSS.escape(id)}"]`)?.classList.add("sel");
+    rows.querySelector(".plus")?.remove();
+    if (canAdd()) rows.append(plusEl(n, S.layout.OX0));
+    titleBar(); placePopcard();
+  } else renderTree();
+  renderPanel(); saveView();
   if (fromClick) reveal(id);
 }
 export function rememberFocus() { saveView(); }
@@ -368,7 +390,7 @@ function setZoom(z, px, py) {
   const lx = (scroll.scrollLeft + px) / old - oldOX, ly = (scroll.scrollTop + py) / old;
   S.fit = false; S.fitAll = false;
   S.zoom = Math.min(1.6, Math.max(0.25, Math.round(z * 100) / 100));
-  renderTree();
+  applyZoom();
   scroll.scrollLeft = (lx + S.layout.OX) * S.zoom - px;
   scroll.scrollTop = ly * S.zoom - py;
   drawMinimap(); placePopcard();
@@ -377,7 +399,7 @@ $("#z-in").onclick = () => setZoom(S.zoom + 0.1);
 $("#z-out").onclick = () => setZoom(S.zoom - 0.1);
 $("#z-fit").onclick = () => {
   S.fit = true; S.fitAll = true;
-  renderTree();
+  applyZoom();
   const sc = $("#treescroll");
   sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2;  // the panel's extra room is on the right, so this centres in the visible part
   sc.scrollTop = (sc.scrollHeight - sc.clientHeight) / 2;
@@ -390,7 +412,7 @@ $("#z-centre").onclick = () => {
 // Double-tap: back to the opening zoom, centred on that person (or on the tree's own person).
 function viewOn(id) {
   S.fit = true; S.fitAll = false;
-  renderTree();
+  applyZoom();
   const sc = $("#treescroll"), L = S.layout, n = L.nodes.find(x => x.key === id) || L.nodes.find(x => x.key === S.focus);
   if (!n) return;
   sc.scrollTo({ left: (n.x + L.OX + BW / 2) * S.zoom - viewW() / 2, top: (n.y + BH / 2) * S.zoom - sc.clientHeight / 2, behavior: "smooth" });

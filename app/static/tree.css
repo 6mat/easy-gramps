@@ -172,7 +172,7 @@ body.big .node .yr { font-size: 15px; } body.big .node .pl { font-size: 14px; }
 body.big .node { grid-template-columns: 52px 1fr; }
 body.big .node .ph { width: 52px; height: 52px; }
 body.big .node .tag { font-size: 14px; }
-#lines { position: absolute; left: 0; top: 0; pointer-events: none; }
+#lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }  /* shifted by zoom (applyZoom) */
 #selink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
 #selink .selink-line { fill: none; stroke: var(--sel); stroke-width: 1.6; stroke-dasharray: 2.5 4; stroke-linecap: round; opacity: .9; }
 #selink .selink-dot { fill: var(--sel); stroke: var(--card); stroke-width: 1.2; }
