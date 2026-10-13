@@ -29,13 +29,13 @@ GRAMPS_LINK_LABEL = os.environ.get("GRAMPS_LINK_LABEL", "Full Gramps")  # menu l
 # offered its source). Point it at your own repository if you run a changed version.
 SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6mat/easy-gramps"
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
-_base = os.environ.get("BASE_PATH", "").strip("/")
-BASE_PATH = f"/{_base}" if _base else ""  # e.g. /family
+_base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
+BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
 ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR = 1, 2, 3  # Gramps Web roles: see private / can add / can change
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
 STATIC = pathlib.Path(__file__).parent / "static"
 
-# The app lives under BASE_PATH (e.g. /family) so it can share a domain with Gramps Web.
+# The app lives under BASE_PATH (e.g. /easy-gramps) so it can share a domain with Gramps Web.
 easy = FastAPI(title="Easy Gramps", docs_url=None, redoc_url=None, openapi_url=None)
 upstream = gramps.shared_client(GRAMPS_URL)  # the same connections as every Gramps call
 _who_cache: dict[str, tuple[float, dict]] = {}

@@ -133,15 +133,15 @@ def test_adding_a_mother_who_isnt_his_wife_still_fills_the_family(fake, g):
 def test_combine_the_same_couple_recorded_twice(fake, client):
     a, b, c = fake.person("A", "", 1), fake.person("B", "", 0), fake.person("C")
     f1, f2 = fake.family(a, b), fake.family(a, b, [c])
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f2}).json() == {"famId": f1}
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": f2}).json() == {"famId": f1}
     assert fake.get("families", f2) is None and [k["ref"] for k in fake.get("families", f1)["child_ref_list"]] == [c]
     x = fake.family(a, fake.person("X", "", 0))
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": x}).status_code == 400  # not the same couple
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": x}).status_code == 400  # not the same couple
     fake.role = 2
     import main
     main._who_cache.clear()
     f3 = fake.family(a, b)
-    assert client.post("/family/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
+    assert client.post("/easy-gramps/tree/families/merge", json={"keep": f1, "absorb": f3}).status_code == 403
 
 
 def test_the_couple_is_found_even_when_gramps_web_took_it_off_both_people(fake, g):

@@ -9,6 +9,8 @@ relatives who find the full Gramps interface too much.
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
 - **Photos:** tap one to see it big; add more photos to a person and choose their profile photo.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
+- **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
+  straight to its own page in Gramps Web.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
@@ -26,8 +28,8 @@ Easy Gramps is an independent project. It is not affiliated with or endorsed by 
 Easy Gramps runs next to Gramps Web on the **same domain**, under a path:
 
 ```
-https://gramps.example.com/          -> Gramps Web
-https://gramps.example.com/family/   -> Easy Gramps
+https://gramps.example.com/               -> Gramps Web
+https://gramps.example.com/easy-gramps/   -> Easy Gramps
 ```
 
 1. The image is published as `ghcr.io/6mat/easy-gramps` (amd64 and arm64); a new version is released with
@@ -35,7 +37,7 @@ https://gramps.example.com/family/   -> Easy Gramps
    `docker build -t easy-gramps:latest app/` and change `image:` in the compose file.
 2. Copy `deploy/compose.traefik.yaml` next to your Gramps Web stack and create a `.env` from
    `.env.example` (`GRAMPS_HOST`, `CERT_RESOLVER`).
-3. `docker compose -f compose.traefik.yaml up -d`, then open `https://<your gramps host>/family/`.
+3. `docker compose -f compose.traefik.yaml up -d`, then open `https://<your gramps host>/easy-gramps/`.
 
 See the comments in `deploy/compose.traefik.yaml` for the network and router assumptions.
 
@@ -51,6 +53,28 @@ it shows how many records have it and asks for `yes` first. Run the place clean-
 need it (it finds those places by the tag). Log in as an Editor or Owner, with your name and password,
 or, if you log in with Google, with your browser's login (it shows you how):
 `podman exec -it easy-gramps python remove_tag.py` (or `docker exec -it …`)
+
+**Move from `/family` to `/easy-gramps` (after upgrading from 1.4 or older).** Easy Gramps used to live at
+`/family`, but Gramps Web's own family pages are `/family/F0012`, so the "Open in Full Gramps" links to a
+family would open Easy Gramps instead. An install that sets `BASE_PATH=/family` keeps working at `/family`
+until you move it:
+1. Set `BASE_PATH=/easy-gramps`, and change ``PathPrefix(`/family`)`` to ``PathPrefix(`/easy-gramps`)`` in
+   the router rule.
+2. So old bookmarks keep working, send the bare old address (only `/family` and `/family/`, never Gramps
+   Web's `/family/F…` pages) to the new one. For the Quadlet, add these labels (compose: the same, without
+   `Label=` and the quotes; use your own host, entry point and certificate resolver):
+   ```
+   Label="traefik.http.routers.easy-gramps-moved.rule=Host(`gramps.example.com`) && (Path(`/family`) || Path(`/family/`))"
+   Label=traefik.http.routers.easy-gramps-moved.entrypoints=websecure
+   Label=traefik.http.routers.easy-gramps-moved.tls.certresolver=letsencrypt
+   Label=traefik.http.routers.easy-gramps-moved.priority=100
+   Label=traefik.http.routers.easy-gramps-moved.service=easy-gramps
+   Label=traefik.http.routers.easy-gramps-moved.middlewares=easy-gramps-moved
+   Label=traefik.http.middlewares.easy-gramps-moved.redirectregex.regex=/family/?$
+   Label=traefik.http.middlewares.easy-gramps-moved.redirectregex.replacement=/easy-gramps/
+   ```
+3. Anyone who added the page to their phone's home screen adds it again (the installed app is tied to
+   its address). Logins and settings carry over: it's the same site.
 
 ## Install with Podman (Quadlet)
 
@@ -72,7 +96,7 @@ With the compose file: replace `./data:/data` with the named volume `easy-gramps
 ```
 cp .env.example .env      # set GRAMPS_URL to a Gramps Web you can test against
 docker compose up -d --build
-# open http://localhost:8095/family/
+# open http://localhost:8095/easy-gramps/
 ```
 
 The public Gramps Web demo (`https://demo.grampsweb.org`, logins `member`/`member`,
@@ -87,8 +111,8 @@ ruff check app tests
 
 cd tests/e2e && npm ci && npx playwright install chromium && cd ../..
 # with the app running against https://demo.grampsweb.org on port 8095:
-APP=http://localhost:8095/family/ node tests/e2e/screens.mjs           # every screen, read-only
-APP=http://localhost:8095/family/ node tests/e2e/screens.mjs --write   # also edits (ZZTEST records, cleaned up)
+APP=http://localhost:8095/easy-gramps/ node tests/e2e/screens.mjs           # every screen, read-only
+APP=http://localhost:8095/easy-gramps/ node tests/e2e/screens.mjs --write   # also edits (ZZTEST records, cleaned up)
 # with the app started with GRAMPS_PUBLIC_URL=http://localhost:8096 instead:
 node tests/e2e/shared-login.mjs   # shared login with Gramps Web, "Continue with Google" played by a stand-in
 ```
@@ -100,8 +124,8 @@ read-only screen check weekly.
 | Setting | Meaning |
 |---|---|
 | `GRAMPS_URL` | How the app reaches Gramps Web (internal Docker URL on a server). |
-| `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/family/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
-| `BASE_PATH` | Path the app is served under. Default `/family`. |
+| `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/easy-gramps/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
+| `BASE_PATH` | Path the app is served under. Default `/easy-gramps`. |
 | `TREE_TAG` | A tag put on records the tree makes (people, families, events, places, notes, photos), e.g. `Easy Gramps`. Empty by default: no tag. Before 1.2 the default was `Easy Gramps`; `remove_tag.py` takes it off again (see below). |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
@@ -111,7 +135,7 @@ read-only screen check weekly.
 
 ## On a phone or tablet: install it as an app
 
-In Chrome on Android, open `/family/` and choose **Install app** (or **Add to Home screen → Install**);
+In Chrome on Android, open `/easy-gramps/` and choose **Install app** (or **Add to Home screen → Install**);
 on an iPhone, Safari's **Share → Add to Home Screen**. It then opens from its own **Family Tree** icon,
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
@@ -126,7 +150,7 @@ Everyone signs in with their own Gramps Web account, so Gramps Web decides what 
 and change. Installed on the **same site** as Gramps Web (as in the Traefik example), the two share one
 login:
 
-- Logged in to Gramps Web already? Opening `/family/` goes straight to the tree, and the other way round.
+- Logged in to Gramps Web already? Opening `/easy-gramps/` goes straight to the tree, and the other way round.
 - The login screen shows Gramps Web's own sign-in buttons, e.g. **Continue with Google** when Gramps
   Web has Google (OIDC) sign-in set up. Nothing extra to configure: it's Gramps Web's sign-in, with the
   same Google settings. It opens in a pop-up (a new tab on phones); the tree loads once it's done.

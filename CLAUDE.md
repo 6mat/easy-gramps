@@ -19,17 +19,17 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
 ## Run and check
 ```
 cp .env.example .env    # GRAMPS_URL=https://demo.grampsweb.org for testing
-docker compose up -d --build        # http://localhost:8095/family/
+docker compose up -d --build        # http://localhost:8095/easy-gramps/
 node --check app/static/tree.js     # quick syntax check after JS edits
 pytest && ruff check app tests      # backend tests (fake Gramps Web in tests/fake_gramps.py)
 ```
 Every screen in a browser: `tests/e2e/screens.mjs` (see README → Tests); `--write` only against the demo.
 Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
-`GRAMPS_URL=... BASE_PATH=/family DATA_DIR=../data uvicorn main:app --port 8095`.
+`GRAMPS_URL=... BASE_PATH=/easy-gramps DATA_DIR=../data uvicorn main:app --port 8095`.
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/family). Routes: /auth/{login,refresh,me,session,options,settings}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
+app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
                     /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
@@ -155,6 +155,12 @@ Choose), one kind of box at a time; **one person per add**; spouse gender set au
 mother says first that brothers and sisters in the same family get them too. The same couple recorded twice:
 an amber "B is listed as A's wife twice" with Combine them (editors, two-step), in the editor and the details panel. ⋯ on a relative: open their family, remove from this
 family (editors, with confirmation). Undo shown for 10 s after every add/remove.
+
+**Open in Full Gramps ↗** (editors only, `grampsLink()` in common.js; new tab at `GRAMPS_PUBLIC_URL/<kind>/<Gramps ID>`):
+the panel's More details (this person, birth, place of birth, death, burial, burial place), the editor's header
+(person) and each "Children with …" group (family), the big photo view (photo). The graph carries the IDs
+(`gid`, `gids`, families' `gid`, `media`). Gramps Web's family pages are `/family/F…`, hence the default
+`BASE_PATH=/easy-gramps` (1.5); the README says how to move an install from `/family`.
 
 **Big photo view** (`photos.js`): over everything, dark; ‹ › / ← → / swipe; closes with ✕, Esc, a tap
 beside the photo, or Back (a history step with the same address). Editors: "Use as profile photo",

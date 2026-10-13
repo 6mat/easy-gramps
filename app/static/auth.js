@@ -1,6 +1,6 @@
 // Login, token refresh and API calls for the family tree page.
 
-// Where the app is mounted (e.g. "/family"); the server fills this into <html data-base>.
+// Where the app is mounted (e.g. "/easy-gramps"); the server fills this into <html data-base>.
 export const BASE = document.documentElement.dataset.base || "";
 
 // ---------- storage + api ----------
@@ -9,7 +9,7 @@ export const store = {
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
 
-// On the same site as Gramps Web (https://gramps.example.com/family/ next to https://gramps.example.com/)
+// On the same site as Gramps Web (https://gramps.example.com/easy-gramps/ next to https://gramps.example.com/)
 // the login is shared: kept under Gramps Web's own keys, so logging in or out of one does both.
 // Elsewhere (another domain, or testing against a demo) Easy Gramps keeps its own login.
 export const GRAMPS = document.documentElement.dataset.gramps || "";

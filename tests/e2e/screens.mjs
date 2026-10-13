@@ -1,7 +1,7 @@
 // Every-screen check for Easy Gramps, run against a local app that talks to the public Gramps Web demo.
 //
-//   APP=http://localhost:8095/family/ node tests/e2e/screens.mjs            # read-only (member login)
-//   APP=http://localhost:8095/family/ node tests/e2e/screens.mjs --write    # also edits, as "editor"
+//   APP=http://localhost:8095/easy-gramps/ node tests/e2e/screens.mjs            # read-only (member login)
+//   APP=http://localhost:8095/easy-gramps/ node tests/e2e/screens.mjs --write    # also edits, as "editor"
 //
 // --write creates throwaway people named "ZZTEST …" on the demo and deletes them again at the end
 // (and any ZZTEST leftovers from an earlier run). Never point it at a real family tree.
@@ -9,7 +9,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 
-const APP = process.env.APP || "http://localhost:8095/family/";
+const APP = process.env.APP || "http://localhost:8095/easy-gramps/";
 const DEMO = process.env.GRAMPS_DEMO || "https://demo.grampsweb.org";
 const WRITE = process.argv.includes("--write");
 const SHOTS = process.env.SHOTS || "";  // folder for screenshots, optional

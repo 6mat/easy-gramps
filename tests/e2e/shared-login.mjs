@@ -3,33 +3,33 @@
 //   GRAMPS_PUBLIC_URL=http://localhost:8096 … uvicorn main:app --port 8095   # the app, against the demo
 //   node tests/e2e/shared-login.mjs
 //
-// Port 8096 plays "Gramps Web on the same site": /family goes to the app, and the sign-in link
+// Port 8096 plays "Gramps Web on the same site": /easy-gramps goes to the app, and the sign-in link
 // /api/oidc/login/ does what Gramps Web's page does after Google (saves the login in localStorage,
 // then shows its own home page), using the demo's "editor" login instead of Google. Read-only.
 import { chromium } from "playwright";
 import http from "node:http";
 
-const APP_PORT = Number(process.env.APP_PORT || 8095), SITE = "http://localhost:8096", APP = `${SITE}/family/`;
+const APP_PORT = Number(process.env.APP_PORT || 8095), SITE = "http://localhost:8096", APP = `${SITE}/easy-gramps/`;
 const T = 60000;  // the demo is slow: loading the whole tree takes several seconds
 let passwordOn = true;
 const KEYS = ["access_token", "access_token_expires", "refresh_token", "id_token"];
 
 const site = http.createServer((req, res) => {
   const u = new URL(req.url, SITE);
-  if (u.pathname === "/family/auth/options") {  // Gramps Web's sign-in settings, with Google switched on
+  if (u.pathname === "/easy-gramps/auth/options") {  // Gramps Web's sign-in settings, with Google switched on
     res.setHeader("content-type", "application/json");
     return res.end(JSON.stringify({ password: passwordOn, providers: [{ id: "google", name: "Google" }] }));
   }
   if (u.pathname === "/api/oidc/login/") {
     res.setHeader("content-type", "text/html");
     return res.end(`<p>Signing in…</p><script>
-      fetch("/family/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      fetch("/easy-gramps/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: "editor", password: "editor" }) }).then(r => r.json()).then(t => setTimeout(() => {
         localStorage.setItem("access_token", t.access_token); localStorage.setItem("access_token_expires", String(Date.now() + 9e5));
         localStorage.setItem("refresh_token", t.refresh_token); localStorage.setItem("id_token", "zztest");
         location.href = "/"; }, 1500));</script>`);
   }
-  if (!u.pathname.startsWith("/family")) { res.setHeader("content-type", "text/html"); return res.end("<h1>Gramps Web</h1>"); }
+  if (!u.pathname.startsWith("/easy-gramps")) { res.setHeader("content-type", "text/html"); return res.end("<h1>Gramps Web</h1>"); }
   const up = http.request({ host: "127.0.0.1", port: APP_PORT, path: req.url, method: req.method, headers: req.headers },
     r => { res.writeHead(r.statusCode, r.headers); r.pipe(res); });
   up.on("error", () => { res.statusCode = 502; res.end(); });
@@ -79,7 +79,7 @@ await check("logging out in Gramps Web logs this page out", async () => {
 });
 let tok;
 await check("logging in in Gramps Web logs this page in", async () => {
-  tok = await gw.evaluate(() => fetch("/family/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
+  tok = await gw.evaluate(() => fetch("/easy-gramps/auth/login", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username: "editor", password: "editor" }) }).then(r => r.json()));
   await gw.evaluate(t => { localStorage.setItem("refresh_token", t.refresh_token); localStorage.setItem("access_token", t.access_token); }, tok);
   await tree();

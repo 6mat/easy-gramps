@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "app"))
-os.environ.update(GRAMPS_URL="http://gramps.test", BASE_PATH="/family", DATA_DIR=tempfile.mkdtemp(), TREE_TAG="Easy Gramps")
+os.environ.update(GRAMPS_URL="http://gramps.test", BASE_PATH="/easy-gramps", DATA_DIR=tempfile.mkdtemp(), TREE_TAG="Easy Gramps")
 
 import gramps  # noqa: E402
 from fake_gramps import FakeGramps  # noqa: E402
