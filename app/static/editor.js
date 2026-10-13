@@ -26,7 +26,7 @@ $("#toast-undo").onclick = async () => {
   $("#toast").hidden = true;
   try {
     await flushSaves();  // typing waiting to be saved goes first, so the reload can't undo it
-    await api("/tree/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token) });
+    await postJSON("/tree/undo", token);
     await refresh();
     toast("Undone");
   } catch (err) {

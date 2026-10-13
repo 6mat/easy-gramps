@@ -1,6 +1,6 @@
 // Easy Gramps — "Duplicate profile? Merge.": find the other profile, compare, combine.
-import { api, LoginNeeded } from "./auth.js";
-import { $, P, S, fmtDate, h, matches, name, photoEl, searchWords } from "./common.js";
+import { LoginNeeded } from "./auth.js";
+import { $, P, S, fmtDate, h, matches, name, photoEl, postJSON, searchWords } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { seeTree } from "./tree.js";
 import { flushSaves, hideDlg, refresh, showDlg, toast } from "./editor.js";
@@ -129,8 +129,7 @@ async function doMerge() {
   m.busy = true; renderMerge();
   try {
     await flushSaves();
-    const res = await api("/tree/merge", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keep: m.keep, absorb: m.absorb, fields }) });
+    const res = await postJSON("/tree/merge", { keep: m.keep, absorb: m.absorb, fields });
     closeMerge();
     if (S.focus === m.absorb) S.focus = res.merged;
     S.sel = res.merged;
