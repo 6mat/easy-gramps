@@ -16,6 +16,12 @@ export const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom:
 
 // ---------- helpers ----------
 export const $ = s => document.querySelector(s);
+// Tab and Shift+Tab wrap around inside a pop-up (dialog, big photo view), so the keyboard never leaves it.
+export function trapTab(e, box) {
+  const f = [...box.querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
+  const i = f.indexOf(document.activeElement);
+  if (f.length && (e.shiftKey ? i <= 0 : i === f.length - 1)) { e.preventDefault(); f.at(e.shiftKey ? -1 : 0).focus(); }
+}
 export function closeMenu() { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); }
 
 // ---------- the page address: where you are, so a reload comes back to the same view ----------

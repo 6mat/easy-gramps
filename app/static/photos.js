@@ -2,7 +2,7 @@
 // a person's photos, and for editors "Use as profile photo" / "Remove from this person".
 // It's a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { BASE } from "./auth.js";
-import { $, h, renewPhotos } from "./common.js";
+import { $, h, renewPhotos, trapTab } from "./common.js";
 
 const bigUrl = m => `${BASE}/gapi/media/${m}/thumbnail/1024`;
 
@@ -71,11 +71,7 @@ window.addEventListener("keydown", e => {
   else if (e.key === "ArrowLeft") step(-1);
   else if (e.key === "ArrowRight") step(1);
   else if (e.key !== "Tab" && e.key !== "Enter" && e.key !== " ") e.preventDefault();
-  if (e.key === "Tab") {  // keep Tab inside the view
-    const all = [...$("#viewer").querySelectorAll("button:not(:disabled)")];
-    const i = all.indexOf(document.activeElement);
-    if (e.shiftKey ? i <= 0 : i === all.length - 1) { e.preventDefault(); all.at(e.shiftKey ? -1 : 0)?.focus(); }
-  }
+  if (e.key === "Tab") trapTab(e, $("#viewer"));  // keep Tab inside the view
   e.stopImmediatePropagation();
 }, true);
 // Swipe left or right on a phone or tablet.

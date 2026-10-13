@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, years } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -461,14 +461,7 @@ export function hideDlg() {
   if (dlgOpener?.isConnected) dlgOpener.focus();
   dlgOpener = null;
 }
-$("#dlg-wrap").addEventListener("keydown", e => {
-  if (e.key !== "Tab") return;
-  const f = [...$("#dlg").querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
-  if (!f.length) return;
-  const i = f.indexOf(document.activeElement);
-  if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
-  else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
-});
+$("#dlg-wrap").addEventListener("keydown", e => { if (e.key === "Tab") trapTab(e, $("#dlg")); });
 function openAdd(pid, rel, famId, restoring = false) {
   S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
   showDlg(false);
