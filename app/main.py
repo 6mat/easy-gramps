@@ -330,6 +330,7 @@ async def tree_tags(g):
 
 @easy.patch("/tree/person/{handle}")
 async def tree_update_person(handle: str, request: Request):
+    await need_edit(request, "Only editors can change details.")
     g = await gramps_as(request)
     changes = await json_body(request)
     return await familytree.update_person(g, handle, changes, await tree_tags(g))

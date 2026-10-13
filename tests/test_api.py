@@ -9,6 +9,14 @@ def test_contributor_add_relative_refused_before_anything_is_created(fake, clien
     assert not fake.sent("POST", "/objects/") and len(fake.db["people"]) == 1
 
 
+def test_contributor_cant_change_details_and_nothing_is_left_behind(fake, client):  # #91
+    kid = fake.person("Sam", "", 1)
+    fake.role = 2
+    r = client.patch(f"/family/tree/person/{kid}", json={"birthPlace": {"new": "ZZTEST town"}, "notes": "hi"})
+    assert r.status_code == 403 and "Only editors" in r.json()["detail"]
+    assert not fake.sent("POST", "/objects/")
+
+
 def test_contributor_can_still_add_a_person(fake, client):
     fake.role = 2
     r = client.post("/family/tree/person", json={"first": "New"})
