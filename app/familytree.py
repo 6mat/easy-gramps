@@ -3,11 +3,12 @@
 Reads go through the viewer's own Gramps Web token, so Gramps decides what they may see
 (private records and private addresses/emails are left out for roles without "view private").
 """
-from gramps import GENDER, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
+import asyncio
+
+from gramps import GENDER, MOD_ABOUT, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
 
 GENDER_CODE = {0: "f", 1: "m"}  # Gramps' numbers -> the page's letters
 GENDER_WORD = {"m": "male", "f": "female"}  # the page's letters -> gramps.GENDER keys
-MOD_ABOUT = 3
 
 
 def ymd(d):
@@ -26,12 +27,17 @@ def surname_of(name):
 
 async def graph(g: Gramps) -> dict:
     """Every person (the fields the tree and panel need) and every family, in one response."""
-    people = await g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
-                                          "birth_ref_index,death_ref_index,family_list,parent_family_list,media_list")
-    families = await g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list")
-    events = {e["handle"]: e for e in await g.get("/events/", keys="handle,type,date,place")}
-    places = {p["handle"]: p["name"]["value"] for p in await g.get("/places/", keys="handle,name")}
-    pictures = {m["handle"] for m in await g.get("/media/", keys="handle,mime") if (m.get("mime") or "").startswith("image/")}
+    # All five at once: the wait is the slowest one, not all of them added up.
+    people, families, events, places, media = await asyncio.gather(
+        g.get("/people/", keys="handle,gramps_id,gender,primary_name,event_ref_list,"
+                               "birth_ref_index,death_ref_index,family_list,parent_family_list,media_list"),
+        g.get("/families/", keys="handle,father_handle,mother_handle,child_ref_list"),
+        g.get("/events/", keys="handle,type,date,place"),
+        g.get("/places/", keys="handle,name"),
+        g.get("/media/", keys="handle,mime"))
+    events = {e["handle"]: e for e in events}
+    places = {p["handle"]: p["name"]["value"] for p in places}
+    pictures = {m["handle"] for m in media if (m.get("mime") or "").startswith("image/")}
 
     out = {}
     for p in people:

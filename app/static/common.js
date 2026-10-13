@@ -16,6 +16,13 @@ export const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom:
 
 // ---------- helpers ----------
 export const $ = s => document.querySelector(s);
+// Tab and Shift+Tab wrap around inside a pop-up (dialog, big photo view), so the keyboard never leaves it.
+export function trapTab(e, box) {
+  const f = [...box.querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
+  const i = f.indexOf(document.activeElement);
+  if (f.length && (e.shiftKey ? i <= 0 : i === f.length - 1)) { e.preventDefault(); f.at(e.shiftKey ? -1 : 0).focus(); }
+}
+export function closeMenu() { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); }
 
 // ---------- the page address: where you are, so a reload comes back to the same view ----------
 // #/p/<tree's person>[/s/<selected>][/edit/<editor's person>[/add/<whose relative>/<relation>[/<family>]]]
@@ -114,11 +121,12 @@ export function desc(p) {
 // Stand-in "photos" are soft gradients; people without a photo get initials on a tint picked from their name.
 const TINTS = [["#dbe6f2", "#9fbbd8"], ["#dcefe9", "#8cc3b4"], ["#f3e3d2", "#d9a878"], ["#ebdff0", "#b995c7"], ["#f4dde2", "#d494a3"], ["#e4ebd8", "#a7ba86"]];
 const tint = p => TINTS[[...(p.first + p.last)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % TINTS.length];
+export const thumbUrl = (m, size = 192) => `${BASE}/gapi/media/${m}/thumbnail/${size}?square=1`;
 export function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
     const src = /^(data|blob):/.test(p.photo) ? p.photo
-      : `${BASE}/gapi/media/${p.photo}/thumbnail/${big ? 256 : 96}?square=1`;
+      : thumbUrl(p.photo, big ? 256 : 96);
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);
     let retried = false;
@@ -142,6 +150,9 @@ export function renewPhotos() {  // one renewal for all the photos that failed a
   return renewing;
 }
 export const spouseWord = p => (p.gender === "m" ? "wife" : p.gender === "f" ? "husband" : "husband or wife");
+export const cap = w => w[0].toUpperCase() + w.slice(1);
+// The heading over someone's husbands or wives (panel, search preview): "Wife", "Wives", "Husband", "Husbands"…
+export const spouseHeading = (p, n) => n > 1 && p.gender ? (p.gender === "m" ? "Wives" : "Husbands") : cap(spouseWord(p));
 export const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
 
 export function postJSON(path, body) {

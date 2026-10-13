@@ -1,10 +1,10 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
-import { openViewer, thumbUrl } from "./photos.js";
+import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 
 // ---------- right panel ----------
@@ -49,7 +49,7 @@ export function renderPanel() {
       row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
       row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : "")),
     famRow("Parents", parents),
-    famRow(p.gender === "f" ? "Husband" : p.gender === "m" ? (spouses.length > 1 ? "Wives" : "Wife") : "Spouse", spouses),
+    famRow(spouseHeading(p, spouses.length), spouses),
     ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
       .map(o => twiceWarn(p, o, spouseFams(p.id).filter(x => other(x, p.id) === o), renderPanel)),
     famRow("Children", kids),

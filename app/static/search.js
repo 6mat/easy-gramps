@@ -1,7 +1,7 @@
 // Easy Gramps — Search results, shared by the start screen and the top bar: photo and name, an ⓘ
 // preview under the row (born, parents, wife or husband, children), keys (↓ ↑ through the results,
 // → preview, ← close it, Enter opens their tree) and a "No one found" you can't miss.
-import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, other, parentFam, photoEl, searchWords, spouseFams } from "./common.js";
+import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, other, parentFam, photoEl, searchWords, spouseFams, spouseHeading } from "./common.js";
 
 const LIMIT = 30;
 
@@ -52,13 +52,11 @@ function preview(p, open, action) {
   const kids = byBirth([...new Set(fams.flatMap(f => f.kids))].filter(x => P[x]));
   const names = ids => ids.slice(0, 8).map(id => name(P[id])).join(", ") + (ids.length > 8 ? ` and ${ids.length - 8} more` : "");
   const line = (label, text) => text && h("div", {}, h("span", { class: "muted" }, `${label}: `), text);
-  const spouseLabel = p.gender === "m" ? (spouses.length > 1 ? "Wives" : "Wife")
-    : p.gender === "f" ? (spouses.length > 1 ? "Husbands" : "Husband") : "Husband or wife";
   return [photoEl(p, true), h("div", { class: "pvtext" },
     p.nick && h("div", { class: "small muted" }, `Known as ${p.nick}`),
     line("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ")),
     p.deceased && line("Passed away", fmtDate(p.death) || "date not known"),
-    line("Parents", names(parents)), line(spouseLabel, names(spouses)), line("Children", names(kids)),
+    line("Parents", names(parents)), line(spouseHeading(p, spouses.length), names(spouses)), line("Children", names(kids)),
     !parents.length && !spouses.length && !kids.length && h("div", { class: "muted" }, "No family added yet."),
     h("div", {}, h("button", { class: "primary", onclick: () => open(p) }, action)))];
 }

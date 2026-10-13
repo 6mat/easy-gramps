@@ -1,10 +1,10 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, years } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
-import { openViewer, thumbUrl } from "./photos.js";
+import { openViewer } from "./photos.js";
 import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
 
@@ -26,7 +26,7 @@ $("#toast-undo").onclick = async () => {
   $("#toast").hidden = true;
   try {
     await flushSaves();  // typing waiting to be saved goes first, so the reload can't undo it
-    await api("/tree/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token) });
+    await postJSON("/tree/undo", token);
     await refresh();
     toast("Undone");
   } catch (err) {
@@ -50,6 +50,7 @@ export async function refresh() {
 // ---------- autosave: typing is saved when you leave the box or stop for 2 s; ticks and buttons at once ----------
 const pending = {};          // person id -> fields waiting to be saved
 let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
+let sentSaves = false;  // anything saved since the editor opened: closing it then reloads the tree
 function setStatus(text, cls = "") {
   const st = $("#ed-status");
   st.className = `status ${cls}`.trim();
@@ -67,6 +68,7 @@ export function flushSaves(keepalive = false) {  // keepalive: the page is closi
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
   if (!work.length) return saveChain;
+  sentSaves = true;
   saveChain = saveChain.then(async () => {
     for (const [id, patch] of work) {
       try {
@@ -104,8 +106,11 @@ export async function openEditor(id, rel, famId, restoring = false) {
 export async function closeEditor() {
   if (!$("#editor").hidden) { S.add = null; $("#editor").hidden = true; hideDlg(); dropClosedSteps(); }
   await flushSaves();
-  // Reload so the tree shows exactly what Gramps now holds.
-  try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  // Something was saved: reload so the tree shows exactly what Gramps now holds. Only looked: nothing to reload.
+  if (sentSaves) {
+    sentSaves = false;
+    try { await loadGraph(); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); }
+  }
   if (!P[S.focus]) S.focus = null;
   if (!P[S.sel]) S.sel = S.focus;
   renderTree(); renderPanel();
@@ -114,7 +119,7 @@ $("#ed-back").onclick = closeEditor;
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   if (!$("#dlg-wrap").hidden) { e.stopImmediatePropagation(); S.merge ? closeMerge() : closeDialog(); }
-  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); $("#menubtn").focus(); }
+  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); closeMenu(); $("#menubtn").focus(); }
   else if (!$("#editor").hidden) closeEditor();
 }, true);  // capture: before the tree's arrow-key handler
 
@@ -160,6 +165,15 @@ async function removeLink(id, rel, x, base) {
   }
 }
 
+// Male / Female radio buttons: the editor's person and "Someone new".
+function genderPick(prefix, current, onPick, { disabled = false, ...attrs } = {}) {
+  return h("fieldset", attrs, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
+    const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}`, disabled });
+    r.checked = current === v;
+    r.addEventListener("change", () => onPick(v));
+    return h("label", { class: "inline", for: r.id }, r, l);
+  }));
+}
 function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
 function bindText(p, key, id, opts = {}) {
   const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
@@ -255,6 +269,7 @@ function dateInputs(prefix, label, get, set) {
 function addPhotos(p, files) {
   const ok = files.filter(f => f.size <= 20 * 1024 * 1024);
   if (ok.length < files.length) setStatus("A photo was too big (20 MB at most) and wasn't added", "failed");
+  if (ok.length) sentSaves = true;
   ok.forEach((f, i) => {
     saveChain = saveChain.then(async () => {
       setStatus(ok.length > 1 ? `Saving photo ${i + 1} of ${ok.length}…` : "Saving photo…", "saving");
@@ -274,6 +289,7 @@ async function photoAct(p, m, what) {
   setStatus("Saving…", "saving");
   try {
     await flushSaves();
+    sentSaves = true;
     const res = await postJSON(`/tree/person/${p.id}/photos`, { media: m, do: what });
     p.photos = what === "remove" ? p.photos.filter(x => x !== m) : [m, ...p.photos.filter(x => x !== m)];
     p.photo = res.photo;
@@ -299,6 +315,7 @@ function centreCard(p) {
     p.photo = preview; renderEditor();
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
+    sentSaves = true;
     saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
       .then(res => { p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)]; setStatus("Saved ✓"); })
       .catch(err => {
@@ -322,13 +339,7 @@ function centreCard(p) {
         h("img", { src: thumbUrl(m), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
       canEdit() && h("button", { class: "phadd", onclick: () => more.click() }, "+ Add photos")),
     more);
-  const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
-    ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-      const r = h("input", { type: "radio", name: "ed-gender", id: `ed-g-${v}`, disabled: !canEdit() });
-      r.checked = p.gender === v;
-      r.addEventListener("change", () => { p.gender = v; autosave(p.id, { gender: v }); });
-      return h("label", { class: "inline", for: r.id }, r, l);
-    }));
+  const gender = genderPick("ed", p.gender, v => { p.gender = v; autosave(p.id, { gender: v }); }, { disabled: !canEdit() });
   const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
@@ -373,7 +384,7 @@ function centreCard(p) {
 
 // The same couple recorded twice: say so, and let editors combine them (in the editor and the details panel).
 export function twiceWarn(p, o, fams, redraw = renderEditor) {
-  const word = P[o].gender === "f" ? "wife" : P[o].gender === "m" ? "husband" : "husband or wife";
+  const word = spouseWord(p);
   const sure = S.menu === `twice:${o}`;
   const go = async btn => {
     btn.disabled = true; setStatus("Saving…", "saving");
@@ -450,14 +461,7 @@ export function hideDlg() {
   if (dlgOpener?.isConnected) dlgOpener.focus();
   dlgOpener = null;
 }
-$("#dlg-wrap").addEventListener("keydown", e => {
-  if (e.key !== "Tab") return;
-  const f = [...$("#dlg").querySelectorAll("button, input, select, textarea, [tabindex]")].filter(x => !x.disabled && x.offsetParent);
-  if (!f.length) return;
-  const i = f.indexOf(document.activeElement);
-  if (e.shiftKey && i <= 0) { e.preventDefault(); f.at(-1).focus(); }
-  else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
-});
+$("#dlg-wrap").addEventListener("keydown", e => { if (e.key === "Tab") trapTab(e, $("#dlg")); });
 function openAdd(pid, rel, famId, restoring = false) {
   S.add = { pid, rel, famId: famId || null, dupOk: false, justAdded: null };
   showDlg(false);
@@ -584,11 +588,7 @@ export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (show
   const first = h("input", { id: `${prefix}-first` }), last = h("input", { id: `${prefix}-last` });
   let gender = knownGender ?? "";
   const genderEl = knownGender == null
-    ? h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-        const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}` });
-        r.addEventListener("change", () => { gender = v; });
-        return h("label", { class: "inline", for: r.id }, r, l);
-      }))
+    ? genderPick(prefix, "", v => { gender = v; }, { class: "full" })
     : knownGender ? h("div", { class: "small muted" }, `Will be saved as ${knownGender === "m" ? "male" : "female"}.`) : "";
   let bd = null;
   const bdOn = h("input", { id: `${prefix}-bd-on`, type: "checkbox" });
