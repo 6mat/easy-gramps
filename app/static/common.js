@@ -16,6 +16,7 @@ export const S = { focus: null, sel: null, history: [], scrolledFor: null, zoom:
 
 // ---------- helpers ----------
 export const $ = s => document.querySelector(s);
+export function closeMenu() { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); }
 
 // ---------- the page address: where you are, so a reload comes back to the same view ----------
 // #/p/<tree's person>[/s/<selected>][/edit/<editor's person>[/add/<whose relative>/<relation>[/<family>]]]

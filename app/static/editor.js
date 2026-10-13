@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, years } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, years } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -119,7 +119,7 @@ $("#ed-back").onclick = closeEditor;
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   if (!$("#dlg-wrap").hidden) { e.stopImmediatePropagation(); S.merge ? closeMerge() : closeDialog(); }
-  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); $("#menubtn").focus(); }
+  else if (!$("#menupop").hidden) { e.stopImmediatePropagation(); closeMenu(); $("#menubtn").focus(); }
   else if (!$("#editor").hidden) closeEditor();
 }, true);  // capture: before the tree's arrow-key handler
 

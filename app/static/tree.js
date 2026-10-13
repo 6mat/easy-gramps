@@ -1,6 +1,6 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
 import { api, store } from "./auth.js";
-import { $, DATE_CHOICES, P, S, byBirth, canAdd, canLink, cap, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
+import { $, DATE_CHOICES, closeMenu, P, S, byBirth, canAdd, canLink, cap, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
 import { closeEditor, hideDlg, openEditor, showDlg, toast } from "./editor.js";
 import { renderAll, renderStart, startAdd } from "./start.js";
@@ -595,12 +595,12 @@ $("#menubtn").onclick = e => {
   const pop = $("#menupop"); pop.hidden = !pop.hidden;
   $("#menubtn").setAttribute("aria-expanded", String(!pop.hidden));
 };
-document.addEventListener("click", e => { if (!e.target.closest(".menuwrap")) { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); } });
+document.addEventListener("click", e => { if (!e.target.closest(".menuwrap")) closeMenu(); });
 function showTip(on) { $("#tipbar").hidden = !on; renderTree(); }
 // The tip is off unless asked for (Menu → Show tips): new people found it confusing. On this device it
 // stays on until closed again.
 $("#tip-close").onclick = () => { store.set("eg_tip_on", null); showTip(false); };
-$("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); $("#menupop").hidden = true; showTip(true); };
+$("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); closeMenu(); showTip(true); };
 $("#tipbar").hidden = !store.get("eg_tip_on");
 store.set("eg_tip_done", null);  // the old "closed it" setting isn't needed any more
 
@@ -670,7 +670,7 @@ export function showKeys() {
   showDlg(false);
   $("#dlg button.primary").focus();
 }
-$("#menu-keys").onclick = () => { $("#menupop").hidden = true; $("#menubtn").setAttribute("aria-expanded", "false"); showKeys(); };
+$("#menu-keys").onclick = () => { closeMenu(); showKeys(); };
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select, .hits, .results")) return;
   if (e.key === "?") { e.preventDefault(); return showKeys(); }
