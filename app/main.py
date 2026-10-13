@@ -37,7 +37,7 @@ STATIC = pathlib.Path(__file__).parent / "static"
 
 # The app lives under BASE_PATH (e.g. /family) so it can share a domain with Gramps Web.
 easy = FastAPI(title="Easy Gramps", docs_url=None, redoc_url=None, openapi_url=None)
-upstream = httpx.AsyncClient(base_url=f"{GRAMPS_URL}/api", timeout=60, transport=gramps.TRANSPORT)
+upstream = gramps.shared_client(GRAMPS_URL)  # the same connections as every Gramps call
 _who_cache: dict[str, tuple[float, dict]] = {}
 
 
@@ -152,17 +152,17 @@ async def who(request: Request) -> dict:
 LOGIN_LIMITS = ((60, 3, "Too many tries. Please wait a minute and try again."),
                 (3600, 5, "Too many tries. Please wait an hour and try again."),
                 (86400, 7, "Too many tries. Please try again tomorrow."))
-_failed_logins: dict[str, list[float]] = {}
+_failed_logins: dict[str, list[tuple[float, str]]] = {}  # visitor -> (time, user name) of each wrong try
 
 
 def login_blocked(ip: str) -> str | None:
     now = time.time()
     if len(_failed_logins) > 5000:  # keep memory bounded: forget visitors with nothing in the last day
-        for k in [k for k, v in _failed_logins.items() if not v or now - v[-1] > 86400]:
+        for k in [k for k, v in _failed_logins.items() if not v or now - v[-1][0] > 86400]:
             del _failed_logins[k]
-    tries = [t for t in _failed_logins.get(ip, []) if now - t < 86400]
+    tries = [x for x in _failed_logins.get(ip, []) if now - x[0] < 86400]
     _failed_logins[ip] = tries
-    return next((msg for window, limit, msg in LOGIN_LIMITS if sum(now - t < window for t in tries) >= limit), None)
+    return next((msg for window, limit, msg in LOGIN_LIMITS if sum(now - t < window for t, _ in tries) >= limit), None)
 
 
 # What the login screen offers, from Gramps Web's own settings: its sign-in buttons (e.g. Google) and
@@ -203,9 +203,10 @@ async def login(request: Request):
     if r.status_code >= 500:
         raise HTTPException(502, UNREACHABLE)
     if r.status_code != 200:
-        _failed_logins[ip].append(time.time())
+        _failed_logins.setdefault(ip, []).append((time.time(), creds["username"].lower()))
         raise HTTPException(401, "That name or password didn't work")
-    _failed_logins.pop(ip, None)
+    # Forget only this name's wrong tries: logging in as yourself must not reset guesses at someone else.
+    _failed_logins[ip] = [x for x in _failed_logins.get(ip, []) if x[1] != creds["username"].lower()]
     return r.json()
 
 
@@ -330,6 +331,7 @@ async def tree_tags(g):
 
 @easy.patch("/tree/person/{handle}")
 async def tree_update_person(handle: str, request: Request):
+    await need_edit(request, "Only editors can change details.")
     g = await gramps_as(request)
     changes = await json_body(request)
     return await familytree.update_person(g, handle, changes, await tree_tags(g))
