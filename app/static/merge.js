@@ -35,10 +35,18 @@ function swapMerge() {
 function mergeDefault(f, keep, absorb) {  // which side wins by default: keep's value unless it's empty
   return !f.empty(f.get(keep)) ? "keep" : (!f.empty(f.get(absorb)) ? "absorb" : "keep");
 }
+const valuesEq = (f, a, b) => (f.eq || ((x, y) => x === y))(a, b);
+// What a field will be saved as, for the screen and the save alike: typed text, else the side picked
+// (by default the kept person's value, unless it's empty).
+function finalValue(f, keep, absorb) {
+  const m = S.merge;
+  if (f.text && f.k in m.text) return m.text[f.k];
+  return (m.choice[f.k] || mergeDefault(f, keep, absorb)) === "absorb" ? f.get(absorb) : f.get(keep);
+}
 
 function renderMerge() {
   const m = S.merge, dlg = $("#dlg");
-  const eq = (f, a, b) => (f.eq || ((x, y) => x === y))(f.get(a), f.get(b));
+  const eq = (f, a, b) => valuesEq(f, f.get(a), f.get(b));
 
   if (!m.absorb) {  // step 1: find the duplicate
     const keep = P[m.keep];
@@ -75,10 +83,10 @@ function renderMerge() {
         if (editable) { m.text[f.k] = f.get(who); const inp = $(`#cmp-${f.k}`); if (inp) inp.value = f.get(who); }
         else { m.choice[f.k] = side; renderMerge(); }
       } }, f.show(f.get(who)));
-    const final = (same || sel === "keep") ? f.get(keep) : f.get(absorb);
+    const final = same ? f.get(keep) : finalValue(f, keep, absorb);
     const result = h("div", { class: "cmpresult" }, h("span", { class: "cmpres-lbl" }, "Will be saved as"),
       editable ? (() => { const inp = h("input", { id: `cmp-${f.k}`, type: "text", "aria-label": `${f.label}: will be saved as`,
-        value: f.k in m.text ? m.text[f.k] : (f.empty(f.get(keep)) ? f.get(absorb) : f.get(keep)) });
+        value: final });
         inp.addEventListener("input", () => { m.text[f.k] = inp.value; }); return inp; })()
       : h("div", { class: `cmpfinal${f.empty(final) ? " empty" : ""}` }, f.show(final)));
     return h("div", { class: `cmprow${same ? " same" : ""}${editable ? " text" : ""}` },
@@ -114,13 +122,9 @@ async function doMerge() {
   const m = S.merge, keep = P[m.keep], absorb = P[m.absorb];
   const fields = {};
   for (const f of MERGE_FIELDS) {
-    const eqf = f.eq || ((x, y) => x === y);
-    if (eqf(f.get(keep), f.get(absorb))) continue;
-    let v;
-    if (f.text && f.k in m.text) v = m.text[f.k];                       // typed / pasted / dragged
-    else if (f.text) v = f.empty(f.get(keep)) ? f.get(absorb) : f.get(keep);  // default text winner
-    else v = (m.choice[f.k] || mergeDefault(f, keep, absorb)) === "absorb" ? f.get(absorb) : f.get(keep);
-    if (!eqf(v, f.get(keep))) fields[f.k] = v;                          // only send real changes
+    if (valuesEq(f, f.get(keep), f.get(absorb))) continue;
+    const v = finalValue(f, keep, absorb);
+    if (!valuesEq(f, v, f.get(keep))) fields[f.k] = v;  // only send real changes
   }
   m.busy = true; renderMerge();
   try {
