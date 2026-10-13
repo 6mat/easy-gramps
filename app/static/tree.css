@@ -83,7 +83,6 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .nohit strong { font-size: 18px; color: var(--ink); }
 .nohit .addnew { border-color: var(--sel-ink); }
 @media (max-width: 520px) { .preview { gap: 12px; padding: 12px; } .preview .ph.big { width: 64px; height: 64px; font-size: 24px; } }
-.top label { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-left: auto; color: var(--muted); font-size: 14px; }
 .notice { display: none; margin-block: 8px; padding: 10px 14px; border: 1.5px dashed var(--edge); border-radius: 10px; }
 .main { grid-row: 3; display: grid; grid-template-columns: 1fr; min-height: 0; padding-bottom: 20px; }
 .top { grid-row: 1; } .notice { grid-row: 2; }
@@ -147,7 +146,7 @@ body.fullmode .treepane { border-radius: 0; border: 0; }
   border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
 /* small upper-case section headings (menu, panel, editor, start screen) */
 .menu-pop h3, .fam h3, .panel h3, .ed-sec > h3, .recent h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.menu-pop label { display: flex; align-items: center; gap: 8px; margin-left: 0; color: var(--ink); font-size: 15px; white-space: normal; }  /* undo .top label */
+.menu-pop label { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 15px; }
 /* theme picker: a segmented control, like most apps */
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
 .seg label { display: block; position: relative; cursor: pointer; }
@@ -305,7 +304,6 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .pick .row-p { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .warn { border: 1.5px solid var(--bad); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
   background: color-mix(in srgb, var(--bad) 6%, var(--card)); }
-hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: 0; }
 
 /* ---------- toast ---------- */
 .toast { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -397,10 +395,6 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .note { padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
 .spouses .twice { max-width: 320px; }
 .btnrow.end { justify-content: flex-end; }
-.pickrow { display: flex; align-items: center; gap: 12px; text-align: left; font-weight: 400; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
-.pickrow:hover { background: var(--accent-soft); border-color: var(--accent); }
-.pickrow > span { display: flex; flex-direction: column; min-width: 0; }
-.pickrow strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .dlg.wide { width: 820px; }
 .cmphead { display: grid; grid-template-columns: 110px 1fr 1fr 1fr; align-items: start; gap: 8px; margin: 6px 0 2px; }
 .cmphead .swap { justify-self: center; align-self: center; font-size: 22px; padding: 6px 10px; border-radius: 10px; }
