@@ -142,6 +142,9 @@ export function renewPhotos() {  // one renewal for all the photos that failed a
   return renewing;
 }
 export const spouseWord = p => (p.gender === "m" ? "wife" : p.gender === "f" ? "husband" : "husband or wife");
+export const cap = w => w[0].toUpperCase() + w.slice(1);
+// The heading over someone's husbands or wives (panel, search preview): "Wife", "Wives", "Husband", "Husbands"…
+export const spouseHeading = (p, n) => n > 1 && p.gender ? (p.gender === "m" ? "Wives" : "Husbands") : cap(spouseWord(p));
 export const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
 
 export function postJSON(path, body) {

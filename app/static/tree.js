@@ -1,6 +1,6 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
 import { api, store } from "./auth.js";
-import { $, DATE_CHOICES, P, S, byBirth, canAdd, canLink, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
+import { $, DATE_CHOICES, P, S, byBirth, canAdd, canLink, cap, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
 import { closeEditor, hideDlg, openEditor, showDlg, toast } from "./editor.js";
 import { renderAll, renderStart, startAdd } from "./start.js";
@@ -12,7 +12,6 @@ import { searchKeys, showHits } from "./search.js";
 let BW = 204, BH = 84;
 const CG = 52, SG = 18, UG = 48, RGAP = 118;
 export let REL = {};
-const cap = w => w[0].toUpperCase() + w.slice(1);
 const ORD = ["1st", "2nd", "3rd", "4th", "5th"];
 const kidWord = p => (p.gender === "m" ? "Son" : p.gender === "f" ? "Daughter" : "Child");
 const sibWord = p => (p.gender === "m" ? "Brother" : p.gender === "f" ? "Sister" : "Sibling");

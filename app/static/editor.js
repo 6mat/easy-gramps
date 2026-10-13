@@ -373,7 +373,7 @@ function centreCard(p) {
 
 // The same couple recorded twice: say so, and let editors combine them (in the editor and the details panel).
 export function twiceWarn(p, o, fams, redraw = renderEditor) {
-  const word = P[o].gender === "f" ? "wife" : P[o].gender === "m" ? "husband" : "husband or wife";
+  const word = spouseWord(p);
   const sure = S.menu === `twice:${o}`;
   const go = async btn => {
     btn.disabled = true; setStatus("Saving…", "saving");
