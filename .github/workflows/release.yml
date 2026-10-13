@@ -14,7 +14,10 @@ permissions:
   packages: write
 
 jobs:
+  test:  # a release that fails the tests is never built
+    uses: ./.github/workflows/ci.yml
   image:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
