@@ -5,11 +5,10 @@ Reads go through the viewer's own Gramps Web token, so Gramps decides what they 
 """
 import asyncio
 
-from gramps import GENDER, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
+from gramps import GENDER, MOD_ABOUT, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
 
 GENDER_CODE = {0: "f", 1: "m"}  # Gramps' numbers -> the page's letters
 GENDER_WORD = {"m": "male", "f": "female"}  # the page's letters -> gramps.GENDER keys
-MOD_ABOUT = 3
 
 
 def ymd(d):
