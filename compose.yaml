@@ -14,7 +14,7 @@ services:
       GRAMPS_LINK_LABEL: ${GRAMPS_LINK_LABEL:-Full Gramps}
       SOURCE_URL: ${SOURCE_URL:-}
       BASE_PATH: ${BASE_PATH:-/family}
-      TREE_TAG: ${TREE_TAG:-Easy Gramps}
+      TREE_TAG: ${TREE_TAG:-}
       DEBUG_LOG: ${DEBUG_LOG:-}
     ports:
       - "${PORT:-8095}:8000"   # open on the LAN so a tablet can test it; the server install publishes no port
