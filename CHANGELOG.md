@@ -2,6 +2,26 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.4.1 — 2026-10-13
+
+### Changed
+- **Smoother zooming:** pinch, Ctrl+scroll, − + and Fit only rescale the tree instead of drawing every box
+  again; selecting someone just moves the ring (#97).
+- The tree's lists are fetched from Gramps Web at the same time instead of one after another (#98), and
+  the page loads the tree while it sets up the photo login (#101).
+- Closing the editor reloads the tree only when something was saved (#101).
+- The heading over someone's husbands or wives is worded the same everywhere: "Husbands" for a woman with
+  two, "Husband or wife" when the gender isn't set (was "Spouse" in the panel) (#99).
+
+### Fixed
+- The merge screen and the merge itself work out "Will be saved as" with the same code, so what's shown is
+  what's saved (#100).
+- "Show tips" in the menu now also tells screen readers the menu closed (#101).
+
+### Internal
+- Shared helpers for the photo address, closing the menu, the Male/Female picker and keeping Tab inside
+  pop-ups; unused styles removed (#101).
+
 ## 1.4.0 — 2026-10-13
 
 ### Changed
