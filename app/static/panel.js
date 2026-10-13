@@ -1,10 +1,10 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
-import { openViewer, thumbUrl } from "./photos.js";
+import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 
 // ---------- right panel ----------

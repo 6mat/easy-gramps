@@ -4,7 +4,6 @@
 import { BASE } from "./auth.js";
 import { $, h, renewPhotos } from "./common.js";
 
-export const thumbUrl = (m, size = 192) => `${BASE}/gapi/media/${m}/thumbnail/${size}?square=1`;
 const bigUrl = m => `${BASE}/gapi/media/${m}/thumbnail/1024`;
 
 let V = null;  // { list, at, who, actions, back }: the open view
