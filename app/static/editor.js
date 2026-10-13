@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -413,6 +413,7 @@ export function renderEditor() {
   const id = S.stack.at(-1), p = P[id];
   saveView();
   $("#ed-title").textContent = `${name(p)}'s family`;
+  $("#ed-glink").replaceChildren(grampsLink("person", p.gid, "Full Gramps ↗", `Open ${name(p)} in Full Gramps`));
   $("#crumbs").replaceChildren(...(S.stack.length > 1 ? S.stack.flatMap((x, i) => [
     i ? " › " : "",
     i === S.stack.length - 1 ? h("span", {}, P[x].first)
@@ -434,7 +435,8 @@ export function renderEditor() {
   const kidGroups = sfs.map(x => {
     const o = other(x, id);
     const g = h("div", { class: "kidgroup" },
-      h("span", { class: "glabel" }, o ? `Children with ${P[o].first}` : "Children (other parent not added)"),
+      h("span", { class: "glabel" }, o ? `Children with ${P[o].first}` : "Children (other parent not added)", " ",
+        grampsLink("family", x.gid, "↗", `Open this family in Full Gramps`)),
       h("div", { class: "ed-row" }, ...byBirth(x.kids).map(k => rcard(k, "child", x, id, lastNew === k)),
         canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child", x.id) }, "Add child")));
     g.style.setProperty("--fc", `var(--f${sfs.indexOf(x) % 6})`);

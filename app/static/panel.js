@@ -1,6 +1,6 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
@@ -65,7 +65,11 @@ export function renderPanel() {
         row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", notes)),
       !priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are private. Guests can't see them.") : "",
       priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
-      !any ? h("div", { class: "muted small" }, "No more details yet.") : ""));
+      !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
+      canEdit() ? h("div", { class: "glinks small" }, h("span", { class: "muted" }, "Open in Full Gramps:"),
+        ...[["person", p.gid, "this person"], ["event", p.gids.birth, "birth"], ["place", p.gids.birthPlace, "place of birth"],
+          ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
+          .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
   }
   if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
     "Duplicate profile? Merge.")));
