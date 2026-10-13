@@ -53,8 +53,8 @@ def test_gramps_unreachable_is_502(fake, client, monkeypatch):
     assert r.status_code == 502 and "Can't reach" in r.json()["detail"]
 
 
-def login(client, pw):
-    return client.post("/family/auth/login", json={"username": "a", "password": pw})
+def login(client, pw, user="a"):
+    return client.post("/family/auth/login", json={"username": user, "password": pw})
 
 
 def test_login_limit_per_visitor(fake, client, monkeypatch):  # #4
@@ -77,13 +77,32 @@ def test_success_clears_failed_tries(fake, client):
     assert login(client, "wrong").status_code == 401  # count started again
 
 
+def test_own_login_doesnt_reset_guesses_at_someone_else(fake, client):  # #92
+    import main
+    main._failed_logins.clear()
+    login(client, "wrong", "victim"); login(client, "wrong", "victim")
+    assert login(client, "right").status_code == 200  # the guesser's own account
+    login(client, "wrong", "victim")
+    assert login(client, "wrong", "victim").status_code == 429
+    main._failed_logins.clear()
+
+
+def test_a_wrong_try_after_the_visitor_was_forgotten_is_still_counted(fake, client, monkeypatch):  # #94
+    import main
+    main._failed_logins.clear()
+    monkeypatch.setattr(main, "login_blocked", lambda ip: main._failed_logins.clear())  # e.g. a success in between
+    assert login(client, "wrong").status_code == 401
+    assert len(main._failed_logins["testclient"]) == 1
+    main._failed_logins.clear()
+
+
 def test_hour_and_day_limits(fake, client, monkeypatch):
     import main
     main._failed_logins.clear()
     now = main.time.time()
-    main._failed_logins["testclient"] = [now - 3000, now - 2000, now - 1000, now - 500, now - 120]
+    main._failed_logins["testclient"] = [(t, "a") for t in (now - 3000, now - 2000, now - 1000, now - 500, now - 120)]
     assert "an hour" in login(client, "right").json()["detail"]
-    main._failed_logins["testclient"] = [now - 80000 + i for i in range(7)]
+    main._failed_logins["testclient"] = [(now - 80000 + i, "a") for i in range(7)]
     assert "tomorrow" in login(client, "right").json()["detail"]
 
 
