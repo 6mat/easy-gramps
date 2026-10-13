@@ -165,6 +165,15 @@ async function removeLink(id, rel, x, base) {
   }
 }
 
+// Male / Female radio buttons: the editor's person and "Someone new".
+function genderPick(prefix, current, onPick, { disabled = false, ...attrs } = {}) {
+  return h("fieldset", attrs, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
+    const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}`, disabled });
+    r.checked = current === v;
+    r.addEventListener("change", () => onPick(v));
+    return h("label", { class: "inline", for: r.id }, r, l);
+  }));
+}
 function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
 function bindText(p, key, id, opts = {}) {
   const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
@@ -330,13 +339,7 @@ function centreCard(p) {
         h("img", { src: thumbUrl(m), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
       canEdit() && h("button", { class: "phadd", onclick: () => more.click() }, "+ Add photos")),
     more);
-  const gender = h("fieldset", {}, h("legend", {}, "Male or female"),
-    ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-      const r = h("input", { type: "radio", name: "ed-gender", id: `ed-g-${v}`, disabled: !canEdit() });
-      r.checked = p.gender === v;
-      r.addEventListener("change", () => { p.gender = v; autosave(p.id, { gender: v }); });
-      return h("label", { class: "inline", for: r.id }, r, l);
-    }));
+  const gender = genderPick("ed", p.gender, v => { p.gender = v; autosave(p.id, { gender: v }); }, { disabled: !canEdit() });
   const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
@@ -592,11 +595,7 @@ export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (show
   const first = h("input", { id: `${prefix}-first` }), last = h("input", { id: `${prefix}-last` });
   let gender = knownGender ?? "";
   const genderEl = knownGender == null
-    ? h("fieldset", { class: "full" }, h("legend", {}, "Male or female"), ...[["m", "Male"], ["f", "Female"]].map(([v, l]) => {
-        const r = h("input", { type: "radio", name: `${prefix}-g`, id: `${prefix}-g-${v}` });
-        r.addEventListener("change", () => { gender = v; });
-        return h("label", { class: "inline", for: r.id }, r, l);
-      }))
+    ? genderPick(prefix, "", v => { gender = v; }, { class: "full" })
     : knownGender ? h("div", { class: "small muted" }, `Will be saved as ${knownGender === "m" ? "male" : "female"}.`) : "";
   let bd = null;
   const bdOn = h("input", { id: `${prefix}-bd-on`, type: "checkbox" });
