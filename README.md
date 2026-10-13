@@ -60,21 +60,8 @@ family would open Easy Gramps instead. An install that sets `BASE_PATH=/family` 
 until you move it:
 1. Set `BASE_PATH=/easy-gramps`, and change ``PathPrefix(`/family`)`` to ``PathPrefix(`/easy-gramps`)`` in
    the router rule.
-2. So old bookmarks keep working, send the bare old address (only `/family` and `/family/`, never Gramps
-   Web's `/family/F…` pages) to the new one. For the Quadlet, add these labels (compose: the same, without
-   `Label=` and the quotes; use your own host, entry point and certificate resolver):
-   ```
-   Label="traefik.http.routers.easy-gramps-moved.rule=Host(`gramps.example.com`) && (Path(`/family`) || Path(`/family/`))"
-   Label=traefik.http.routers.easy-gramps-moved.entrypoints=websecure
-   Label=traefik.http.routers.easy-gramps-moved.tls.certresolver=letsencrypt
-   Label=traefik.http.routers.easy-gramps-moved.priority=100
-   Label=traefik.http.routers.easy-gramps-moved.service=easy-gramps
-   Label=traefik.http.routers.easy-gramps-moved.middlewares=easy-gramps-moved
-   Label=traefik.http.middlewares.easy-gramps-moved.redirectregex.regex=/family/?$
-   Label=traefik.http.middlewares.easy-gramps-moved.redirectregex.replacement=/easy-gramps/
-   ```
-3. Anyone who added the page to their phone's home screen adds it again (the installed app is tied to
-   its address). Logins and settings carry over: it's the same site.
+2. Tell everyone the new address; anyone who added the page to their phone's home screen adds it again
+   (the installed app is tied to its address). Logins and settings carry over: it's the same site.
 
 ## Install with Podman (Quadlet)
 

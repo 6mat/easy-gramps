@@ -13,8 +13,8 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 ### Changed
 - **The default address is now `/easy-gramps`** instead of `/family` (#103). Gramps Web's own family pages
   are `/family/F…`, so family links need Easy Gramps elsewhere. An install that sets `BASE_PATH=/family`
-  keeps working there; the README (Install → "Move from `/family` to `/easy-gramps`") says how to move,
-  with a redirect so old bookmarks still work. Phones that installed the page as an app add it again.
+  keeps working there; the README (Install → "Move from `/family` to `/easy-gramps`") says how to move.
+  Old bookmarks and phones that installed the page as an app need the new address.
 
 ## 1.4.1 — 2026-10-13
 
