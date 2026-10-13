@@ -2,6 +2,21 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.4.0 — 2026-10-13
+
+### Changed
+- **A release runs the tests first:** the Release image workflow builds nothing unless the tests and
+  checks pass, so a broken build can't reach servers that update themselves (#90).
+- Development `compose.yaml`: no tag on records by default, like the app and the server example (#93).
+
+### Fixed
+- **Saving a person's details checks edit rights first.** A Contributor calling the save directly could
+  leave unused places, events or notes behind before Gramps refused it (#91).
+- **Login limit:** logging in with your own account no longer resets the wrong tries at someone else's
+  name, so the limit can't be dodged (#92). Two logins at the same moment from one place could give an
+  "Internal Server Error" and the wrong try wasn't counted (#94).
+- One connection pool to Gramps Web instead of two (#95).
+
 ## 1.3.4 — 2026-10-10
 
 ### Fixed
