@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.5.1 — 2026-10-24
+
+### Security
+- Pillow (used only to make the app icons from one picture) is updated from 12.3.0 to 13.0.0, which fixes 37
+  known vulnerabilities. The dependency check in the tests and the release refused 12.3.0.
+
 ## 1.5.0 — 2026-10-13
 
 ### Added
