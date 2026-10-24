@@ -67,6 +67,16 @@ share the browser's `localStorage`, where Gramps Web keeps its login (password *
 - **Translations** — all text is English today.
 - **Accent colour / theme choices** beyond light/dark.
 
+## Under discussion (Oct 2026), owner to pick
+Researched, nothing built yet: details and numbered options in `docs/research/`.
+- **"Find me" / My tree:** each login linked to its person in the tree. Needed by the two items below.
+- **Invite relatives** (email through Gramps Web's own invite / password-reset email; text or WhatsApp from the
+  inviter's phone) and **"Claim this person"** links. Never sent automatically.
+- **Family chat**, built in (SQLite in `DATA_DIR`), with "Talk about this person" threads. Later, optionally, a
+  WhatsApp mirror through Matterbridge. Matrix or XMPP bridges were weighed: `docs/research/chat-and-invites.md`.
+- Cheap read-only extras from the Kinnect comparison (`docs/research/kinnect.md`): life events timeline,
+  "Last changed by X", occupation and "About". Bigger: people tagged in photos, more generations, a map.
+
 ## Known limitations (accepted)
 - Two people editing the same person at once: the last save wins.
 - No offline editing; a failed save shows "Not saved" with Try again.
