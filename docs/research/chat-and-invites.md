@@ -16,6 +16,11 @@ Built into Easy Gramps (option A below): no Matrix, XMPP or WhatsApp bridge.
 | 7 | Photos, voice, video | **Text and emoji only, for good** |
 | 8 | Who deletes messages | **Your own; editors and the owner can delete anyone's** |
 
+Details settled after the mock-up (2026-10-25): a deleted message leaves "Message deleted" in its place; no
+editing (delete and write again); one login per person ("Already linked to another login. Ask an editor.");
+"Whole family" can't be left, other groups can; a login with no person linked shows its login name (e.g. "tom");
+a group's picture is one of a few emoji the editor picks.
+
 Kept from the earlier suggestions: new messages appear by the page checking every ~15 s while open (no
 connection held open); the "Whole family" group has everyone in it automatically; conversations about a
 person are public to every login.
