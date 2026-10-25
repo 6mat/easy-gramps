@@ -37,12 +37,14 @@ Environment=BASE_PATH=/easy-gramps
 # the per-visitor login limit depends on it.
 Environment=FORWARDED_ALLOW_IPS=*
 # The family chat's daily email: the same values as Gramps Web's email settings (no EMAIL_HOST: no emails).
-# Gramps Web's own names work too: EnvironmentFile= its env file with GRAMPSWEB_EMAIL_HOST etc.
+# Keep the password in a Podman secret, not in this file: printf '%s' 'the-password' | podman secret create gramps_email_password -
+# (If Gramps Web already has secrets for these, reuse them the same way.)
 # Environment=EMAIL_HOST=smtp.example.com
 # Environment=EMAIL_PORT=465
 # Environment=EMAIL_HOST_USER=tree@example.com
-# Environment=EMAIL_HOST_PASSWORD=change-me
+# Secret=gramps_email_password,type=env,target=EMAIL_HOST_PASSWORD
 # Environment=DEFAULT_FROM_EMAIL=Family Tree <tree@example.com>
+# Phone notifications for the chat need no settings: the key is made in the volume above (back it up too).
 # Your own app icon (a square picture, PNG or JPG): every icon size is made from it.
 # Volume=%h/easy-gramps/icon.png:/icon/icon.png:ro,Z
 # Environment=ICON_FILE=/icon/icon.png
