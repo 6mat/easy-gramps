@@ -22,6 +22,7 @@
       <input id="q" type="search" placeholder="Search a name" autocomplete="off" aria-label="Search a name">
       <div id="results" class="results" hidden></div>
     </div>
+    <button id="chatbtn" class="chatbtn" hidden aria-label="Family chat">💬 Chat <span id="chatbadge" class="badge" hidden></span></button>
     <div class="menuwrap">
       <button id="menubtn" aria-haspopup="true" aria-expanded="false">☰ Menu</button>
       <div class="menu-pop" id="menupop" hidden>
@@ -102,6 +103,15 @@
     <span id="ed-status" class="status" role="status">Saved ✓</span>
   </div>
   <div class="ed-body" id="ed-body"></div>
+</div>
+
+<div class="chat" id="chat" role="dialog" aria-label="Family chat" hidden>
+  <div class="ed-head">
+    <button id="chat-back" class="pill">← Back</button>
+    <button id="chat-home" class="pill" title="Back to the start, to choose someone else">⌂ Home</button>
+    <div class="titles"><h2>Family chat</h2></div>
+  </div>
+  <div class="cbody"><div class="clist"></div><div class="cconv"></div></div>
 </div>
 
 <div class="dlg-wrap" id="dlg-wrap" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-title"></div></div>

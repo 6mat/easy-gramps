@@ -26,7 +26,7 @@ AutoUpdate=registry
 ContainerName=easy-gramps
 Network=proxy.network
 
-# Each person's settings (from 1.2). :U makes the volume the app's own (it runs as user 1000).
+# Each person's settings and the family chat (back it up). :U makes the volume the app's own (it runs as user 1000).
 Volume=easy-gramps-data:/data:U
 
 Environment=GRAMPS_URL=http://gramps:5000
@@ -36,6 +36,13 @@ Environment=BASE_PATH=/easy-gramps
 # Only Traefik can reach this container (no published port), so trust its X-Forwarded-For;
 # the per-visitor login limit depends on it.
 Environment=FORWARDED_ALLOW_IPS=*
+# The family chat's daily email: the same values as Gramps Web's email settings (no EMAIL_HOST: no emails).
+# Gramps Web's own names work too: EnvironmentFile= its env file with GRAMPSWEB_EMAIL_HOST etc.
+# Environment=EMAIL_HOST=smtp.example.com
+# Environment=EMAIL_PORT=465
+# Environment=EMAIL_HOST_USER=tree@example.com
+# Environment=EMAIL_HOST_PASSWORD=change-me
+# Environment=DEFAULT_FROM_EMAIL=Family Tree <tree@example.com>
 # Your own app icon (a square picture, PNG or JPG): every icon size is made from it.
 # Volume=%h/easy-gramps/icon.png:/icon/icon.png:ro,Z
 # Environment=ICON_FILE=/icon/icon.png

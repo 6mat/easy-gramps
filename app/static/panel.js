@@ -7,6 +7,7 @@ import { openMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 import { loginLine, meTag } from "./me.js";
+import { messageButton, talkSection } from "./chat.js";
 
 // ---------- right panel ----------
 async function toggleMore(id) {
@@ -42,7 +43,7 @@ export function renderPanel() {
       ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
       : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
-        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p))),
+        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p), messageButton(p))),
     p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
       p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
         h("img", { src: thumbUrl(m, 96), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
@@ -73,6 +74,7 @@ export function renderPanel() {
           ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
           .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
   }
+  panel.append(talkSection(p));
   if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
     "Duplicate profile? Merge.")));
   drawSelink();
