@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -243,26 +243,49 @@ function dateInputs(prefix, label, get, set) {
   const d = get() || {};
   const yearOnlyStart = !!(d.y && !(d.m && d.d));
   const pad = n => String(n).padStart(2, "0");
-  const cal = h("input", { id: `${prefix}-date`, type: "date", disabled: !canEdit(), "aria-label": label });
-  cal.value = d.y && d.m && d.d ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : "";
+  // Typed in the order of Menu → Dates, with the number keypad; the browser's own date box only for the 📅 calendar.
+  const txt = h("input", { id: `${prefix}-date`, inputmode: "numeric", autocomplete: "off", placeholder: dateHint(), disabled: !canEdit(), "aria-label": `${label} (${dateHint()})` });
+  txt.value = d.y && d.m && d.d ? typedDate(d) : "";
+  const cal = h("input", { id: `${prefix}-cal`, type: "date", tabindex: "-1", disabled: !canEdit(), "aria-label": `${label}: pick from a calendar` });
+  const calBtn = h("span", { class: "calpick", title: "Pick from a calendar" }, h("span", { "aria-hidden": "true" }, "📅"), cal);
+  cal.addEventListener("click", () => { try { cal.showPicker(); } catch { /* the tap opens it anyway */ } });
+  const bad = h("div", { class: "warn small", hidden: true });
   const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit(), "aria-label": `${label}: year` });
   yr.value = yearOnlyStart ? d.y : "";
   const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
   yo.checked = yearOnlyStart;
-  const sync = () => { cal.hidden = yo.checked; yr.hidden = !yo.checked; };
+  const row = h("div", { class: "daterow" }, txt, calBtn);
+  const sync = () => { row.hidden = yo.checked; yr.hidden = !yo.checked; bad.hidden = true; };
   let sent;
-  const save = () => {
+  const save = (final = true) => {
     let v = null;
     if (yo.checked) v = yr.value ? { y: Number(yr.value) } : null;
-    else if (cal.value) { const [y, m, dd] = cal.value.split("-").map(Number); v = { y, m, d: dd }; }
+    else if (txt.value.trim()) {
+      v = parseTyped(txt.value);
+      bad.hidden = !!v || !final;
+      if (!v) { bad.textContent = `Not saved: type the date as ${dateHint()}, for example ${typedDate({ y: 1950, m: 3, d: 12 })}.`; return; }
+    }
     if (JSON.stringify(v) !== sent) { sent = JSON.stringify(v); set(v); }
   };
-  yo.addEventListener("change", () => { if (yo.checked && cal.value) yr.value = cal.value.slice(0, 4); sync(); save(); });
+  yo.addEventListener("change", () => {
+    const t = parseTyped(txt.value);
+    if (yo.checked && t) yr.value = t.y;
+    sync(); save();
+  });
+  cal.addEventListener("change", () => {
+    if (!cal.value) return;
+    const [y, m, dd] = cal.value.split("-").map(Number);
+    txt.value = typedDate({ y, m, d: dd }); save();
+  });
+  cal.addEventListener("focus", () => { const t = parseTyped(txt.value); cal.value = t ? `${t.y}-${pad(t.m)}-${pad(t.d)}` : ""; });
+  // Saved when you leave the box, or as soon as a whole date is typed (not at "12/03/1").
+  txt.addEventListener("change", () => save());
+  txt.addEventListener("input", () => { if (/\d{4}$|^\d{4}\D\d{1,2}\D\d{2}$/.test(txt.value.trim()) && parseTyped(txt.value)) save(false); else bad.hidden = true; });
   // The year is saved once it has 4 digits or you leave the box, not at "1", "19", "195".
-  cal.addEventListener("change", save); yr.addEventListener("change", save);
+  yr.addEventListener("change", () => save());
   yr.addEventListener("input", () => { if (/^\d{4}$/.test(yr.value)) save(); });
   sync();
-  return h("div", {}, cal, yr, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
+  return h("div", {}, row, yr, bad, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
 }
 
 // More photos, one after another (each after the person's other photos).
