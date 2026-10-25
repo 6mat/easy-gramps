@@ -272,15 +272,90 @@ async def save_settings(request: Request):
         s = read_settings()
         mine = s.setdefault(name, {})
         mine["dates"] = body["dates"]
-        try:
-            SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            tmp = SETTINGS_FILE.with_suffix(".tmp")
-            tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
-            tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
-        except OSError as e:  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
-            gramps.log.error("Can't save settings in %s: %s. Give the container a writable volume there.", SETTINGS_FILE.parent, e)
-            raise HTTPException(503, "The server can't save settings: its data folder isn't writable. Ask the family tree's owner.") from None
+        write_settings(s)
     return mine
+
+
+def write_settings(s: dict):
+    """Save all the settings (call it holding _settings_lock)."""
+    try:
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = SETTINGS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
+        tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
+    except OSError as e:  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
+        gramps.log.error("Can't save settings in %s: %s. Give the container a writable volume there.", SETTINGS_FILE.parent, e)
+        raise HTTPException(503, "The server can't save settings: its data folder isn't writable. Ask the family tree's owner.") from None
+
+
+# ---------- "Find me": each login linked to its own person in the tree ----------
+# Kept with the login's settings ("person": handle). Easy Gramps' own link: Gramps Web knows nothing of it.
+# Anyone with a login may link themselves (no approval); one login per person; editors can unlink anyone.
+TAKEN = "Already linked to another login. Ask an editor."
+
+
+def linked_login(s: dict, handle: str) -> str | None:
+    return next((n for n, v in s.items() if isinstance(v, dict) and v.get("person") == handle), None)
+
+
+@easy.put("/auth/me/person")
+async def claim_person(request: Request):
+    name = (await who(request)).get("name")
+    handle = (await json_body(request)).get("person")
+    if not name or not isinstance(handle, str) or not handle.replace("-", "").isalnum():
+        raise HTTPException(400, "Something was missing. Please try again.")
+    await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
+    async with _settings_lock:
+        s = read_settings()
+        if linked_login(s, handle) not in (None, name):
+            raise HTTPException(409, TAKEN)
+        mine = s.setdefault(name, {})
+        mine["person"] = handle  # (a new link replaces their old one)
+        write_settings(s)
+    return mine
+
+
+@easy.delete("/auth/me/person")
+async def unclaim_person(request: Request):
+    name = (await who(request)).get("name")
+    async with _settings_lock:
+        s = read_settings()
+        mine = s.get(name, {})
+        if mine.pop("person", None):
+            write_settings(s)
+    return mine
+
+
+@easy.get("/tree/logins")
+async def tree_logins(request: Request):
+    """Who is linked to a login: the login names for editors, only who has one for everyone else."""
+    editor = (await who(request)).get("can_edit")
+    return {v["person"]: (n if editor else "") for n, v in read_settings().items() if isinstance(v, dict) and v.get("person")}
+
+
+@easy.delete("/tree/logins/{handle}")
+async def tree_unlink_login(handle: str, request: Request):
+    await need_edit(request, "Only editors can unlink a login.")
+    async with _settings_lock:
+        s = read_settings()
+        n = linked_login(s, handle)
+        if n:
+            del s[n]["person"]
+            write_settings(s)
+    return {"unlinked": n}
+
+
+async def move_login(absorb: str, keep: str):
+    """After a person merge: a login linked to the removed copy follows to the one kept (unless that one has a login)."""
+    async with _settings_lock:
+        s = read_settings()
+        n = linked_login(s, absorb)
+        if n:
+            if linked_login(s, keep):
+                del s[n]["person"]
+            else:
+                s[n]["person"] = keep
+            write_settings(s)
 
 
 # ---------- family tree ----------
@@ -414,7 +489,11 @@ async def tree_merge_families(request: Request):
 @easy.post("/tree/merge")
 async def tree_merge(request: Request):
     await need_edit(request, "Only people with edit rights can merge")
-    return await _tree_call(request, familytree.merge)
+    body = await json_body(request)
+    res = await _tree_call(request, familytree.merge)
+    if isinstance(body.get("keep"), str) and isinstance(body.get("absorb"), str):
+        await move_login(body["absorb"], body["keep"])
+    return res
 
 
 # ---------- screen diagnostics (tree page with ?debug) ----------
