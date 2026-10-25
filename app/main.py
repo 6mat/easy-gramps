@@ -10,8 +10,11 @@ import io
 import json
 import os
 import pathlib
+import smtplib
 import sqlite3
 import time
+from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -35,6 +38,10 @@ _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
 ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR = 1, 2, 3  # Gramps Web roles: see private / can add / can change
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
+# The chat's daily email (unread messages that waited a day). The same names as Gramps Web's own email settings;
+# no EMAIL_HOST: no emails. Port 465: SSL; otherwise STARTTLS when the server offers it.
+EMAIL = {k: os.environ.get(k, "").strip() for k in ("EMAIL_HOST", "EMAIL_PORT", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL")}
+APP_URL = os.environ.get("APP_URL", "").strip()  # this page's address for links in emails (default: GRAMPS_PUBLIC_URL + BASE_PATH)
 STATIC = pathlib.Path(__file__).parent / "static"
 
 # The app lives under BASE_PATH (e.g. /easy-gramps) so it can share a domain with Gramps Web.
@@ -246,6 +253,7 @@ async def photo_session_end():
 async def me(request: Request):
     user = dict(await who(request))
     user["settings"] = read_settings().get(user.get("name"), {})
+    user["chat_email"] = bool(EMAIL["EMAIL_HOST"])  # the Menu offers the daily email switch
     return user
 
 
@@ -268,12 +276,14 @@ def read_settings() -> dict:
 async def save_settings(request: Request):
     name = (await who(request)).get("name")
     body = await json_body(request)
-    if not name or body.get("dates") not in DATE_FORMATS:
+    ok = ("dates" in body or "emails" in body) and body.get("dates", DATE_FORMATS[0]) in DATE_FORMATS \
+        and isinstance(body.get("emails", True), bool)
+    if not name or not ok:
         raise HTTPException(400, "Something was missing. Please try again.")
     async with _settings_lock:
         s = read_settings()
         mine = s.setdefault(name, {})
-        mine["dates"] = body["dates"]
+        mine.update({k: body[k] for k in ("dates", "emails") if k in body})
         write_settings(s)
     return mine
 
@@ -508,8 +518,80 @@ async def chat_user(request: Request) -> tuple[str, bool]:
     name = user.get("name")
     if not name:
         raise HTTPException(403, NO_ACCESS)
-    chat_call(CHAT.seen, name, user.get("email"))
+    chat_call(CHAT.seen, name, user.get("email"), user.get("full_name"))
+    if EMAIL["EMAIL_HOST"] and not _mailer:
+        _mailer.append(asyncio.create_task(mail_loop()))
     return name, bool(user.get("can_edit"))  # editors and the owner make groups and delete any message
+
+
+# ----- the daily email -----
+_mailer: list = []  # the background task, started with the first chat request
+
+
+async def mail_loop():
+    while True:
+        await asyncio.sleep(3600)  # every hour: anyone whose messages have waited a day (at most one email a day each)
+        try:
+            await asyncio.to_thread(send_waiting)
+        except Exception:  # noqa: BLE001 - keep the loop alive; the next hour tries again
+            gramps.log.exception("Chat emails failed")
+
+
+def send_waiting(now: float | None = None) -> int:
+    now = now or time.time()
+    off = {n for n, v in read_settings().items() if isinstance(v, dict) and v.get("emails") is False}
+    names = CHAT.full_names()
+    sent = 0
+    for u in CHAT.waiting(now):
+        if u["login"] in off:
+            continue
+        subject, body = waiting_email(u, names)
+        send_mail(u["email"], subject, body)
+        CHAT.emailed(u["login"], now, max(m["id"] for m in u["messages"]))
+        sent += 1
+    return sent
+
+
+def waiting_email(u: dict, names: dict) -> tuple[str, str]:
+    groups: dict = {}
+    for m in u["messages"]:
+        if m["kind"] == "private":
+            title = f"Private, from {names.get(m['login'], m['login'])}"
+        elif m["kind"] == "person":
+            title = f"About {m['name']}" if m["name"] else "About someone in the tree"
+        else:
+            title = m["name"] or "Whole family"
+        groups.setdefault(title, []).append(m)
+    n = len(u["messages"])
+    lines = [f"Hello {u['name']},", "", "These messages in the family chat have been waiting for you since yesterday or longer:", ""]
+    for title, ms in groups.items():
+        lines.append(title)
+        for m in ms[:5]:
+            text = " ".join(m["text"].split())
+            lines.append(f"  {names.get(m['login'], m['login'])}: {text[:300]}{'…' if len(text) > 300 else ''}")
+        if len(ms) > 5:
+            lines.append(f"  … and {len(ms) - 5} more")
+        lines.append("")
+    lines += [f"Open the family chat: {APP_URL or f'{GRAMPS_PUBLIC_URL}{BASE_PATH}/'}", "",
+              "You get at most one email a day, only for messages you haven't seen.",
+              "To stop these emails: ☰ Menu → You, in the family tree."]
+    return f"{n} {'message is' if n == 1 else 'messages are'} waiting for you in the family chat", "\n".join(lines)
+
+
+def send_mail(to: str, subject: str, body: str):
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg["Subject"], msg["To"] = subject, to
+    msg["From"] = EMAIL["DEFAULT_FROM_EMAIL"] or EMAIL["EMAIL_HOST_USER"]
+    msg["Message-ID"], msg["Date"] = make_msgid(), formatdate(localtime=True)
+    port = int(EMAIL["EMAIL_PORT"] or 465)
+    smtp = smtplib.SMTP_SSL(EMAIL["EMAIL_HOST"], port, timeout=20) if port == 465 else smtplib.SMTP(EMAIL["EMAIL_HOST"], port, timeout=20)
+    with smtp:
+        if port != 465 and smtp.has_extn("starttls"):
+            smtp.starttls()
+        if EMAIL["EMAIL_HOST_USER"]:
+            smtp.login(EMAIL["EMAIL_HOST_USER"], EMAIL["EMAIL_HOST_PASSWORD"])
+        smtp.send_message(msg)
 
 
 def chat_call(fn, *args):
@@ -612,8 +694,10 @@ async def chat_about_post(handle: str, request: Request):
     chat_call(chat.clean_text, text)
     if not handle.replace("-", "").isalnum():
         raise HTTPException(400, "Something was missing. Please try again.")
-    await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
-    cid = chat_call(CHAT.person_conv, handle, True)
+    p = await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="primary_name")  # 404 if not in the tree
+    pn = (p or {}).get("primary_name") or {}
+    who = " ".join(x for x in (pn.get("first_name"), *(s.get("surname") for s in pn.get("surname_list") or [])) if x)
+    cid = chat_call(CHAT.person_conv, handle, True, who)
     return {"id": cid, "message": chat_call(CHAT.post, cid, login, text)}
 
 

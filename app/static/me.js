@@ -56,6 +56,14 @@ export function renderMenuMe() {
       h("div", { class: "btnrow" }, h("button", { onclick: () => { closeMenu(); openFindMe(); } }, "Change"),
         h("button", { onclick: unlinkMe }, "That's not me"))]
     : [h("button", { onclick: () => { closeMenu(); openFindMe(); } }, "Find yourself in the tree")]));
+  if (ME.chat_email) {  // the chat's daily email, when the server can send email
+    const sw = h("input", { type: "checkbox", class: "sw", checked: ME.settings?.emails !== false });
+    sw.onchange = async () => {
+      try { ME.settings = { ...ME.settings, ...(await send("PUT", "/auth/settings", { emails: sw.checked })) }; }
+      catch (err) { sw.checked = !sw.checked; failed(err); }
+    };
+    box.append(h("label", { class: "swrow" }, "Email me when a chat message waits for me a day", sw));
+  }
 }
 async function unlinkMe() {
   closeMenu();

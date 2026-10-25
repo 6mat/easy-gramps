@@ -19,8 +19,13 @@ services:
       TREE_TAG: ${TREE_TAG:-}
       FORWARDED_ALLOW_IPS: "*"                         # safe only because no port is published: only Traefik can reach us
       # ICON_FILE: /icon/icon.png                      # your own app icon (square picture), with the volume below
+      EMAIL_HOST: ${EMAIL_HOST:-}                      # the family chat's daily email: Gramps Web's email values
+      EMAIL_PORT: ${EMAIL_PORT:-465}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
     volumes:
-      - easy-gramps-data:/data   # each person's settings (date format); kept across updates
+      - easy-gramps-data:/data   # each person's settings and the family chat; kept across updates (back it up)
       # - ./icon.png:/icon/icon.png:ro
     networks: [proxy]
     labels:

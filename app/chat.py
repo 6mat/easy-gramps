@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, conv INTEGER NOT NU
   text TEXT, at REAL NOT NULL, deleted_by TEXT);
 CREATE INDEX IF NOT EXISTS messages_conv ON messages (conv, id);
 CREATE TABLE IF NOT EXISTS reads (login TEXT NOT NULL, conv INTEGER NOT NULL, last INTEGER NOT NULL, PRIMARY KEY (login, conv));
-CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, seen REAL, email TEXT, emailed REAL);
+CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, seen REAL, email TEXT, full_name TEXT, emailed REAL, upto INTEGER);
 """
 
 
@@ -70,13 +70,13 @@ class Chat:
         return rows[0] if rows else None
 
     # ----- who uses the chat (for "Message someone" and the daily email) -----
-    def seen(self, login: str, email: str | None):
+    def seen(self, login: str, email: str | None, full_name: str | None = None):
         now = time.time()
         if now - self._seen.get(login, 0) < 300:
             return
         self._seen[login] = now
-        self.q("INSERT INTO users (login, seen, email) VALUES (?, ?, ?) "
-               "ON CONFLICT (login) DO UPDATE SET seen = excluded.seen, email = excluded.email", login, now, email or None)
+        self.q("INSERT INTO users (login, seen, email, full_name) VALUES (?, ?, ?, ?) ON CONFLICT (login) DO UPDATE "
+               "SET seen = excluded.seen, email = excluded.email, full_name = excluded.full_name", login, now, email or None, full_name or None)
 
     def logins(self) -> list[str]:
         return [r["login"] for r in self.q("SELECT login FROM users ORDER BY login")]
@@ -169,9 +169,11 @@ class Chat:
         self.q("INSERT OR IGNORE INTO convs (kind, pair, created) VALUES ('private', ?, ?)", pair, time.time())
         return self.one("SELECT id FROM convs WHERE pair = ?", pair)["id"]
 
-    def person_conv(self, handle: str, create: bool) -> int | None:
+    def person_conv(self, handle: str, create: bool, name: str = "") -> int | None:
         if create:
             self.q("INSERT OR IGNORE INTO convs (kind, person, created) VALUES ('person', ?, ?)", handle, time.time())
+            if name:
+                self.q("UPDATE convs SET name = ? WHERE person = ?", name, handle)  # (for the daily email)
         row = self.one("SELECT id FROM convs WHERE person = ?", handle)
         return row and row["id"]
 
@@ -224,3 +226,28 @@ class Chat:
             raise ChatError("You can delete only your own messages.", 403)
         self.q("UPDATE messages SET deleted_by = ?, text = NULL WHERE id = ?", login, mid)  # "Message deleted" stays
         return self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
+
+
+    # ----- the daily email: messages that have waited a day, at most one email a day -----
+    def waiting(self, now: float, day: float = 86400) -> list[dict]:
+        """Each login with an email address and unread messages older than a day that no email has listed yet."""
+        out = []
+        for u in self.q("SELECT * FROM users WHERE email IS NOT NULL AND (emailed IS NULL OR emailed < ?)", now - day):
+            login = u["login"]
+            rows = self.q(
+                "SELECT m.*, c.kind, c.name, c.pair FROM messages m JOIN convs c ON c.id = m.conv "
+                "LEFT JOIN reads r ON r.conv = m.conv AND r.login = ? "
+                "WHERE m.id > COALESCE(r.last, 0) AND m.id > ? AND m.login != ? AND m.deleted_by IS NULL AND m.at < ? "
+                "AND (c.kind IN ('family', 'person') "
+                "  OR (c.kind = 'group' AND EXISTS (SELECT 1 FROM members WHERE conv = c.id AND login = ?)) "
+                "  OR (c.kind = 'private' AND instr(char(10) || c.pair || char(10), char(10) || ? || char(10)) > 0)) "
+                "ORDER BY m.id", login, u["upto"] or 0, login, now - day, login, login)
+            if rows:
+                out.append({"login": login, "email": u["email"], "name": u["full_name"] or login, "messages": [dict(r) for r in rows]})
+        return out
+
+    def emailed(self, login: str, now: float, upto: int):
+        self.q("UPDATE users SET emailed = ?, upto = ? WHERE login = ?", now, upto, login)
+
+    def full_names(self) -> dict:
+        return {r["login"]: r["full_name"] or r["login"] for r in self.q("SELECT login, full_name FROM users")}

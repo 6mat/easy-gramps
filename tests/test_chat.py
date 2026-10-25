@@ -116,3 +116,67 @@ def test_chat_says_so_when_the_data_folder_cant_be_written(fake, client, monkeyp
     monkeypatch.setattr(main, "CHAT", chatmod.Chat(tmp_path / "file" / "chat.sqlite3"))
     r = client.get(f"{E}/chat")
     assert r.status_code == 503 and "data folder" in r.json()["detail"]
+
+
+def test_daily_email_for_messages_waiting_a_day(fake, chat, monkeypatch):
+    import time
+    import main
+    sent = []
+    monkeypatch.setattr(main, "send_mail", lambda to, subject, body: sent.append((to, subject, body)))
+    monkeypatch.setitem(main.EMAIL, "EMAIL_HOST", "")  # (no background task in tests)
+    fake.email = "ann@example.com"
+    as_user(fake, "ann")
+    chat.get(f"{E}/chat")
+    fake.email = None
+    as_user(fake, "bob")
+    chat.post(f"{E}/chat/c/1", json={"text": "Lunch on Sunday?"})
+    now = time.time()
+    assert main.send_waiting(now) == 0  # not a day old yet
+    assert main.send_waiting(now + 90000) == 1
+    to, subject, body = sent[0]
+    assert to == "ann@example.com" and subject == "1 message is waiting for you in the family chat"
+    assert "Whole family\n  bob: Lunch on Sunday?" in body and "☰ Menu → You" in body
+    assert main.send_waiting(now + 90001) == 0  # at most one a day, and never the same message twice
+    chat.post(f"{E}/chat/c/1", json={"text": "Bring photos"})
+    assert main.send_waiting(now + 200000) == 1 and "Bring photos" in sent[1][2] and "Lunch" not in sent[1][2]
+    as_user(fake, "ann")
+    assert chat.put(f"{E}/auth/settings", json={"emails": False}).json() == {"emails": False}
+    assert chat.put(f"{E}/auth/settings", json={"emails": "no"}).status_code == 400
+    as_user(fake, "bob")
+    chat.post(f"{E}/chat/c/1", json={"text": "Anyone?"})
+    assert main.send_waiting(now + 400000) == 0  # switched off in the Menu
+
+
+def test_send_mail_uses_the_email_settings(monkeypatch):
+    import main
+    calls = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls.append(("open", host, port))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            calls.append(("close",))
+
+        def has_extn(self, name):
+            return True
+
+        def starttls(self):
+            calls.append(("starttls",))
+
+        def login(self, user, password):
+            calls.append(("login", user, password))
+
+        def send_message(self, msg):
+            calls.append(("send", msg["To"], msg["From"], msg["Subject"]))
+
+    monkeypatch.setattr(main.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(main.smtplib, "SMTP_SSL", FakeSMTP)
+    monkeypatch.setattr(main, "EMAIL", {"EMAIL_HOST": "smtp.example.com", "EMAIL_PORT": "587", "EMAIL_HOST_USER": "tree@example.com",
+                                        "EMAIL_HOST_PASSWORD": "pw", "DEFAULT_FROM_EMAIL": ""})
+    main.send_mail("ann@example.com", "Hi", "Body")
+    assert calls == [("open", "smtp.example.com", 587), ("starttls",), ("login", "tree@example.com", "pw"),
+                     ("send", "ann@example.com", "tree@example.com", "Hi"), ("close",)]
