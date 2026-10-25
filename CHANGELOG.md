@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.6.0 — 2026-10-25
+
+### Added
+- **📲 Install as an app** in the Menu (under Help): one tap opens Chrome's own install prompt, so relatives
+  don't have to find "Add to Home screen" in the browser's ⋮ menu. It shows only when the browser offers
+  installing (Chrome and Edge on Android and computers) and the app isn't installed yet; on an iPhone it
+  stays hidden (Safari: Share → Add to Home Screen).
+
 ## 1.5.1 — 2026-10-24
 
 ### Security
