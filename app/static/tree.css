@@ -246,6 +246,12 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .status.failed { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--card)); }
 .status button { padding: 1px 8px; font-size: 13px; margin-left: 6px; }
 .ed-body { overflow: auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 32px; align-items: center; }
+@media (max-width: 520px) {  /* phones: buttons and Saved ✓ on one line, the name below (it pushed the editor off the screen) */
+  .ed-head { flex-wrap: wrap; gap: 8px 10px; padding-inline: 16px; }
+  .ed-head .titles { order: 2; flex-basis: 100%; min-width: 0; }
+  .ed-head h2 { font-size: 19px; }
+  .ed-body { padding-inline: 12px; } .mid { width: 100%; } .centre > * { min-width: 0; }
+}
 .ed-sec { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; }
 .ed-sec > h3 { letter-spacing: .08em; }
 .ed-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
