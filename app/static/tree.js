@@ -674,7 +674,7 @@ $("#menu-keys").onclick = () => { closeMenu(); showKeys(); };
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.metaKey || e.altKey || !$("#dlg-wrap").hidden || !$("#menupop").hidden || e.target.closest("input, textarea, select, .hits, .results")) return;
   if (e.key === "?") { e.preventDefault(); return showKeys(); }
-  if (!$("#editor").hidden) return;  // the editor: Tab moves through it; Esc goes back (handled there)
+  if (!$("#editor").hidden || !$("#chat").hidden) return;  // the editor and chat: Tab moves through them; Esc goes back (handled there)
   if (e.key === "/") { e.preventDefault(); return (S.focus ? $("#q") : $("#start-q"))?.focus(); }
   const L = S.layout;
   if (!L) return;
