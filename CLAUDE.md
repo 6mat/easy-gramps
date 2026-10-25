@@ -40,7 +40,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · site.js (the owner's Site settings) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -117,6 +117,11 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   may read it but the writer; 404/410 forgets the device. `push_key` is offered only when there's a contact for the
   push services (an email address, or an https page). sw.js shows them (one per conversation; none while a window of the app is visible); a tap focuses the page
   (postMessage) or opens `?chat=<id>`.
+- **Site settings** (owner): `PUT /site {name ≤ 40, hide ⊆ MENU_ITEMS, gramps: nobody|owner|editors|everyone}`, chat.sqlite3
+  `site` (key → JSON, defaults `chat.SITE`); `/auth/me` → `site`, and drops `gramps_link` below `GRAMPS_FOR[gramps]`.
+  `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
+  The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
+  site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
 - **Invites** (owner, role ≥ 4): `POST /invites {email, person, role 0–3}` / `GET /invites` (waiting ones), kept in chat.sqlite3
   `invites`. A first Google sign-in makes a *disabled* Gramps Web account and gives it no token, so the invite is applied
   from the owner's side: `/auth/me` for an owner runs `let_in()` — `GET /api/users/`, an account with a negative role
