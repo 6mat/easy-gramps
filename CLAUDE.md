@@ -102,7 +102,8 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   {join}`; only members read/write; editors `DELETE /chat/c/{id}`), `private` (`POST /chat/private {login|person}`; only
   the two, not even editors), `person` (`GET/POST /chat/person/{h}`, starts with the first message; every login; a
   person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
-  `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays. Daily email: hourly task (started by the
+  `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays; an editor's second DELETE removes the row
+  (`{id, removed: true}`). Daily email: hourly task (started by the
   first chat request when `EMAIL_HOST` is set) → `send_waiting()`: unread for a day, not listed before, at most one a
   day per login, off with `PUT /auth/settings {emails: false}`; one failed send doesn't stop the others. SMTP from
   `EMAIL_*` or Gramps Web's `GRAMPSWEB_EMAIL_*`; with a login, STARTTLS is required (never a plain-text password).
@@ -142,7 +143,9 @@ edge so it doesn't cross boxes; Menu switch "Line from person to details" hides 
 
 **Start screen** (no person chosen): "Whose family tree would you like to see?", search, Recently
 viewed (this device), Recently changed (anyone, with who/when), + Add a new person (duplicate-name
-check). At the top: "👋 Are you in this family tree? [Find me] [Not now]" (Not now: this device), or, once
+check). At the top: "👋 Claim your place in the family tree" (why: the family can message you in the chat) [Find me] [Not now]
+(Not now: this device); with Gramps Web's home person in this browser (same site), "Are you X? [Yes, that's me] [No,
+find me] [Not now]" (one tap links; only offered, as it may be an ancestor), or, once
 linked, a "Your family tree" card. Find me (`me.js`): search with ⓘ preview → "Is this you?" (photo, born,
 parents) → Yes. ☰ Menu → You: Change / That's not me. Panel: "👤 This is you" under the name; editors see
 "Linked to the login …" with a two-step Unlink under More details.
@@ -165,7 +168,8 @@ and "💬 Message …" under the name of someone with a linked login. Text only,
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
-details ▾ (burial, lives in, phone, email, notes); **"⧉ Duplicate profile? Merge."** for editors: a button in a
+details ▾ (burial, lives in, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
+sets `contactHidden`); **"⧉ Duplicate profile? Merge."** for editors: a button in a
 strip pinned to the panel's bottom edge (top line, shadow) so it shows without scrolling (#55).
 Fit and centring use only the area not under the panel.
 
@@ -174,7 +178,8 @@ a readable fit (≥60%). When space is short, button words win over the map. Ful
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
 switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me, the daily email, "Notify me of
 new chat messages on this device" where the browser can), Show tips (the tip bar
-is off until asked for), 📲 Install as an app (main.js; only while Chrome's `beforeinstallprompt` offers it),
+is off until asked for; in portrait it also says to turn the phone sideways), 📲 Install as an app (main.js; always, but not in the installed app: Chrome's `beforeinstallprompt` when it offers, else
+the steps for Android/iPhone),
 Full Gramps ↗, Log out.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
@@ -193,7 +198,8 @@ with their own buttons steps back over those entries (Back never reopens them).
 **Editor** (full screen): Back to tree, Home, Saving…/Saved ✓/Not saved + Try again. Parents on top,
 the person's card, spouses beside, children grouped by spouse. Fields: photo, Photos (tiles, ★ = profile,
 + Add photos), first/last/nickname,
-**Male / Female only**, birthday (calendar or "I only know the year"), place of birth, Passed away?
+**Male / Female only**, birthday (typed in Menu → Dates' order (`dateHint`/`parseTyped` in common.js) with the number keypad, 📅 = the browser's
+date box laid invisibly over it; or "I only know the year"), place of birth, Passed away?
 (reveals death date and burial place), More details (residing at, phone, email, notes). Autosave:
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
 once it has 4 digits. Place boxes list the existing places (with their area) and save only a place

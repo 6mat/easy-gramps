@@ -11,7 +11,8 @@ relatives who find the full Gramps interface too much.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
-- **Find me:** link your login to yourself in the tree, and your own family tree is one tap from the start.
+- **Find me:** claim your place in the tree, so the family can message you in the chat and your own family tree
+  is one tap from the start (offers Gramps Web's home person when there is one).
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
@@ -127,9 +128,9 @@ read-only screen check weekly.
 
 ## On a phone or tablet: install it as an app
 
-In Chrome on Android, open `/easy-gramps/` and tap **Menu → 📲 Install as an app** (or Chrome's own
-**⋮ → Add to Home screen → Install**);
-on an iPhone, Safari's **Share → Add to Home Screen**. It then opens from its own **Family Tree** icon,
+Open `/easy-gramps/` and tap **Menu → 📲 Install as an app**: Chrome installs it straight away, other browsers
+get the steps (Chrome's own **⋮ → Add to Home screen → Install**;
+on an iPhone, Safari's **Share → Add to Home Screen**). It then opens from its own **Family Tree** icon,
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
 

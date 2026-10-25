@@ -2,6 +2,28 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.6 — 2026-10-25
+
+### Changed
+- **Phone and email** in a person's More details are shown only to editors and the owner (before: every Member). The
+  server leaves them out for everyone else; the panel says they're only for editors (#135).
+- **Typing a date** follows ☰ Menu → Dates: day first (DD/MM/YYYY), month first or year first, with the number
+  keypad. The 📅 button next to it opens the calendar. "I only know the year" stays. A date that doesn't exist
+  (31/02) isn't saved and says how to type it (#138).
+- **Find me** is now "Claim your place in the family tree", and says why: the family can message you in the chat.
+  If Gramps Web already has a home person in this browser, it asks "Are you …?" with one-tap Yes (#139).
+- **"The family tree works best on a wider screen"** is part of the tip now (☰ Menu → Show tips), not always shown
+  on phones (#137).
+
+### Added
+- **📲 Install as an app** is always in ☰ Menu (but not inside the installed app). When the browser can't install
+  it by itself (Samsung Internet, Firefox, iPhone, or Chrome not ready yet), it shows the steps (#136).
+- **Editors can remove a "Message deleted" line** from the chat altogether (⋯ on it, then Yes, remove it) (#140).
+
+### Fixed
+- **Phones:** the Menu button no longer sticks out past the right edge of the screen, and the editor fits the screen
+  (its header made it about 200px wider than a phone) (#137).
+
 ## 1.8.5 — 2026-10-25
 
 ### Added

@@ -46,6 +46,12 @@ def test_delete_own_or_as_editor_leaves_message_deleted(fake, chat):
     as_user(fake, "ed", 3)
     assert chat.delete(f"{E}/chat/m/{b}").json()["deleted"]
     assert [(x["deleted"], x["text"]) for x in chat.get(f"{E}/chat/c/1").json()] == [(True, None), (True, None)]
+    as_user(fake, "ann")  # only editors take away the "Message deleted" line (#140)
+    assert chat.delete(f"{E}/chat/m/{a}").status_code == 403
+    as_user(fake, "ed", 3)
+    assert chat.delete(f"{E}/chat/m/{a}").json() == {"id": a, "removed": True}
+    assert [x["id"] for x in chat.get(f"{E}/chat/c/1").json()] == [b]
+    assert chat.delete(f"{E}/chat/m/{a}").status_code == 404
 
 
 def test_groups_editors_make_them_anyone_joins(fake, chat):

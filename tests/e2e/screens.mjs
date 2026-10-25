@@ -246,14 +246,16 @@ if (WRITE) {
   });
   await step(page, "editor fields autosave", async () => {
     await page.fill("#ed-nick", "Screenie");
-    await page.fill("#ed-birth-date", "1950-05-04");
+    await page.fill("#ed-birth-date", "04/05/1950");  // day first: Menu → Dates is "12 Mar 1950" here (#138)
     const sent = [];  // what the editor saves: places must be picked or confirmed, never made while typing (#49)
     const rec = r => { if (r.method() === "PATCH") sent.push(r.postData()); };
     page.on("request", rec);
     await page.fill("#ed-bplace", "Lond");
     await page.click("#ed-bplace-list li:has-text('London') >> nth=0");
     await page.click("label[for=ed-passed]");
-    await page.fill("#ed-death-date", "2020-01-02");
+    await page.fill("#ed-death-date", "31/02/2020"); await page.press("#ed-death-date", "Tab");
+    if (!await page.isVisible(".warn:has-text('Not saved: type the date as DD/MM/YYYY')")) throw new Error("no warning for 31/02");
+    await page.fill("#ed-death-date", "02/01/2020");
     await page.fill("#ed-burial", "ZZTEST Cemetery"); await page.press("#ed-burial", "Tab");
     await page.click(".place button:has-text('Add it as a new place')");
     await page.click("button.full:has-text('More details')");
@@ -264,6 +266,8 @@ if (WRITE) {
     await sleep(1000); await saved(page);
     page.off("request", rec);
     const places = sent.flatMap(b => Object.entries(JSON.parse(b)).filter(([k]) => k === "birthPlace" || k === "burial").map(([, v]) => v));
+    const deaths = sent.map(b => JSON.parse(b).death).filter(Boolean);
+    if (JSON.stringify(deaths) !== JSON.stringify([{ y: 2020, m: 1, d: 2 }])) throw new Error(`death saved as ${JSON.stringify(deaths)}`);
     if (places.length !== 2 || !places[0].id || places[1].new !== "ZZTEST Cemetery") throw new Error(`places saved as ${JSON.stringify(places)}`);
   });
   await step(page, "photo upload", async () => {

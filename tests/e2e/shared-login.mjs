@@ -89,6 +89,21 @@ await check("a login from before sharing carries over once", async () => {
   await page.goto(APP); await tree();
   const k = await keys(page); must(k.access_token && k.refresh_token && !k.eg_access && !k.eg_refresh, JSON.stringify(k));
 });
+await check("Gramps Web's home person is offered as \"Are you …?\", one tap links it (#139)", async () => {
+  const gid = await page.evaluate(async () => {
+    const g = await fetch("/easy-gramps/tree/graph", { headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` } }).then(r => r.json());
+    const p = Object.values(g.people).find(x => x.gid);
+    const tree = JSON.parse(atob(localStorage.getItem("access_token").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).tree || "unknown";
+    localStorage.setItem("grampsjs_settings_tree", JSON.stringify({ [tree]: { homePerson: p.gid } }));
+    return p.gid;
+  });
+  await page.goto(APP); await tree();
+  await page.waitForSelector(".mebanner strong:has-text('Are you')", { timeout: T });
+  await page.click(".mebanner button:has-text(\"Yes, that's me\")"); await page.waitForSelector(".mecard", { timeout: T });
+  await page.click("#menubtn"); await page.click("#menu-me button:has-text('not me')");  // leave it as it was
+  await page.waitForSelector(".mebanner");
+  must(gid, "no Gramps ID in the graph");
+});
 await check("password form hidden when Gramps Web turns password login off", async () => {
   passwordOn = false;
   await page.click("#menubtn"); await page.click("#logout"); await loginScreen();

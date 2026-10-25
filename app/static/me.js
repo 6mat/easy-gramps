@@ -28,16 +28,25 @@ function failed(err, where) {
 // Gramps Web's own "home person" is kept in each browser, per tree (localStorage grampsjs_settings_tree →
 // {tree: {homePerson: Gramps ID}}). On the same site (shared login) "Find me" sets it too: always when you say
 // "Yes, this is me", and on another device the first time, unless a home person was picked there already.
-export function grampsHome(force = false) {
-  const id = myPerson();
-  if (!SHARED || !id || !P[id].gid || !auth.access) return;
+function grampsHomes() {  // [all trees' settings, this tree's key], or null when it can't be read here
+  if (!SHARED || !auth.access) return null;
   try {
     const tree = JSON.parse(atob(auth.access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).tree || "unknown";
-    const all = JSON.parse(localStorage.getItem("grampsjs_settings_tree") || "{}") || {};
-    if (!force && all[tree]?.homePerson) return;
-    all[tree] = { ...all[tree], homePerson: P[id].gid };
-    localStorage.setItem("grampsjs_settings_tree", JSON.stringify(all));
-  } catch { /* Gramps Web keeps its own choice */ }
+    return [JSON.parse(localStorage.getItem("grampsjs_settings_tree") || "{}") || {}, tree];
+  } catch { return null; }
+}
+export function grampsHome(force = false) {
+  const id = myPerson(), at = grampsHomes();
+  if (!id || !P[id].gid || !at) return;
+  const [all, tree] = at;
+  if (!force && all[tree]?.homePerson) return;
+  all[tree] = { ...all[tree], homePerson: P[id].gid };
+  try { localStorage.setItem("grampsjs_settings_tree", JSON.stringify(all)); } catch { /* Gramps Web keeps its own choice */ }
+}
+// The home person picked in Gramps Web (this browser): often the user, but sometimes an ancestor, so only offered.
+function homeGuess() {
+  const at = grampsHomes(), gid = at?.[0][at[1]]?.homePerson;
+  return gid ? Object.values(P).find(p => p.gid === gid) || null : null;
 }
 function changed(settings) {
   ME.settings = settings;
@@ -45,7 +54,7 @@ function changed(settings) {
   loadLogins();  // (editors: the panel's "Linked to the login …")
 }
 
-// ---------- start screen: "Are you in this family tree?", or a shortcut to your own tree ----------
+// ---------- start screen: "Claim your place in the family tree" (or "Are you …?" from Gramps Web's home person), or a shortcut to your own tree ----------
 export function meBox() { return h("div", { id: "mebox" }, ...meBoxParts()); }
 function renderMeBox() { $("#mebox")?.replaceChildren(...meBoxParts()); }
 function meBoxParts() {
@@ -53,11 +62,24 @@ function meBoxParts() {
   if (mine) return [h("button", { class: "recentcard mecard", onclick: () => seeTree(mine), title: "Open your own family tree" },
     photoEl(P[mine]), h("span", {}, h("strong", {}, "Your family tree"), h("span", { class: "small muted" }, name(P[mine]))))];
   if (store.get(LATER)) return [];
+  const guess = homeGuess(), later = h("button", { onclick: () => { store.set(LATER, "1"); renderMeBox(); } }, "Not now");
+  if (guess) return [h("div", { class: "mebanner" }, photoEl(guess),
+    h("div", {}, h("strong", {}, `Are you ${name(guess)}?`), h("div", { class: "small" }, WHY)),
+    h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: e => claim(guess, e.target) }, "Yes, that's me"),
+      h("button", { onclick: () => openFindMe() }, "No, find me"), later))];
   return [h("div", { class: "mebanner" }, h("span", { class: "wave", "aria-hidden": "true" }, "👋"),
-    h("div", {}, h("strong", {}, "Are you in this family tree?"),
-      h("div", { class: "small" }, "Find yourself, so your own family tree is one tap away.")),
-    h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: () => openFindMe() }, "Find me"),
-      h("button", { onclick: () => { store.set(LATER, "1"); renderMeBox(); } }, "Not now")))];
+    h("div", {}, h("strong", {}, "Claim your place in the family tree"), h("div", { class: "small" }, WHY)),
+    h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: () => openFindMe() }, "Find me"), later))];
+}
+const WHY = "Link your login to yourself, so the family can message you in the chat and your own tree is one tap away.";
+async function claim(p, btn, say) {
+  btn.disabled = true;
+  try {
+    changed(await send("PUT", "/auth/me/person", { person: p.id }));
+    grampsHome(true);  // Gramps Web opens on them too (this device)
+    hideDlg();
+    toast(`Saved ✓ You are ${name(p)}.`);
+  } catch (err) { btn.disabled = false; failed(err, say); }
 }
 
 // ---------- ☰ Menu → You ----------
@@ -69,7 +91,7 @@ export function renderMenuMe() {
     ? [h("div", { class: "small" }, h("span", { class: "muted" }, "You are "), h("strong", {}, name(P[mine]))),
       h("div", { class: "btnrow" }, h("button", { onclick: () => { closeMenu(); openFindMe(); } }, "Change"),
         h("button", { onclick: unlinkMe }, "That's not me"))]
-    : [h("button", { onclick: () => { closeMenu(); openFindMe(); } }, "Find yourself in the tree")]));
+    : [h("button", { onclick: () => { closeMenu(); openFindMe(); } }, "Claim your place in the tree")]));
   if (ME.chat_email) {  // the chat's daily email, when the server can send email
     const sw = h("input", { type: "checkbox", class: "sw", checked: ME.settings?.emails !== false });
     sw.onchange = async () => {
@@ -149,20 +171,12 @@ function findStep(text) {
 function confirmStep(p, text) {
   const pf = parentFam(p.id), parents = pf ? [pf.f, pf.m].filter(x => P[x]).map(x => name(P[x])) : [];
   const say = h("div", { class: "small muted", role: "status" }, "Picked the wrong person? Change it any time in ☰ Menu, or ask an editor.");
-  const yes = h("button", { class: "primary", onclick: async () => {
-    yes.disabled = true;
-    try {
-      changed(await send("PUT", "/auth/me/person", { person: p.id }));
-      grampsHome(true);  // Gramps Web opens on them too (this device)
-      hideDlg();
-      toast(`Saved ✓ You are ${name(p)}.`);
-    } catch (err) { yes.disabled = false; failed(err, say); }
-  } }, "Yes, this is me");
+  const yes = h("button", { class: "primary", onclick: () => claim(p, yes, say) }, "Yes, this is me");
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Is this you?"),
     h("div", { class: "mewho" }, photoEl(p, true), h("div", {}, h("strong", { class: "mename" }, name(p)),
       p.birth || p.birthPlace ? h("div", { class: "muted" }, `Born ${[fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ")}`) : "",
       parents.length ? h("div", { class: "muted small" }, `Parents: ${parents.join(" and ")}`) : "")),
-    h("p", {}, "Your login will be linked to this person, so your own family tree is one tap away from the start screen."),
+    h("p", {}, "Your login will be linked to this person, so the family can message you in the chat and your own tree is one tap away."),
     say,
     h("div", { class: "btnrow end" }, h("button", { onclick: () => findStep(text) }, "No, go back"), yes));
   yes.focus();

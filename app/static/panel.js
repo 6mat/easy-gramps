@@ -1,6 +1,6 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
+import { $, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
@@ -58,16 +58,15 @@ export function renderPanel() {
     h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
-    const priv = !ME?.can_view_private;  // Gramps lets Members and up see private details
     const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
-    const any = p.burial || p.residence || p.phone || p.email || notes;
+    const any = p.burial || p.residence || p.phone || p.email || p.contactHidden || notes;
     panel.append(h("div", { class: "details" },
       loginLine(p),
       h("dl", { class: "kv" },
         row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
-        row("Phone", priv ? "" : p.phone), row("Email", priv ? "" : p.email), row("Notes", notes)),
-      !priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are private. Guests can't see them.") : "",
-      priv && (p.phone || p.email) ? h("div", { class: "private" }, "🔒 Phone and email are hidden from Guests.") : "",
+        row("Phone", p.phone), row("Email", p.email), row("Notes", notes)),
+      p.phone || p.email ? h("div", { class: "private" }, "🔒 Only editors see phone and email.") : "",
+      p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are shown only to editors.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
       canEdit() ? h("div", { class: "glinks small" }, h("span", { class: "muted" }, "Open in Full Gramps:"),
         ...[["person", p.gid, "this person"], ["event", p.gids.birth, "birth"], ["place", p.gids.birthPlace, "place of birth"],

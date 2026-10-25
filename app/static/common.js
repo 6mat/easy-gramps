@@ -118,6 +118,24 @@ export const DATE_CHOICES = Object.entries(DATE_FORMATS).map(([k, f]) => [k, f({
 export let dateFormat = "d mon y";
 export function setDateFormat(f) { if (DATE_FORMATS[f]) dateFormat = f; }
 export const fmtDate = d => !d ? "" : d.m && d.d ? DATE_FORMATS[dateFormat](d) : String(d.y);
+// Typing a date: numbers in the order of the chosen format ("12 Mar 1950" types as 12/03/1950).
+const ORDER = { "m/d/y": "mdy", "mon d, y": "mdy", "y-m-d": "ymd" };
+export const dateHint = () => ({ dmy: "DD/MM/YYYY", mdy: "MM/DD/YYYY", ymd: "YYYY-MM-DD" })[ORDER[dateFormat] || "dmy"];
+export function typedDate(d) {
+  const o = ORDER[dateFormat] || "dmy";
+  return o === "ymd" ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : o === "mdy" ? `${pad(d.m)}/${pad(d.d)}/${d.y}` : `${pad(d.d)}/${pad(d.m)}/${d.y}`;
+}
+// "12/3/1950", "12.03.1950", "12031950" (as the hint) → {y, m, d}; null when it isn't a real date.
+export function parseTyped(text) {
+  const o = ORDER[dateFormat] || "dmy", t = text.trim();
+  let parts = t.split(/\D+/).filter(Boolean);
+  if (parts.length === 1 && /^\d{8}$/.test(t)) parts = o === "ymd" ? [t.slice(0, 4), t.slice(4, 6), t.slice(6)] : [t.slice(0, 2), t.slice(2, 4), t.slice(4)];
+  if (parts.length !== 3) return null;
+  const v = Object.fromEntries([...o].map((k, i) => [k, Number(parts[i])]));
+  const x = new Date(Date.UTC(v.y, v.m - 1, v.d));
+  if (v.y < 1000 || v.y > 2200 || x.getUTCMonth() !== v.m - 1 || x.getUTCDate() !== v.d) return null;
+  return { y: v.y, m: v.m, d: v.d };
+}
 export function years(p) {
   const b = p.birth?.y, d = p.death?.y;
   return b || d ? `${b || "?"} – ${d || (p.deceased ? "?" : "")}` : "";

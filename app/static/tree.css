@@ -58,8 +58,9 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .pad { padding: 8px 10px; }
 
 /* ---------- page ---------- */
-.app { height: 100%; display: grid; grid-template-rows: auto auto 1fr; padding-inline: 20px; }
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr; padding-inline: 20px; }
 .top { display: flex; align-items: center; gap: 20px; padding-block: 14px; }
+@media (max-width: 520px) { .app { padding-inline: 16px; } .top { gap: 8px; } }  /* Home, search, Chat and Menu fit a phone (412px) */
 .search { position: relative; flex: 1; max-width: 560px; }
 .search input { padding-left: 38px; border-radius: 999px; background: var(--card) no-repeat 14px 50% / 16px
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8275' stroke-width='2.5'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M20 20l-4.8-4.8'/%3E%3C/svg%3E"); }
@@ -83,9 +84,8 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .nohit strong { font-size: 18px; color: var(--ink); }
 .nohit .addnew { border-color: var(--sel-ink); }
 @media (max-width: 520px) { .preview { gap: 12px; padding: 12px; } .preview .ph.big { width: 64px; height: 64px; font-size: 24px; } }
-.notice { display: none; margin-block: 8px; padding: 10px 14px; border: 1.5px dashed var(--edge); border-radius: 10px; }
-.main { grid-row: 3; display: grid; grid-template-columns: 1fr; min-height: 0; padding-bottom: 20px; }
-.top { grid-row: 1; } .notice { grid-row: 2; }
+.main { grid-row: 2; display: grid; grid-template-columns: 1fr; min-height: 0; padding-bottom: 20px; }
+.top { grid-row: 1; }
 
 /* ---------- tree ---------- */
 .treepane { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; min-height: 0; box-shadow: var(--shadow);
@@ -97,6 +97,7 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .pill:hover { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); border-color: inherit; }
 .tipbar { display: flex; align-items: center; gap: 12px; padding: 8px 18px; background: var(--accent-soft); border-bottom: 1px solid var(--line); font-size: 15px; }
 .tipbar span { flex: 1; }
+.tipwide { display: none; }
 .tipbar button { padding: 3px 10px; font-size: 14px; }
 .treebar button { font-size: 14px; padding: 6px 12px; border-radius: 999px; }
 .treescroll { overflow: auto; min-height: 0; cursor: grab; overscroll-behavior: contain; scrollbar-width: auto; scrollbar-color: var(--edge) var(--line); background: var(--canvas) radial-gradient(var(--dot) 1.2px, transparent 1.3px) 0 0 / 22px 22px; }
@@ -138,7 +139,7 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 
 .main.nopanel .panel { display: none; }
 body.fullmode .app { padding-inline: 0; }
-body.fullmode .top, body.fullmode .notice { display: none; }
+body.fullmode .top { display: none; }
 body.fullmode .main { padding: 0; }
 body.fullmode .treepane { border-radius: 0; border: 0; }
 .menuwrap { position: relative; margin-left: auto; }
@@ -245,6 +246,12 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .status.failed { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--card)); }
 .status button { padding: 1px 8px; font-size: 13px; margin-left: 6px; }
 .ed-body { overflow: auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 32px; align-items: center; }
+@media (max-width: 520px) {  /* phones: buttons and Saved ✓ on one line, the name below (it pushed the editor off the screen) */
+  .ed-head { flex-wrap: wrap; gap: 8px 10px; padding-inline: 16px; }
+  .ed-head .titles { order: 2; flex-basis: 100%; min-width: 0; }
+  .ed-head h2 { font-size: 19px; }
+  .ed-body { padding-inline: 12px; } .mid { width: 100%; } .centre > * { min-width: 0; }
+}
 .ed-sec { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; }
 .ed-sec > h3 { letter-spacing: .08em; }
 .ed-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
@@ -312,7 +319,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .toast button { background: transparent; color: var(--card); border-color: var(--card); padding: 5px 12px; }
 
 @media (orientation: portrait), (max-width: 899px) {
-  .notice { display: block; }
+  .tipwide { display: inline; }
   .treepane { min-height: 60vh; }
   .centre, .box, .dlg .grid2 { grid-template-columns: 1fr; }
   /* Nav buttons on a thin row, the "whose tree" title on its own line below (so Back stops crowding it). */
@@ -547,3 +554,10 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   .chat .ed-head { gap: 10px; }
   #chat-home { display: none; }
 }
+
+/* Typed date + 📅: the browser's date box lies invisibly over the 📅, so a tap opens its calendar. */
+.daterow { display: flex; gap: 8px; align-items: stretch; }
+.daterow[hidden] { display: none; }
+.daterow > input { flex: 1; min-width: 0; }
+.calpick { position: relative; display: grid; place-items: center; width: 48px; border: 1.5px solid var(--edge); border-radius: 10px; font-size: 22px; }
+.calpick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; padding: 0; }
