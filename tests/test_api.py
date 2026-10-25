@@ -469,3 +469,23 @@ def test_site_settings_owner_only(fake, client):  # #145
     assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] != before
     client.delete("/easy-gramps/site/icon")
     assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] == before
+
+
+def test_invite_sent_by_email(fake, client, monkeypatch):  # #147
+    import main
+    sent = []
+    monkeypatch.setattr(main, "send_mail", lambda *a: sent.append(a))
+    fake.role, fake.email = 4, "owner@example.com"
+    main._who_cache.clear()
+    p = fake.person("Asha", "", 1)
+    assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 400  # no EMAIL_HOST
+    monkeypatch.setitem(main.EMAIL, "EMAIL_HOST", "smtp.example.com")
+    assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 400  # not invited
+    client.post("/easy-gramps/invites", json={"email": "asha@example.com", "person": p, "role": 1})
+    assert client.post("/easy-gramps/invites/send", json={"email": "Asha@example.com ", "name": "Asha"}).json() == {"sent": "asha@example.com"}
+    (to, subject, text, reply_to), = sent
+    assert (to, subject, reply_to) == ("asha@example.com", "You're invited to Family Tree", "owner@example.com")
+    assert text.startswith("Hi Asha,") and "/easy-gramps/" in text and "(asha@example.com)" in text
+    fake.role = 3
+    main._who_cache.clear()
+    assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 403

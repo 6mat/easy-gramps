@@ -407,6 +407,32 @@ async def invite(request: Request):
     return CHAT.invite(email, person, role, user["name"])
 
 
+@easy.post("/invites/send")
+async def send_invite(request: Request):
+    """The owner's "Send by email": the invite for a waiting invite's address, from the server's email address."""
+    user = await who(request)
+    if user.get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can invite people.")
+    if not EMAIL["EMAIL_HOST"]:
+        raise HTTPException(400, "This family tree can't send email (no EMAIL_HOST).")
+    body = await json_body(request)
+    email = str(body.get("email") or "").strip().lower()
+    if not any(i["email"] == email for i in CHAT.invites()):  # only to someone just invited: never a free mailer
+        raise HTTPException(400, "Make the invite first.")
+    name = " ".join(str(body.get("name") or "").split())[:80]
+    site_name, me = site()["name"], user.get("full_name") or user["name"]
+    text = (f"Hi{' ' + name if name else ''},\n\nYou're invited to our family tree, {site_name}:\n{app_url()}\n\n"
+            f"Open it and tap \"Continue with Google\", using this email address ({email}). It can take a little while "
+            "until you're let in. Then you'll see the family, can chat with everyone, and your own place in the tree "
+            f"is ready.\n\n{me}\n")
+    try:
+        await asyncio.to_thread(send_mail, email, f"You're invited to {site_name}", text, user.get("email") or "")
+    except (smtplib.SMTPException, OSError) as e:
+        gramps.log.error("Invite email to %s failed: %s", email, e)
+        raise HTTPException(502, "The email couldn't be sent. Try again later, or share the message instead.") from None
+    return {"sent": email}
+
+
 @easy.get("/invites")
 async def invites(request: Request):
     if (await who(request)).get("role", 0) < ROLE_OWNER:
@@ -674,10 +700,12 @@ def waiting_email(u: dict, names: dict) -> tuple[str, str]:
     return f"{n} {'message is' if n == 1 else 'messages are'} waiting for you in the family chat", "\n".join(lines)
 
 
-def send_mail(to: str, subject: str, body: str):
+def send_mail(to: str, subject: str, body: str, reply_to: str = ""):
     msg = EmailMessage()
     msg.set_content(body)
     msg["Subject"], msg["To"] = subject, to
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg["From"] = EMAIL["DEFAULT_FROM_EMAIL"] or EMAIL["EMAIL_HOST_USER"]
     msg["Message-ID"], msg["Date"] = make_msgid(), formatdate(localtime=True)
     port = int(EMAIL["EMAIL_PORT"] or 465)

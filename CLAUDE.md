@@ -126,7 +126,9 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `invites`. A first Google sign-in makes a *disabled* Gramps Web account and gives it no token, so the invite is applied
   from the owner's side: `/auth/me` for an owner runs `let_in()` — `GET /api/users/`, an account with a negative role
   whose email matches gets `PUT /api/users/<name>/ {role}` and the Find me link; `/auth/me` → `joined` (toast). me.js:
-  "✉ Invite to the family tree" in More details (person without a login) → email + role → share text (Share…/Copy).
+  "✉ Invite to the family tree" in More details (person without a login) → email (optional) + role → share text
+  (✉ Send by email = `POST /invites/send {email, name}`: only to a waiting invite, from DEFAULT_FROM_EMAIL, Reply-To the
+  owner; WhatsApp = wa.me; Share…; Copy). No email: just the text, nothing stored (approve in Gramps Web).
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.

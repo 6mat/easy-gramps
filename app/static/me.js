@@ -252,34 +252,45 @@ function openInvite(p) {
   const email = h("input", { id: "inv-email", type: "email", value: inv?.email || p.email || "", autocomplete: "off", placeholder: "name@gmail.com" });
   const role = h("select", { id: "inv-role" }, ...ROLES.map(([v, n, what]) => h("option", { value: v }, `${n}: ${what}`)));
   role.value = String(inv?.role ?? 1);
+  const roleRow = h("label", { for: role.id }, "What they can do", role);
+  const sync = () => { roleRow.hidden = !email.value.trim(); };
+  email.addEventListener("input", sync);
   const say = h("div", { role: "status" });
   const go = h("button", { class: "primary", onclick: async () => {
+    if (!email.value.trim()) return shareStep(p, null);  // just the link: you let them in by hand in Gramps Web
     go.disabled = true;
     try {
       const i = await send("POST", "/invites", { email: email.value, person: p.id, role: Number(role.value) });
       INVITES[p.id] = i; renderPanel(); shareStep(p, i);
     } catch (err) { go.disabled = false; failed(err, say); }
-  } }, "Make the invite");
+  } }, "Next");
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
-    h("p", { class: "muted" }, "They sign in with Google using this email. The next time you open the family tree, they're let in with this role and linked to their place in the tree."),
-    h("label", { for: email.id }, "Their Google email", email), h("label", { for: role.id }, "What they can do", role), say,
-    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
+    h("label", { for: email.id }, "Their Google email (if you know it)", email),
+    h("p", { class: "muted small" }, "With it, they're let in with this role and linked to their place in the tree the next time you open the family tree after they sign in. Without it, you send just the link and let them in yourself in Full Gramps."),
+    roleRow, say, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
+  sync();
   showDlg(false);
   email.focus();
 }
 function shareStep(p, i) {
   const url = new URL(`${BASE}/`, location.href).href;
-  const text = `Hi ${p.first || name(p)}, you're invited to our family tree: ${url}\nTap “Continue with Google” and use ${i.email}. `
+  const text = `Hi ${p.first || name(p)}, you're invited to our family tree: ${url}\nTap “Continue with Google”${i ? ` and use ${i.email}` : ""}. `
     + "It can take a little while until I let you in. Then you'll see the family, can chat with everyone, and your own place in the tree is ready.";
   const box = h("textarea", { id: "inv-text", rows: 6, readonly: true }, text);
   const say = h("div", { class: "small muted", role: "status" });
-  const share = navigator.share && h("button", { class: "primary", onclick: () => navigator.share({ text }).catch(() => {}) }, "Share…");
-  const copy = h("button", { class: share ? "" : "primary", onclick: async () => {
-    try { await navigator.clipboard.writeText(text); say.textContent = "Copied ✓ Paste it into WhatsApp, a text or an email."; }
+  const mail = i && ME.chat_email && h("button", { class: "primary", onclick: async () => {
+    mail.disabled = true;
+    try { await send("POST", "/invites/send", { email: i.email, name: p.first || "" }); say.textContent = `Sent ✓ to ${i.email}`; }
+    catch (err) { mail.disabled = false; failed(err, say); }
+  } }, "✉ Send by email");
+  const wa = h("button", { onclick: () => open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener") }, "WhatsApp");
+  const share = navigator.share && h("button", { onclick: () => navigator.share({ text }).catch(() => {}) }, "Share…");
+  const copy = h("button", { onclick: async () => {
+    try { await navigator.clipboard.writeText(text); say.textContent = "Copied ✓ Paste it into a text or an email."; }
     catch { box.select(); say.textContent = "Select the text and copy it."; }
   } }, "Copy");
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Send them the invite"),
-    h("p", { class: "muted" }, "Send this from your phone (WhatsApp, Messages or email). Nothing is sent by the family tree itself."),
-    box, say, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Done"), copy, share || ""));
-  (share || copy).focus();
+    h("p", { class: "muted" }, i ? "Send it by email, or from your phone." : "Send it from your phone. When they've signed in, give them a role in Full Gramps (user management)."),
+    box, say, h("div", { class: "btnrow end" }, mail || "", wa, share || "", copy, h("button", { onclick: hideDlg }, "Done")));
+  (mail || wa).focus();
 }

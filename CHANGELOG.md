@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.9 — 2026-10-25
+
+### Added
+- **Invites by email:** with their Google email, **✉ Send by email** sends the invite from the family tree's email
+  address (`DEFAULT_FROM_EMAIL`; replies go to you). Shown when the server can send email (`EMAIL_HOST`) (#147).
+- **Invites without an email:** leave the email empty and you get just the message with the link, to send with
+  **WhatsApp**, Share… or Copy. Nothing is kept; when they've signed in, give them a role in Full Gramps (#147).
+
 ## 1.8.8 — 2026-10-25
 
 ### Added
