@@ -125,6 +125,17 @@ async function cleanup() {
   });
   await step(page, "log in", () => login(page, "member"));
   await step(page, "start screen", async () => { await page.waitForSelector("#start-q"); await page.waitForSelector(".recentgrid"); });
+  // "Find me" is kept by this app (DATA_DIR), not on the demo, so it's checked in the read-only run too.
+  await step(page, "find me: link the login, your tree, This is you, That's not me", async () => {
+    if (await page.$(".mecard")) { await page.click("#menubtn"); await page.click("#menu-me button:has-text('not me')"); }
+    await page.click(".mebanner button.primary");
+    await page.fill("#me-q", "Victoria"); await page.click(".dlg .hit .hitmain");
+    await page.waitForSelector(".mewho"); await page.click(".dlg button:has-text('Yes, this is me')");
+    await page.waitForSelector(".mecard"); await page.click(".mecard"); await page.waitForSelector("#panel .metag");
+    await page.click("#menubtn"); await page.click("#menu-me button:has-text('not me')");
+    await page.waitForSelector("#panel .metag", { state: "detached" });
+    await page.click("#brand"); await page.waitForSelector(".mebanner");
+  });
   await step(page, "start search: preview and keys", async () => {
     await page.fill("#start-q", "Stewart");  // a surname in the demo tree
     await page.click("#startcard .hit .info >> nth=0");
@@ -306,7 +317,8 @@ if (WRITE) {
     await page.click(".rcard:has-text('ZZTEST Kid') button.more");
     await page.click(".rcard .menu button.danger");
     await page.click(".rcard .menu button.danger:has-text('Remove')");
-    await page.waitForSelector("#toast:not([hidden])");
+    // (the add's toast may still be up: wait for the removal's own, or Undo would undo the add mid-save)
+    await page.waitForFunction(() => document.querySelector("#toast-msg").textContent.startsWith("Removed"));
     await page.click("#toast-undo"); await page.waitForFunction(() => document.querySelector("#toast-msg").textContent === "Undone");
   });
   await step(page, "open a relative's family, crumbs", async () => {
@@ -378,6 +390,15 @@ if (WRITE) {
     await page.click("#brand"); await page.waitForSelector("#start-q"); await page.waitForSelector(".recentcard");
     if (await page.isVisible("#q") || await page.isVisible("#tree-title")) throw new Error("top search or title strip on the start screen");
     if (await page.evaluate(() => document.querySelector("#selink").children.length)) throw new Error("dotted line left on the start screen");
+  });
+  await step(page, "find me: an editor sees which login is linked and can unlink it", async () => {
+    await page.click("#menubtn"); await page.click("#menu-me button >> nth=0");  // Find yourself (or Change)
+    await page.fill("#me-q", "Victoria"); await page.click(".dlg .hit .hitmain");
+    await page.click(".dlg button:has-text('Yes, this is me')");
+    await page.waitForSelector(".mecard"); await page.click(".mecard");
+    await page.click("#panel .moretoggle"); await page.click(".loginline .linkish"); await page.click(".loginline .danger");
+    await page.waitForSelector("#panel .metag", { state: "detached" });
+    await page.click("#panel .moretoggle"); await page.click("#brand"); await page.waitForSelector("#start-q");
   });
   // Names, places and notes that look like code must show as typed and never become page elements (#9).
   // (The CSP would stop the scripts anyway, so this looks for the elements themselves, not for alerts.)
