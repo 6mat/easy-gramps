@@ -5,7 +5,7 @@ import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
-import { grampsHome, loadLogins, meBox, pushOff, renderMenuMe } from "./me.js";
+import { askPush, grampsHome, joinedToast, loadLogins, meBox, pushOff, renderMenuMe } from "./me.js";
 import { startChat } from "./chat.js";
 
 export function renderAll() {
@@ -186,6 +186,8 @@ export async function start() {
   renderMenuMe();
   grampsHome();
   loadLogins();
+  joinedToast();
+  askPush();
   startChat();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up

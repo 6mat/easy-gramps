@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, seen REAL, email TEXT,
   private INTEGER);
 CREATE TABLE IF NOT EXISTS settings (login TEXT PRIMARY KEY, dates TEXT, emails INTEGER, person TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, login TEXT NOT NULL, keys TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
 """
 ADDED = (("convs", "private"), ("users", "private"))  # columns newer than 1.8.0's tables
 
@@ -349,6 +350,20 @@ class Chat:
 
     def full_names(self) -> dict:
         return {r["login"]: r["full_name"] or r["login"] for r in self.q("SELECT login, full_name FROM users")}
+
+    # ----- invites: the owner's choice of role and person for someone's email, applied once they sign in -----
+    def invite(self, email: str, person: str, role: int, by: str) -> dict:
+        self.q("INSERT INTO invites (email, person, role, by, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (email) DO UPDATE "
+               "SET person = excluded.person, role = excluded.role, by = excluded.by, at = excluded.at, joined = NULL",
+               email, person, role, by, time.time())
+        return dict(self.one("SELECT * FROM invites WHERE email = ?", email))
+
+    def invites(self) -> list[dict]:
+        """The ones still waiting for the person to sign in."""
+        return [dict(r) for r in self.q("SELECT * FROM invites WHERE joined IS NULL ORDER BY at")]
+
+    def joined(self, email: str, login: str):
+        self.q("UPDATE invites SET joined = ? WHERE email = ?", login, email)
 
     # ----- phone notifications (push.py): each device that switched them on -----
     def add_device(self, login: str, endpoint: str, keys: dict):

@@ -413,3 +413,24 @@ def test_phone_and_email_only_for_editors(fake, client):  # #135
     main._who_cache.clear()
     d = client.get(f"/easy-gramps/tree/details/{p}").json()
     assert (d["email"], d["phone"], d["residence"], d["contactHidden"]) == ("", "", "Town", True)
+
+
+def test_invite_gives_the_role_and_person_once_they_sign_in(fake, client):  # #143
+    import main
+    p = fake.person("Asha", "", 1)
+    assert client.post("/easy-gramps/invites", json={"email": "Asha@Example.com", "person": p, "role": 1}).status_code == 403  # editors can't
+    fake.role = 4
+    main._who_cache.clear()
+    assert client.post("/easy-gramps/invites", json={"email": "nope", "person": p, "role": 1}).status_code == 400
+    assert client.post("/easy-gramps/invites", json={"email": "a@example.com", "person": p, "role": 4}).status_code == 400  # not owner
+    assert client.post("/easy-gramps/invites", json={"email": " Asha@Example.com ", "person": p, "role": 1}).json()["email"] == "asha@example.com"
+    assert client.get("/easy-gramps/auth/me").json()["joined"] == []  # not signed in yet
+    fake.users = [{"name": "google_asha@example.com", "email": "asha@example.com", "full_name": "Asha", "role": -1},
+                  {"name": "google_x", "email": "x@example.com", "full_name": "X", "role": -1}]  # x wasn't invited
+    assert client.get("/easy-gramps/auth/me").json()["joined"] == [{"name": "Asha", "person": p, "role": 1}]
+    assert [u["role"] for u in fake.users] == [1, -1]
+    assert main.CHAT.linked() == {"google_asha@example.com": p}
+    assert client.get("/easy-gramps/invites").json() == [] and client.get("/easy-gramps/auth/me").json()["joined"] == []
+    fake.fail[("GET", "/users/")] = 500  # Gramps trouble doesn't stop the page
+    client.post("/easy-gramps/invites", json={"email": "b@example.com", "person": p, "role": 0})
+    assert client.get("/easy-gramps/auth/me").json()["joined"] == []

@@ -7,6 +7,7 @@ people, and `?backlinks=1` lists who uses an object.
 """
 import copy
 import json
+import urllib.parse
 import uuid
 
 import httpx
@@ -29,6 +30,7 @@ class FakeGramps:
         self.me_status = 200           # what /users/-/ answers a good login
         self.user = "tester"           # the login's user name
         self.email = None              # and its email address (Gramps Web account)
+        self.users = []                # other accounts, for the owner: {name, email, full_name, role}
 
     # ----- helpers for tests -----
     def add(self, kind, **obj):
@@ -108,6 +110,14 @@ class FakeGramps:
             if self.me_status != 200:
                 return httpx.Response(self.me_status, json={})
             return httpx.Response(200, json={"name": self.user, "role": self.role, "email": self.email})
+        if path == "/users/" and method == "GET":
+            return httpx.Response(200, json=copy.deepcopy(self.users)) if self.role >= 4 else httpx.Response(403, json={})
+        if len(parts) == 2 and parts[0] == "users" and method == "PUT":
+            u = next((u for u in self.users if u["name"] == urllib.parse.unquote(parts[1])), None)
+            if self.role < 4 or u is None:
+                return httpx.Response(403 if u else 404, json={})
+            u.update(body)
+            return httpx.Response(200, json={})
         if path == "/transactions/history/":
             return httpx.Response(200, json=[])
         if path == "/objects/" and method == "POST":
