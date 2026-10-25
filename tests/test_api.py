@@ -401,3 +401,15 @@ def test_a_merged_away_person_takes_its_login_along(fake, client):
     client.put("/easy-gramps/auth/me/person", json={"person": dup})
     assert client.post("/easy-gramps/tree/merge", json={"keep": keep, "absorb": dup, "fields": {}}).status_code == 200
     assert main.CHAT.settings("ann")["person"] == keep
+
+
+def test_phone_and_email_only_for_editors(fake, client):  # #135
+    p = fake.person("Sam", "", 1, urls=[{"_class": "Url", "private": True, "path": "mailto:sam@example.com", "type": "E-mail"}],
+                    address_list=[{"_class": "Address", "private": True, "city": "Town", "phone": "123"}])
+    d = client.get(f"/easy-gramps/tree/details/{p}").json()
+    assert (d["email"], d["phone"], d["residence"]) == ("sam@example.com", "123", "Town") and "contactHidden" not in d
+    fake.role = 1
+    import main
+    main._who_cache.clear()
+    d = client.get(f"/easy-gramps/tree/details/{p}").json()
+    assert (d["email"], d["phone"], d["residence"], d["contactHidden"]) == ("", "", "Town", True)

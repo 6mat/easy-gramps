@@ -360,7 +360,11 @@ async def tree_places(request: Request):
 
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
-    return await familytree.details(await gramps_as(request), handle)
+    d = await familytree.details(await gramps_as(request), handle)
+    if not (await who(request)).get("can_edit"):  # contacts are for editors (chat lets the rest reach each other)
+        d["contactHidden"] = bool(d["phone"] or d["email"])
+        d["phone"] = d["email"] = ""
+    return d
 
 
 TREE_TAG = os.environ.get("TREE_TAG", "")  # a tag on records the tree makes, if you want one (none by default)
