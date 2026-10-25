@@ -142,14 +142,14 @@ class FakeGramps:
         if kind not in KINDS:
             return httpx.Response(404, json={})
         if len(parts) == 1 and method == "GET":
-            objs = list(self.db[kind].values())
+            objs = [o for o in self.db[kind].values() if self.role >= 1 or not o.get("private")]  # Guests don't see private records
             if request.url.params.get("sort") == "-change":
                 objs = sorted(objs, key=lambda o: -o.get("change", 0))
             return httpx.Response(200, json=copy.deepcopy(objs))
         h = parts[1]
         obj = self.db[kind].get(h)
         if method == "GET":
-            if obj is None:
+            if obj is None or (obj.get("private") and self.role < 1):
                 return httpx.Response(404, json={})
             out = copy.deepcopy(obj)
             if request.url.params.get("backlinks"):

@@ -16,11 +16,13 @@ from fake_gramps import FakeGramps  # noqa: E402
 
 
 @pytest.fixture
-def fake(monkeypatch):
-    """A fresh fake Gramps Web, wired into the app (role "editor"; set fake.role to change it)."""
+def fake(monkeypatch, tmp_path):
+    """A fresh fake Gramps Web, wired into the app (role "editor"; set fake.role to change it), and empty app data."""
     f = FakeGramps()
     monkeypatch.setattr(gramps, "TRANSPORT", f.transport)
+    import chat
     import main
+    monkeypatch.setattr(main, "CHAT", chat.Chat(tmp_path / "chat.sqlite3"))
     monkeypatch.setattr(main, "upstream", main.httpx.AsyncClient(base_url="http://gramps.test/api", transport=f.transport))
     main._who_cache.clear()
     main._tag.update(handle=None, until=0)
