@@ -25,13 +25,18 @@ self.addEventListener("fetch", e => {
   e.respondWith(fetch(e.request).catch(() => new Response(OFFLINE, { headers: { "Content-Type": "text/html; charset=utf-8" } })));
 });
 
-// One notification per conversation: a newer message replaces the one before (and still rings).
+// One notification per conversation: a newer message replaces the one before (and still rings). None while the
+// family tree is on screen: the chat's count shows it there (browsers allow a quiet push only then).
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data.json(); } catch { /* shown with the plain title */ }
-  e.waitUntil(self.registration.showNotification(d.title || "Family chat", {
-    body: d.body || "", tag: `chat-${d.conv}`, renotify: true, data: { conv: d.conv }, icon: `${self.registration.scope}icon-192.png`,
-  }));
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (wins.some(w => w.visibilityState === "visible")) return;
+    await self.registration.showNotification(d.title || "Family chat", {
+      body: d.body || "", tag: `chat-${d.conv}`, renotify: true, data: { conv: d.conv }, icon: `${self.registration.scope}icon-192.png`,
+    });
+  })());
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();
