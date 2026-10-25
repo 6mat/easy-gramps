@@ -61,6 +61,7 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .app { height: 100%; display: grid; grid-template-rows: auto 1fr; padding-inline: 20px; }
 .top { display: flex; align-items: center; gap: 20px; padding-block: 14px; }
 @media (max-width: 520px) { .app { padding-inline: 16px; } .top { gap: 8px; } }  /* Home, search, Chat and Menu fit a phone (412px) */
+@media (max-width: 400px) { .top .lbl { display: none; } .app { padding-inline: 10px; } }  /* small phones, a Flip folded: icons only */
 .search { position: relative; flex: 1; max-width: 560px; }
 .search input { padding-left: 38px; border-radius: 999px; background: var(--card) no-repeat 14px 50% / 16px
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8275' stroke-width='2.5'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M20 20l-4.8-4.8'/%3E%3C/svg%3E"); }
@@ -127,6 +128,8 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
    only when even the buttons can't fit do they drop to symbols (tooltips still say what they do). */
 @container (max-width: 700px) { .nav-map { display: none; } .zoomgrp { margin-left: auto; } }
 @container (max-width: 605px) { .zoomgrp .lbl { display: none; } }
+@container (max-width: 400px) { .zoomgrp { gap: 4px; } .zoomgrp .sep { display: none; } .zoomgrp button { padding: 4px 9px; } }  /* small phones, a Flip folded */
+@container (max-width: 330px) { .zoomgrp .pct { display: none; } }
 .popcard { position: absolute; z-index: 6; width: 300px; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
   padding: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); display: flex; flex-direction: column; gap: 8px; }
 .popcard .pc-head { display: flex; gap: 12px; align-items: center; }
@@ -333,7 +336,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 }
 
 /* ---------- loading / login cover, menu links ---------- */
-.gate { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: grid; place-items: center; padding: 20px; }
+.gate { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 20px; }  /* minmax: the card never grows past a narrow screen */
 .gate-card { width: 420px; max-width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px;
   box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; font-size: 18px; }
 .gate-card p { margin: 0; }
