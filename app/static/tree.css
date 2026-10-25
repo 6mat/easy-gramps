@@ -147,6 +147,8 @@ body.fullmode .treepane { border-radius: 0; border: 0; }
   border-radius: 14px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
 /* small upper-case section headings (menu, panel, editor, start screen) */
 .menu-pop h3, .fam h3, .panel h3, .ed-sec > h3, .recent h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.menu-pop .mgroup { display: flex; flex-direction: column; gap: 12px; }
+.menu-pop .sitehidden, .menu-pop .mgroup:not(:has(> :not(h3):not([hidden]):not(.sitehidden))) { display: none; }  /* hidden by the owner; a heading with nothing left */
 .menu-pop label { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 15px; }
 /* theme picker: a segmented control, like most apps */
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
@@ -557,7 +559,8 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 
 /* Typed date + 📅: the browser's date box lies invisibly over the 📅, so a tap opens its calendar. */
 .daterow { display: flex; gap: 8px; align-items: stretch; }
-.daterow[hidden] { display: none; }
 .daterow > input { flex: 1; min-width: 0; }
 .calpick { position: relative; display: grid; place-items: center; width: 48px; border: 1.5px solid var(--edge); border-radius: 10px; font-size: 22px; }
 .calpick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; padding: 0; }
+.siteicon { width: 48px; height: 48px; border-radius: 10px; border: 1px solid var(--line); }
+.dlg fieldset label.inline { width: 100%; }

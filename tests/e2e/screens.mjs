@@ -41,7 +41,7 @@ async function newPage(viewport = { width: 1366, height: 900 }) {
 async function step(page, name, fn) {
   const t0 = Date.now();
   try { await fn(); steps.push(`ok   ${name}`); }
-  catch (e) { steps.push(`FAIL ${name}: ${e.message.split("\n")[0]}`); problems.push(`step "${name}" failed`); }
+  catch (e) { steps.push(`FAIL ${name}: ${e.message.split("\n")[0]}${(e.message.match(/waiting for (.*?)\x1b|waiting for (.*)/) || []).slice(1).filter(Boolean).map(x => ` (waiting for ${x})`)[0] || ""}`); problems.push(`step "${name}" failed`); }
   console.log(`${steps.at(-1)}  (${Math.round((Date.now() - t0) / 1000)}s)`);
   const csp = await page.evaluate(() => window.__csp.splice(0)).catch(() => []);
   for (const c of csp) problems.push(`CSP (${name}): ${c}`);
@@ -55,6 +55,9 @@ async function login(page, user) {
   await page.fill("#lg-user", user); await page.fill("#lg-pass", user);
   await page.click(".login-form button[type=submit]");
   await page.waitForSelector("#gate", { state: "hidden" });
+  // Asked once after login when this server can send notifications (1.8.7): "Not now", or it covers the page.
+  await page.waitForSelector("#dlg-title:has-text('Get a notification')", { timeout: 4000 })
+    .then(() => page.click("#dlg button:has-text('Not now')"), () => {});
 }
 const status = page => page.textContent("#ed-status");
 async function saved(page) { await page.waitForFunction(() => /Saved/.test(document.querySelector("#ed-status").textContent)); }

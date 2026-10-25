@@ -3,7 +3,7 @@
 // Text only. The page checks for new messages every 15 s (every 5 s in an open conversation).
 // Opening the chat is a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { api, auth, LoginNeeded } from "./auth.js";
-import { $, P, S, fmtDate, h, name, photoEl, trapTab } from "./common.js";
+import { $, APP_NAME, P, S, fmtDate, h, name, photoEl, trapTab } from "./common.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
@@ -15,7 +15,7 @@ const talk = {};  // person -> { at, data } for the details panel
 const talkDraft = {};  // person -> what's typed in their panel box (the panel redraws often)
 let talkFocus = null;  // the person whose panel box had the cursor
 let timer = null, convTimer = null;
-const TITLE = document.title;
+const TITLE = APP_NAME;
 
 const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
 function failed(err) {

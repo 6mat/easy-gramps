@@ -28,6 +28,7 @@ def fake(monkeypatch, tmp_path):
     main._tag.update(handle=None, until=0)
     main._login_options.update(until=0, value={"password": True, "providers": []})
     main._icons.clear()
+    monkeypatch.setattr(main, "ICON_UPLOAD", tmp_path / "icon.png")
     return f
 
 

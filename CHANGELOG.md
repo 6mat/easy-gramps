@@ -2,6 +2,16 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.8 — 2026-10-25
+
+### Added
+- **Site settings** for the owner (☰ Menu → Owner → ⚙️ Site settings), the same for everyone (#145):
+  - **the app's name:** browser tab, installed app, top bar and login screen;
+  - **its icon:** upload a picture (made square from the middle), or back to the default; installed apps pick it up;
+  - **what the menu shows:** Theme, Display, Dates, You, Install, Show tips, Keyboard keys, Source code;
+  - **who gets the Full Gramps link** (the menu and the editors' "Open in Full Gramps ↗"): nobody, the owner, editors
+    and the owner, or everyone. Hiding it doesn't change what anyone may do; their role in Gramps Web decides that.
+
 ## 1.8.7 — 2026-10-25
 
 ### Added

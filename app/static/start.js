@@ -1,10 +1,11 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
 import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
-import { $, ME, P, S, canAdd, desc, fmtDate, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
+import { $, APP_NAME, ME, P, S, canAdd, desc, fmtDate, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
 import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
+import { applySite } from "./site.js";
 import { askPush, grampsHome, joinedToast, loadLogins, meBox, pushOff, renderMenuMe } from "./me.js";
 import { startChat } from "./chat.js";
 
@@ -120,7 +121,7 @@ export async function showLogin(message) {
   if (!loginShown) return;  // logged in meanwhile (in Gramps Web or another tab): the tree is loading
   const sso = SHARED ? providers.filter(p => p.id) : [];  // these only work on Gramps Web's own site
   const err = h("div", { role: "status" }, message && h("div", { class: "warn" }, message));
-  const form = h("form", { class: "login-form" }, h("h2", {}, "🌳 Family Tree"),
+  const form = h("form", { class: "login-form" }, h("h2", {}, `🌳 ${APP_NAME}`),
     ...sso.map(p => h("button", { class: "primary", type: "button", onclick: () => signIn(p) }, `Continue with ${p.name || p.id}`)));
   if (password) {
     const user = h("input", { id: "lg-user", autocomplete: "username", autocapitalize: "none" });
@@ -154,7 +155,7 @@ function signIn(p) {
     try { win.close(); } catch { /* Google may have cut the link to the window */ }
     start().then(() => { if (auth.access) toast("Signed in ✓ If the sign-in window is still open, you can close it."); });
   };
-  gate("", h("div", { class: "login-form" }, h("h2", {}, "🌳 Family Tree"),
+  gate("", h("div", { class: "login-form" }, h("h2", {}, `🌳 ${APP_NAME}`),
     h("p", {}, `Finish signing in with ${p.name || p.id} in the other window.`),
     h("p", { class: "small muted" }, "On a phone or tablet it opens as a new tab. When you're done, come back to this one."),
     say,
@@ -189,6 +190,7 @@ export async function start() {
   joinedToast();
   askPush();
   startChat();
+  applySite();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
   S.focus = P[v.focus] ? v.focus : null;

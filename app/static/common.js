@@ -3,6 +3,7 @@ import { api, BASE, photoSession } from "./auth.js";
 
 // ---------- family data ----------
 export const P = {}, FAMS = [], MEDIA = {};  // MEDIA: each picture's Gramps ID, for links to Gramps Web
+export const APP_NAME = document.documentElement.dataset.name || "Family Tree";  // the owner's name for the app (Site settings)
 export const ME = {};  // the logged-in user (from /auth/me), filled in by start()
 export async function loadGraph() {
   const g = await api("/tree/graph");
