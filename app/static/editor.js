@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -611,6 +611,7 @@ async function doAdd(choice) {
 
 export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (shown as a note), "" (not asked), null (asked)
   const first = h("input", { id: `${prefix}-first` }), last = h("input", { id: `${prefix}-last` });
+  const nick = h("input", { id: `${prefix}-nick`, maxlength: 100 });
   let gender = knownGender ?? "";
   const genderEl = knownGender == null
     ? genderPick(prefix, "", v => { gender = v; }, { class: "full" })
@@ -623,7 +624,7 @@ export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (show
   const warn = h("div", { id: `${prefix}-warn` });
   const say = msg => warn.replaceChildren(h("div", { class: "warn" }, msg));
   return {
-    fields: h("div", { class: "grid2" }, field("First name", first), field("Last name", last), genderEl,
+    fields: h("div", { class: "grid2" }, field("First name", first), field("Last name", last), field("Nickname (what the family calls them)", nick, "full"), genderEl,
       h("div", { class: "full" }, h("label", { class: "inline", for: bdOn.id }, bdOn, "Add their birthday"), bdBox)),
     warn, say,
     fill(text) {  // a name from a search: the first word is the first name, the rest the last name
@@ -640,11 +641,11 @@ export function someoneNew(prefix, knownGender) {  // knownGender: "m"/"f" (show
         warn.replaceChildren(h("div", { class: "warn" },
           h("strong", {}, `There ${dups.length === 1 ? "is 1 person" : `are ${dups.length} people`} called ${[fn, ln].filter(Boolean).join(" ")} already. Is it one of these?`),
           ...dups.map(p => h("div", { class: "row-p" },
-            h("div", {}, h("strong", {}, name(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")), action(p))),
+            h("div", {}, h("strong", {}, nameNick(p)), h("div", { class: "small muted" }, desc(p) || "No details yet")), action(p))),
           h("div", {}, h("button", { onclick: addAnyway }, "No, add as someone new"))));
         return null;
       }
-      return { first: fn, last: ln, gender, birth: bdOn.checked && bd ? bd : null };
+      return { first: fn, last: ln, nick: nick.value.trim(), gender, birth: bdOn.checked && bd ? bd : null };
     },
   };
 }

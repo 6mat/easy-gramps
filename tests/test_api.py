@@ -489,3 +489,13 @@ def test_invite_sent_by_email(fake, client, monkeypatch):  # #147
     fake.role = 3
     main._who_cache.clear()
     assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 403
+
+
+def test_someone_new_keeps_their_nickname(fake, client):  # #149
+    kid = fake.person("Sam", "", 1)
+    r = client.post("/easy-gramps/tree/relative", json={"person": kid, "rel": "father", "new": {"first": "Ravi", "nick": " Chinnu "}})
+    dad = next(p for h, p in fake.db["people"].items() if h != kid)
+    assert r.status_code == 200 and dad["primary_name"]["nick"] == "Chinnu"
+    h = client.post("/easy-gramps/tree/person", json={"first": "Asha", "nick": "Ammu"}).json()["added"]
+    assert fake.db["people"][h]["primary_name"]["nick"] == "Ammu"
+    assert {p["nick"] for p in client.get("/easy-gramps/tree/graph").json()["people"].values()} >= {"Chinnu", "Ammu"}

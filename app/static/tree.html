@@ -17,14 +17,14 @@
 <body>
 <div class="app">
   <header class="top">
-    <a class="brand" id="brand" href="#" title="Home: back to the start, to choose someone else"><span aria-hidden="true">⌂ </span>__NAME__</a>
+    <a class="brand" id="brand" href="#" title="Home: back to the start, to choose someone else" aria-label="Home: __NAME__"><span aria-hidden="true">⌂ </span><span class="lbl">__NAME__</span></a>
     <div class="search">
       <input id="q" type="search" placeholder="Search a name" autocomplete="off" aria-label="Search a name">
       <div id="results" class="results" hidden></div>
     </div>
-    <button id="chatbtn" class="chatbtn" hidden aria-label="Family chat">💬 Chat <span id="chatbadge" class="badge" hidden></span></button>
+    <button id="chatbtn" class="chatbtn" hidden aria-label="Family chat">💬<span class="lbl"> Chat</span> <span id="chatbadge" class="badge" hidden></span></button>
     <div class="menuwrap">
-      <button id="menubtn" aria-haspopup="true" aria-expanded="false">☰ Menu</button>
+      <button id="menubtn" aria-haspopup="true" aria-expanded="false" aria-label="Menu">☰<span class="lbl"> Menu</span></button>
       <div class="menu-pop" id="menupop" hidden>
         <div class="mgroup" data-item="theme"><h3>Theme</h3>
           <div class="seg" role="radiogroup" aria-label="Theme">

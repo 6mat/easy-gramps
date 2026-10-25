@@ -242,10 +242,11 @@ if (WRITE) {
   await step(page, "editor log in", () => login(page, "editor"));
   await step(page, "add a new person (start screen)", async () => {
     await page.click("button.pill:has-text('Add a new person')");
-    await page.fill("#np-first", "ZZTEST"); await page.fill("#np-last", "Screen");
+    await page.fill("#np-first", "ZZTEST"); await page.fill("#np-last", "Screen"); await page.fill("#np-nick", "Screenie");
     await page.click("label[for=np-g-m]");
     await page.click(".newperson button.primary");
     await page.waitForSelector("#editor:not([hidden]) #ed-first");
+    if (await page.inputValue("#ed-nick") !== "Screenie") throw new Error("the nickname wasn't saved with the new person");  // #149
   });
   await step(page, "editor fields autosave", async () => {
     await page.fill("#ed-nick", "Screenie");

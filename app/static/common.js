@@ -94,6 +94,7 @@ export function grampsLink(kind, gid, text = "Full Gramps ↗", label = text) {
     title: "Opens in Gramps Web, in a new tab", "aria-label": label }, text);
 }
 export const name = p => [p.first, p.last].filter(Boolean).join(" ") || "(no name)";
+export const nameNick = p => (p.nick ? `${name(p)} (${p.nick})` : name(p));  // tells apart people with similar names
 // Their parents' family: the first in Gramps' own order (the server uses the same one when adding a parent).
 export const parentFam = id => FAMS.find(f => f.id === P[id]?.pfams?.[0]) || FAMS.find(f => f.kids.includes(id));
 // A person's own families in marriage order (1st husband or wife first), then any the order doesn't list.
