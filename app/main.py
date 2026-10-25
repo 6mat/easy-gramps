@@ -10,6 +10,7 @@ import io
 import json
 import os
 import pathlib
+import sqlite3
 import time
 
 import httpx
@@ -19,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from starlette.middleware.gzip import GZipMiddleware
 
+import chat
 import familytree
 import gramps
 
@@ -493,7 +495,126 @@ async def tree_merge(request: Request):
     res = await _tree_call(request, familytree.merge)
     if isinstance(body.get("keep"), str) and isinstance(body.get("absorb"), str):
         await move_login(body["absorb"], body["keep"])
+        chat_call(CHAT.move_person, body["absorb"], body["keep"])
     return res
+
+
+# ---------- family chat (chat.py): text only, in DATA_DIR/chat.sqlite3, for every login ----------
+CHAT = chat.Chat(DATA / "chat.sqlite3")
+
+
+async def chat_user(request: Request) -> tuple[str, bool]:
+    user = await who(request)
+    name = user.get("name")
+    if not name:
+        raise HTTPException(403, NO_ACCESS)
+    chat_call(CHAT.seen, name, user.get("email"))
+    return name, bool(user.get("can_edit"))  # editors and the owner make groups and delete any message
+
+
+def chat_call(fn, *args):
+    try:
+        return fn(*args)
+    except chat.ChatError as e:
+        raise HTTPException(e.status, str(e)) from None
+    except (OSError, sqlite3.Error) as e:  # e.g. no writable volume at DATA_DIR
+        gramps.log.error("Chat storage in %s failed: %s", CHAT.path, e)
+        raise HTTPException(503, "The server can't keep messages: its data folder isn't writable. Ask the family tree's owner.") from None
+
+
+def linked_people() -> dict:
+    """login -> the person they found themselves as ("Find me"), for names and photos in the chat."""
+    return {n: v["person"] for n, v in read_settings().items() if isinstance(v, dict) and v.get("person")}
+
+
+@easy.get("/chat")
+async def chat_list(request: Request):
+    login, editor = await chat_user(request)
+    out = chat_call(CHAT.summary, login)
+    out.update(me=login, editor=editor, people=linked_people(), logins=chat_call(CHAT.logins), emoji=chat.EMOJI)
+    return out
+
+
+@easy.get("/chat/c/{cid}")
+async def chat_messages(cid: int, request: Request, after: int = 0):
+    login, _ = await chat_user(request)
+    return chat_call(CHAT.messages, cid, login, after)
+
+
+@easy.post("/chat/c/{cid}")
+async def chat_post(cid: int, request: Request):
+    login, _ = await chat_user(request)
+    return chat_call(CHAT.post, cid, login, (await json_body(request)).get("text"))
+
+
+@easy.delete("/chat/m/{mid}")
+async def chat_delete_message(mid: int, request: Request):
+    login, editor = await chat_user(request)
+    return chat_call(CHAT.delete, mid, login, editor)
+
+
+@easy.post("/chat/groups")
+async def chat_new_group(request: Request):
+    login, editor = await chat_user(request)
+    if not editor:
+        raise HTTPException(403, "Only editors can make groups.")
+    body = await json_body(request)
+    return {"id": chat_call(CHAT.make_group, login, body.get("name"), body.get("emoji"), body.get("members"))}
+
+
+@easy.post("/chat/c/{cid}/join")
+async def chat_join(cid: int, request: Request):
+    login, _ = await chat_user(request)
+    chat_call(CHAT.join, cid, login, bool((await json_body(request)).get("join")))
+    return {"ok": True}
+
+
+@easy.delete("/chat/c/{cid}")
+async def chat_delete_group(cid: int, request: Request):
+    _, editor = await chat_user(request)
+    if not editor:
+        raise HTTPException(403, "Only editors can delete a group.")
+    chat_call(CHAT.delete_group, cid)
+    return {"ok": True}
+
+
+@easy.post("/chat/private")
+async def chat_private(request: Request):
+    """A conversation with one other login: by login name, or by the person they found themselves as."""
+    login, _ = await chat_user(request)
+    body = await json_body(request)
+    other = body.get("login")
+    if body.get("person"):
+        other = next((n for n, h in linked_people().items() if h == body["person"]), None)
+        if not other:
+            raise HTTPException(404, "They haven't linked a login to the tree yet.")
+    if not isinstance(other, str):
+        raise HTTPException(400, "Pick someone to write to.")
+    return {"id": chat_call(CHAT.private, login, other)}
+
+
+@easy.get("/chat/person/{handle}")
+async def chat_about(handle: str, request: Request, limit: int = 2):
+    """The last few messages about a person (for their details panel); doesn't count as read."""
+    login, _ = await chat_user(request)
+    cid = chat_call(CHAT.person_conv, handle, False)
+    if not cid:
+        return {"id": None, "count": 0, "messages": []}
+    msgs = chat_call(CHAT.messages, cid, login, 0, 200, False)
+    return {"id": cid, "count": sum(not m["deleted"] for m in msgs), "messages": msgs[-max(0, min(limit, 20)):]}
+
+
+@easy.post("/chat/person/{handle}")
+async def chat_about_post(handle: str, request: Request):
+    """Write about a person: their conversation starts with the first message."""
+    login, _ = await chat_user(request)
+    text = (await json_body(request)).get("text")
+    chat_call(chat.clean_text, text)
+    if not handle.replace("-", "").isalnum():
+        raise HTTPException(400, "Something was missing. Please try again.")
+    await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
+    cid = chat_call(CHAT.person_conv, handle, True)
+    return {"id": cid, "message": chat_call(CHAT.post, cid, login, text)}
 
 
 # ---------- screen diagnostics (tree page with ?debug) ----------
