@@ -374,12 +374,12 @@ def child_ref(handle):
 
 
 def new_person(details, tags, gender=None):
-    """A new person from the page's {first, last, gender, birth: {y, m, d}} -> (handle, objects)."""
+    """A new person from the page's {first, last, nick, gender, birth: {y, m, d}} -> (handle, objects)."""
     first, last = (details.get("first") or "").strip(), (details.get("last") or "").strip()
     if not (first or last):
         raise GrampsError("Please write a first or last name")
     b = details.get("birth") or {}
-    return new_person_objs({"first_name": first, "surname": last,
+    return new_person_objs({"first_name": first, "surname": last, "nick": str(details.get("nick") or "")[:100],
                             "birth_date": {"year": b.get("y"), "month": b.get("m"), "day": b.get("d")}},
                            tags, False, gender or GENDER_WORD.get(details.get("gender"), "unknown"))
 

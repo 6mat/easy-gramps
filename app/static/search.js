@@ -1,7 +1,7 @@
 // Easy Gramps — Search results, shared by the start screen and the top bar: photo and name, an ⓘ
 // preview under the row (born, parents, wife or husband, children), keys (↓ ↑ through the results,
 // → preview, ← close it, Enter opens their tree) and a "No one found" you can't miss.
-import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, other, parentFam, photoEl, searchWords, spouseFams, spouseHeading } from "./common.js";
+import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, nameNick, other, parentFam, photoEl, searchWords, spouseFams, spouseHeading } from "./common.js";
 
 const LIMIT = 30;
 
@@ -27,7 +27,7 @@ export function showHits(list, text, { open, addNew }) {
 
 function hit(p, open, action = "See their tree →") {
   const main = h("button", { class: "pickbtn hitmain", onclick: () => open(p) },
-    photoEl(p), h("span", {}, h("strong", {}, name(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")));
+    photoEl(p), h("span", {}, h("strong", {}, nameNick(p)), h("span", { class: "small muted" }, desc(p) || "No details yet")));
   const info = h("button", { class: "info", "aria-expanded": "false", "aria-label": `Preview ${name(p)}`, title: "Preview" }, "ⓘ");
   const card = h("div", { class: "preview", hidden: true });
   const row = h("div", { class: "hit" }, h("div", { class: "hitrow" }, main, info), card);

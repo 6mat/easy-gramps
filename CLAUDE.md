@@ -75,7 +75,7 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
 - `POST /tree/person/{h}/photo` — upload and make it the main photo (`main=0`: add it after the others).
   `POST /tree/person/{h}/photos {media, do: main|remove}` — make one the main photo, or take it off the
   person (the Media stays in Gramps; never deleted). The graph's `photos` lists their pictures, main first.
-- `POST /tree/person` — new person with no relatives. `POST /tree/relative` — add father / mother /
+- `POST /tree/person` — new person with no relatives (`{first, last, nick, gender, birth}`, as `new` in add relative). `POST /tree/relative` — add father / mother /
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
   returns an undo token. Adding a father/mother to a one-parent family whose parent is already a couple
 with them in another family (any family naming both, even one they don't list) joins that family instead (Gramps' `POST /api/families/{keep}/merge/{absorb}`;
@@ -162,7 +162,7 @@ linked, a "Your family tree" card. Find me (`me.js`): search with ⓘ preview �
 parents) → Yes. ☰ Menu → You: Change / That's not me. Panel: "👤 This is you" under the name; editors see
 "Linked to the login …" with a two-step Unlink under More details.
 One search only: the top-bar search and the title strip are hidden on the start screen.
-**Search results** (start screen and top bar, `search.js`): photo, name, years · parent · birthplace, and an ⓘ
+**Search results** (start screen and top bar, `search.js`): photo, name (and nickname in brackets, `nameNick`), years · parent · birthplace, and an ⓘ
 that opens a preview under the row (photo, born, passed away, parents, wife/husband, children by name,
 See their tree →); one preview at a time. Keys: ↓ into the results, ↓ ↑, → / ← preview, Enter, Esc.
 No one found = amber box, "+ Add “…” as a new person" (if they can add) opens the start screen's form with

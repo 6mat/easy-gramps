@@ -140,7 +140,7 @@ def new_person_objs(details, tags, private, gender=None):
     person = {"_class": "Person", "handle": new_handle(), "private": private, "tag_list": list(tags),
               "gender": GENDER.get(details.get("gender") or gender or "unknown", 2),
               "primary_name": {"_class": "Name", "type": "Birth Name",
-                               "first_name": (details.get("first_name") or "").strip(),
+                               "first_name": (details.get("first_name") or "").strip(), "nick": (details.get("nick") or "").strip(),
                                "surname_list": [{"_class": "Surname", "surname": surname, "primary": True}] if surname else []}}
     objs = [person]
     birth = gramps_date(details.get("birth_date"))

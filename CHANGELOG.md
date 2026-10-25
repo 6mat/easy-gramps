@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.10 — 2026-10-25
+
+### Added
+- **Nickname when adding someone new** (Add a relative's "Someone new", and Add a new person on the start screen),
+  saved like the editor's Nickname (#149).
+- **Nicknames in search results**, in brackets: "Ravi Kumar (Chinnu)", in both searches, Find me, "Pick someone
+  already in the tree" and the "There is already someone called …" warning. Typing the nickname already found them (#149).
+
 ## 1.8.9 — 2026-10-25
 
 ### Added
