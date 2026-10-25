@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.11 — 2026-10-25
+
+### Changed
+- **Invites:** editors can invite too (it's sharing a link). "✉ Invite to the family tree" opens on the message, with
+  WhatsApp, ✉ Email, Share… and Copy. ✉ Email asks for their address (the owner also picks the role) and sends it from
+  the family tree's email address, or opens your mail app when the server can't send email. New wording: Google
+  sign-in first, "No Google account? Message me and I'll make you a login", accounts approved by hand (#152).
+
+### Added
+- **Group photos:** when a person is tagged on part of a picture in Gramps (a region), their photo shows that part,
+  not the whole picture: in the tree, the panel and the photo strips. Tapping it still shows the whole picture (#153).
+
 ## 1.8.10 — 2026-10-25
 
 ### Added

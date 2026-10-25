@@ -359,7 +359,7 @@ function centreCard(p) {
     h("div", { class: "flabel" }, p.photos.length ? `Photos (${p.photos.length})` : "Photos"),
     h("div", { class: "phgrid" },
       ...p.photos.map((m, i) => h("button", { class: "phtile", title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => view(i) },
-        h("img", { src: thumbUrl(m), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
+        h("img", { src: thumbUrl(m, 192, p.crops?.[m]), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
       canEdit() && h("button", { class: "phadd", onclick: () => more.click() }, "+ Add photos")),
     more);
   const gender = genderPick("ed", p.gender, v => { p.gender = v; autosave(p.id, { gender: v }); }, { disabled: !canEdit() });

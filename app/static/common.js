@@ -151,12 +151,13 @@ export function desc(p) {
 // Stand-in "photos" are soft gradients; people without a photo get initials on a tint picked from their name.
 const TINTS = [["#dbe6f2", "#9fbbd8"], ["#dcefe9", "#8cc3b4"], ["#f3e3d2", "#d9a878"], ["#ebdff0", "#b995c7"], ["#f4dde2", "#d494a3"], ["#e4ebd8", "#a7ba86"]];
 const tint = p => TINTS[[...(p.first + p.last)].reduce((n, ch) => n + ch.charCodeAt(0), 0) % TINTS.length];
-export const thumbUrl = (m, size = 192) => `${BASE}/gapi/media/${m}/thumbnail/${size}?square=1`;
+// crop: the person's part of the picture (p.crops[m]), else the whole picture.
+export const thumbUrl = (m, size = 192, crop) => `${BASE}/gapi/media/${m}${crop ? `/cropped/${crop.join("/")}` : ""}/thumbnail/${size}?square=1`;
 export function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
     const src = /^(data|blob):/.test(p.photo) ? p.photo
-      : thumbUrl(p.photo, big ? 256 : 96);
+      : thumbUrl(p.photo, big ? 256 : 96, p.crops?.[p.photo]);
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);
     let retried = false;

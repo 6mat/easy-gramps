@@ -7,7 +7,7 @@ relatives who find the full Gramps interface too much.
   children below, with siblings and in-laws' parents. One colour per family.
 - **Edit in place:** every field saves as you type; add a father, mother, husband/wife or child
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
-- **Photos:** tap one to see it big; add more photos to a person and choose their profile photo.
+- **Photos:** tap one to see it big; add more photos to a person and choose their profile photo. In a group photo, a person tagged on their part of it (in Gramps) shows just that part.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
@@ -15,8 +15,8 @@ relatives who find the full Gramps interface too much.
   is one tap from the start (offers Gramps Web's home person when there is one).
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
-- **Invite people** (the owner): pick their role and their place in the tree, send the message from your phone;
-  they're let in when they sign in with Google.
+- **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
+  given when they sign in with Google.
 - **Site settings** (the owner): the app's name and icon, which menu items show, and who gets the Full Gramps link.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
