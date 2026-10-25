@@ -180,3 +180,17 @@ def test_send_mail_uses_the_email_settings(monkeypatch):
     main.send_mail("ann@example.com", "Hi", "Body")
     assert calls == [("open", "smtp.example.com", 587), ("starttls",), ("login", "tree@example.com", "pw"),
                      ("send", "ann@example.com", "tree@example.com", "Hi"), ("close",)]
+
+
+def test_email_settings_can_be_gramps_webs_own(monkeypatch):
+    import importlib
+    import main
+    monkeypatch.setenv("GRAMPSWEB_EMAIL_HOST", "smtp.example.com")
+    monkeypatch.setenv("GRAMPSWEB_EMAIL_HOST_USER", "tree@example.com")
+    monkeypatch.setenv("EMAIL_PORT", "587")
+    m = importlib.reload(main)
+    try:
+        assert (m.EMAIL["EMAIL_HOST"], m.EMAIL["EMAIL_HOST_USER"], m.EMAIL["EMAIL_PORT"]) == ("smtp.example.com", "tree@example.com", "587")
+    finally:
+        monkeypatch.undo()
+        importlib.reload(main)

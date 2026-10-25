@@ -5,7 +5,7 @@ import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
-import { loadLogins, meBox, renderMenuMe } from "./me.js";
+import { grampsHome, loadLogins, meBox, renderMenuMe } from "./me.js";
 import { startChat } from "./chat.js";
 
 export function renderAll() {
@@ -184,6 +184,7 @@ export async function start() {
   S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
   useSettings(ME.settings);
   renderMenuMe();
+  grampsHome();
   loadLogins();
   startChat();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }

@@ -1,6 +1,6 @@
 // Easy Gramps — "Find me": each login linked to its own person in the tree. Anyone with a login can link
 // themselves (no approval; one login per person); editors see who is linked and can unlink.
-import { api, LoginNeeded, store } from "./auth.js";
+import { api, auth, LoginNeeded, SHARED, store } from "./auth.js";
 import { $, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
@@ -24,6 +24,20 @@ const send = (method, path, body) => api(path, { method, headers: { "Content-Typ
 function failed(err, where) {
   if (err instanceof LoginNeeded) return showLogin();
   where ? where.replaceChildren(h("div", { class: "warn" }, err.message)) : toast(`Not saved: ${err.message}`);
+}
+// Gramps Web's own "home person" is kept in each browser, per tree (localStorage grampsjs_settings_tree →
+// {tree: {homePerson: Gramps ID}}). On the same site (shared login) "Find me" sets it too: always when you say
+// "Yes, this is me", and on another device the first time, unless a home person was picked there already.
+export function grampsHome(force = false) {
+  const id = myPerson();
+  if (!SHARED || !id || !P[id].gid || !auth.access) return;
+  try {
+    const tree = JSON.parse(atob(auth.access.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).tree || "unknown";
+    const all = JSON.parse(localStorage.getItem("grampsjs_settings_tree") || "{}") || {};
+    if (!force && all[tree]?.homePerson) return;
+    all[tree] = { ...all[tree], homePerson: P[id].gid };
+    localStorage.setItem("grampsjs_settings_tree", JSON.stringify(all));
+  } catch { /* Gramps Web keeps its own choice */ }
 }
 function changed(settings) {
   ME.settings = settings;
@@ -102,6 +116,7 @@ function confirmStep(p, text) {
     yes.disabled = true;
     try {
       changed(await send("PUT", "/auth/me/person", { person: p.id }));
+      grampsHome(true);  // Gramps Web opens on them too (this device)
       hideDlg();
       toast(`Saved ✓ You are ${name(p)}.`);
     } catch (err) { yes.disabled = false; failed(err, say); }

@@ -89,7 +89,9 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   409 "Already linked to another login" — one login per person); `DELETE /auth/me/person` unlinks it. Kept as
   `person` in the login's settings (`/auth/me` → `settings.person`). `GET /tree/logins` → `{person: login}`:
   login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. A person
-  merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps.
+  merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps; on the same site
+  me.js also sets Gramps Web's browser-side home person (`grampsjs_settings_tree[tree].homePerson`, Gramps ID; always
+  on "Yes, this is me", otherwise only if none is set).
 - **Family chat** (`chat.py`, routes `/chat*` in main.py): by Gramps Web login name, for every login (Guests too).
   `GET /chat` → `{convs, unread, me, editor, people (login → person from Find me), logins, emoji}`. Conversations:
   `family` (id 1, everyone, can't be left), `group` (editors make them: `POST /chat/groups`; open: `POST /chat/c/{id}/join
@@ -98,7 +100,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
   `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays. Daily email: hourly task (started by the
   first chat request when `EMAIL_HOST` is set) → `send_waiting()`: unread for a day, not listed before, at most one a
-  day per login, off with `PUT /auth/settings {emails: false}`. 503 "data folder isn't writable" like settings.
+  day per login, off with `PUT /auth/settings {emails: false}`. SMTP from `EMAIL_*` or Gramps Web's `GRAMPSWEB_EMAIL_*`. 503 "data folder isn't writable" like settings.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.

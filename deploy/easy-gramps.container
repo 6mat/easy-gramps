@@ -37,6 +37,7 @@ Environment=BASE_PATH=/easy-gramps
 # the per-visitor login limit depends on it.
 Environment=FORWARDED_ALLOW_IPS=*
 # The family chat's daily email: the same values as Gramps Web's email settings (no EMAIL_HOST: no emails).
+# Gramps Web's own names work too: EnvironmentFile= its env file with GRAMPSWEB_EMAIL_HOST etc.
 # Environment=EMAIL_HOST=smtp.example.com
 # Environment=EMAIL_PORT=465
 # Environment=EMAIL_HOST_USER=tree@example.com

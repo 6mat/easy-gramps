@@ -18,8 +18,12 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
     place. No editing. New messages appear within a few seconds.
   - On a phone: the list of conversations, then one conversation (← Chats).
 - **A daily email** for chat messages that have waited a day unread: at most one a day, listing them by
-  conversation, with a link back; ☰ Menu → You switches it off. Needs the email settings (`EMAIL_HOST` and
-  the rest, the same values as Gramps Web's own); without them, no emails.
+  conversation, with a link back; ☰ Menu → You switches it off. It uses the same email settings as Gramps
+  Web: `EMAIL_HOST` and the rest, or Gramps Web's own `GRAMPSWEB_EMAIL_HOST`… names (one env file for both);
+  without them, no emails.
+- **Find me also sets Gramps Web's home person** (where both share the site and login): when you say
+  "Yes, this is me", and on another device the first time, unless you picked a home person there already.
+  Gramps Web keeps it in each browser.
 - The chat is kept in `DATA_DIR/chat.sqlite3` (Python's own SQLite; nothing new to install), so include the
   data folder in backups. Whoever runs the server can read it: it isn't end-to-end encrypted.
 

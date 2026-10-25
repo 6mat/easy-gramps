@@ -38,9 +38,11 @@ _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
 ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR = 1, 2, 3  # Gramps Web roles: see private / can add / can change
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
-# The chat's daily email (unread messages that waited a day). The same names as Gramps Web's own email settings;
-# no EMAIL_HOST: no emails. Port 465: SSL; otherwise STARTTLS when the server offers it.
-EMAIL = {k: os.environ.get(k, "").strip() for k in ("EMAIL_HOST", "EMAIL_PORT", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL")}
+# The chat's daily email (unread messages that waited a day). The same names as Gramps Web's own email settings,
+# with or without its GRAMPSWEB_ prefix, so one env file can serve both; no host: no emails.
+# Port 465: SSL; otherwise STARTTLS when the server offers it.
+EMAIL = {k: (os.environ.get(k) or os.environ.get(f"GRAMPSWEB_{k}") or "").strip()
+         for k in ("EMAIL_HOST", "EMAIL_PORT", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL")}
 APP_URL = os.environ.get("APP_URL", "").strip()  # this page's address for links in emails (default: GRAMPS_PUBLIC_URL + BASE_PATH)
 STATIC = pathlib.Path(__file__).parent / "static"
 
