@@ -15,6 +15,7 @@ const talk = {};  // person -> { at, data } for the details panel
 const talkDraft = {};  // person -> what's typed in their panel box (the panel redraws often)
 let talkFocus = null;  // the person whose panel box had the cursor
 let timer = null, convTimer = null;
+const TITLE = document.title;
 
 const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
 function failed(err) {
@@ -36,6 +37,8 @@ const loginOf = person => Object.keys(D?.people || {}).find(l => D.people[l] ===
 export function startChat() {
   $("#chatbtn").hidden = false;
   refresh();
+  const asked = +new URLSearchParams(location.search).get("chat");  // a tapped notification opened the page (sw.js)
+  if (asked) { history.replaceState(history.state, "", location.pathname + location.hash); openChat(asked); }
   if (!timer) timer = setInterval(() => { if (document.visibilityState === "visible" && auth.access) refresh(); }, 15000);
 }
 export async function refresh() {
@@ -45,9 +48,13 @@ export async function refresh() {
   const n = D.unread;
   $("#chatbadge").hidden = !n; $("#chatbadge").textContent = n > 99 ? "99+" : String(n);
   $("#chatbtn").setAttribute("aria-label", n ? `Family chat, ${n} new` : "Family chat");
+  document.title = n ? `(${n > 99 ? "99+" : n}) ${TITLE}` : TITLE;  // the tab, and the installed app's icon where it can show a number
+  if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
   if (C.open) renderList();
 }
 $("#chatbtn").onclick = () => openChat();
+// A notification tapped while the page is open (sw.js): its conversation.
+navigator.serviceWorker?.addEventListener("message", e => { if (e.data?.chat && auth.access) openChat(e.data.chat); });
 
 // ---------- the chat screen ----------
 export async function openChat(cid) {

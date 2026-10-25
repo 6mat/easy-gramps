@@ -78,6 +78,43 @@ export function renderMenuMe() {
     };
     box.append(h("label", { class: "swrow" }, "Email me when a chat message waits for me a day", sw));
   }
+  if (canPush()) box.append(pushSwitch());
+}
+
+// ---------- ☰ Menu → You: chat notifications on this device (Web Push; on iPhones only in the installed app) ----------
+const canPush = () => ME.push_key && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const pushSub = async () => (await navigator.serviceWorker.ready).pushManager.getSubscription();
+function pushSwitch() {
+  const sw = h("input", { type: "checkbox", class: "sw" });
+  pushSub().then(s => { sw.checked = !!s && Notification.permission === "granted"; }).catch(() => {});
+  sw.onchange = async () => {
+    sw.disabled = true;
+    try {
+      if (sw.checked) { await pushOn(); toast("Done ✓ This device will tell you about new chat messages."); } else await pushOff();
+    } catch (err) { sw.checked = !sw.checked; failed(err); } finally { sw.disabled = false; }
+  };
+  return h("label", { class: "swrow" }, "Notify me of new chat messages on this device", sw);
+}
+async function pushOn() {
+  if (await Notification.requestPermission() !== "granted") {
+    throw new Error("notifications are blocked for this site. Allow them in the browser's settings for this site, then try again.");
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const key = Uint8Array.from(atob(ME.push_key.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+  let sub = await reg.pushManager.getSubscription();
+  const old = sub?.options?.applicationServerKey && new Uint8Array(sub.options.applicationServerKey);
+  if (sub && old && !(old.length === key.length && old.every((x, i) => x === key[i]))) { await sub.unsubscribe(); sub = null; }  // the server has a new key
+  try { sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }); }
+  catch { throw new Error("this browser can't get notifications here. Try again, or use the installed app."); }
+  await send("PUT", "/chat/push", sub.toJSON());
+}
+// Off: this device, and on logout (so the next person to log in here doesn't get them).
+export async function pushOff() {
+  if (!canPush()) return;
+  const sub = await pushSub().catch(() => null);
+  if (!sub) return;
+  try { await send("DELETE", "/chat/push", { endpoint: sub.endpoint }); } catch { /* forgotten anyway when the push service says it's gone */ }
+  await sub.unsubscribe().catch(() => {});
 }
 async function unlinkMe() {
   closeMenu();

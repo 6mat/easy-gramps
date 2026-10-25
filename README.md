@@ -12,6 +12,8 @@ relatives who find the full Gramps interface too much.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
 - **Find me:** link your login to yourself in the tree, and your own family tree is one tap from the start.
+- **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
+  on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
@@ -119,7 +121,7 @@ read-only screen check weekly.
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
 | `ICON_FILE` | Your own app icon: a square picture (PNG or JPG) inside the container. Every icon size is made from it, and installed phones pick up a new one. Defaults to the bundled tree. |
-| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | The family chat's daily email: anyone with chat messages unread for a day gets one email listing them (at most one a day; each person can switch it off in ☰ Menu → You). The same names and values as Gramps Web's own email settings; Gramps Web's `GRAMPSWEB_EMAIL_HOST`, `GRAMPSWEB_EMAIL_HOST_USER` and the rest are read too, so both containers can share one env file. Port 465 uses SSL, 587 STARTTLS. No `EMAIL_HOST`: no emails. |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | The family chat's daily email: anyone with chat messages unread for a day gets one email listing them (at most one a day; each person can switch it off in ☰ Menu → You). The same names and values as Gramps Web's own email settings; Gramps Web's `GRAMPSWEB_EMAIL_HOST`, `GRAMPSWEB_EMAIL_HOST_USER` and the rest are read too, so both containers can share one env file. Port 465 uses SSL, 587 STARTTLS (required when there's a login, so the password never goes unencrypted). No `EMAIL_HOST`: no emails. Logins not seen for 30 days (e.g. disabled in Gramps Web) get none. |
 | `APP_URL` | This page's address for the link in those emails. Defaults to `GRAMPS_PUBLIC_URL` + `BASE_PATH`. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
@@ -159,11 +161,13 @@ the name-and-password form, as before.
 - `app/familytree.py` — reads the whole tree in one go, and every edit (fields, relatives, unlink,
   undo, merge) as Gramps Web API calls.
 - `app/gramps.py` — small Gramps Web API client and object helpers.
+- `app/chat.py` — Easy Gramps' own data in `data/chat.sqlite3`: each login's settings and "Find me" person, and the
+  family chat. `app/push.py` — the chat's phone notifications (Web Push; its key is made in `data/push-key.pem`).
 - `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
   `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`, `me.js`); `auth.js` handles login and tokens.
 - `app/remove_tag.py`, `app/unused_places.py` — one-off clean-ups the owner runs on the server (`cli_login.py`
-  logs them in). Each login's date format and "Find me" person are kept in `data/settings.json`
-  (keep it in your backups).
+  logs them in). Keep the `data/` folder (`chat.sqlite3`, `push-key.pem`) in your backups; for a copy of the database
+  while the app runs, use `sqlite3 chat.sqlite3 ".backup copy.sqlite3"`.
 
 ## License
 

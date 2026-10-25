@@ -327,13 +327,12 @@ def test_no_tag_unless_one_is_set(fake, client, monkeypatch):
 
 def test_date_format_is_kept_with_the_login(fake, client):
     import main
-    main.SETTINGS_FILE.unlink(missing_ok=True)
     assert client.get("/easy-gramps/auth/me").json()["settings"] == {}
     assert client.put("/easy-gramps/auth/settings", json={"dates": "m/d/y"}).json() == {"dates": "m/d/y"}
     assert client.get("/easy-gramps/auth/me").json()["settings"] == {"dates": "m/d/y"}
     assert client.put("/easy-gramps/auth/settings", json={"dates": "<b>"}).status_code == 400
     assert client.put("/easy-gramps/auth/settings", json={"dates": "y-m-d"}, headers={"Authorization": "Bearer bad"}).status_code == 401
-    assert main.read_settings() == {"tester": {"dates": "m/d/y"}}
+    assert main.CHAT.settings("tester") == {"dates": "m/d/y"}
 
 
 def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
@@ -357,9 +356,10 @@ def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
 
 
 def test_settings_say_so_when_the_data_folder_cant_be_written(fake, client, monkeypatch, tmp_path):
+    import chat
     import main
     (tmp_path / "file").write_text("")
-    monkeypatch.setattr(main, "SETTINGS_FILE", tmp_path / "file" / "settings.json")  # a folder that can't exist
+    monkeypatch.setattr(main, "CHAT", chat.Chat(tmp_path / "file" / "chat.sqlite3"))  # a folder that can't exist
     r = client.put("/easy-gramps/auth/settings", json={"dates": "m/d/y"})
     assert r.status_code == 503 and "data folder" in r.json()["detail"]
 
@@ -373,8 +373,6 @@ def as_user(fake, name, role=None):
 
 
 def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: automatic, editors can undo
-    import main
-    main.SETTINGS_FILE.unlink(missing_ok=True)
     me, other = fake.person("Ann"), fake.person("Bob")
     as_user(fake, "ann", 1)  # a Member can link themselves
     assert client.put("/easy-gramps/auth/me/person", json={"person": me}).json() == {"person": me}
@@ -383,7 +381,7 @@ def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: 
     assert client.put("/easy-gramps/auth/me/person", json={"person": "../x"}).status_code == 400
     as_user(fake, "bob")
     r = client.put("/easy-gramps/auth/me/person", json={"person": me})
-    assert r.status_code == 409 and r.json()["detail"] == main.TAKEN  # one login per person
+    assert r.status_code == 409 and r.json()["detail"] == __import__("chat").TAKEN  # one login per person
     assert client.put("/easy-gramps/auth/me/person", json={"person": other}).status_code == 200
     assert client.put("/easy-gramps/auth/me/person", json={"person": me}).status_code == 409
     as_user(fake, "ann", 1)
@@ -398,9 +396,8 @@ def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: 
 
 def test_a_merged_away_person_takes_its_login_along(fake, client):
     import main
-    main.SETTINGS_FILE.unlink(missing_ok=True)
     keep, dup = fake.person("Ann", "Lee", 0), fake.person("Anne", "Lee", 0)
     as_user(fake, "ann")
     client.put("/easy-gramps/auth/me/person", json={"person": dup})
     assert client.post("/easy-gramps/tree/merge", json={"keep": keep, "absorb": dup, "fields": {}}).status_code == 200
-    assert main.read_settings()["ann"]["person"] == keep
+    assert main.CHAT.settings("ann")["person"] == keep

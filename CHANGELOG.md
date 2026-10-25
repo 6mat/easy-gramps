@@ -2,6 +2,34 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.5 — 2026-10-25
+
+### Added
+- **Chat notifications** on phones and computers: ☰ Menu → You → "Notify me of new chat messages on this device".
+  Each new message shows a notification (one per conversation); tapping it opens the conversation. On iPhones and
+  iPads only in the app added to the Home Screen. Logging out switches them off on that device. Nothing to set up:
+  the server makes its own key in the data folder (`push-key.pem`; back it up with the chat). Messages are
+  encrypted for each device, so the browsers' push services can't read them (#133).
+- **The unread count** is in the browser tab's title, and on the installed app's icon where the device shows one (#132).
+
+### Fixed
+- **Private people stay private in the chat:** talk about someone marked private in Gramps reaches only logins that
+  may see private records (not Guests): not in their list, messages, daily email or notifications (#123, #129).
+- **Logins not seen for 30 days** (for example disabled in Gramps Web) no longer get the daily email or
+  notifications, and aren't offered in "Message someone" (#122).
+- **The email password is never sent unencrypted:** STARTTLS never started on port 587 before (it was asked for
+  before greeting the server). Now it does, and with a login a server without it is an error (#124).
+- **One failed email doesn't stop the others** (before, a bad address stopped everyone after it, every hour) (#121).
+- A person's name in the daily email follows changes in the tree (#131).
+- Deleting a group and merging people save all their changes or none (#128).
+
+### Changed
+- Each login's settings and "Find me" person moved from `settings.json` into `chat.sqlite3` (one file to back up);
+  the old file is imported once and kept as `settings.json.imported` (#126). Storage errors are reported in one
+  place (#127).
+- The Quadlet example keeps the email password in a Podman secret (#125).
+- New dependencies: `py-vapid` (MPL-2.0) and `http-ece` (MIT), for the notifications.
+
 ## 1.8.0 — 2026-10-25
 
 ### Added

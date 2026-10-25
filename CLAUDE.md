@@ -31,7 +31,9 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 ```
 app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
                     /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
-app/chat.py         the family chat's store (SQLite in DATA_DIR/chat.sqlite3): conversations, messages, reads, daily-email query
+app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
+                    conversations, messages, reads, daily-email query, notification devices
+app/push.py         Web Push for the chat: the server's VAPID key (DATA_DIR/push-key.pem, made on first use), http-ece encryption, send
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
@@ -83,11 +85,13 @@ combines the same couple recorded twice (editors; same father and mother). `POST
 - `POST /tree/merge {keep, absorb, fields}` — writes the chosen field values onto `keep`, then Gramps'
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
   relationships kept; `absorb` deleted). Not covered by Undo.
-- `GET /auth/me` also returns the person's `settings`; `PUT /auth/settings {dates}` saves their date
-  format in `DATA_DIR/settings.json` by Gramps Web user name (follows them to every device).
+- `GET /auth/me` also returns the person's `settings` and `push_key`; `PUT /auth/settings {dates|emails}` saves them
+  in chat.sqlite3's `settings` table by Gramps Web user name (follows them to every device; a 1.8.0 `settings.json` is
+  imported once and kept as `settings.json.imported`). Storage errors (sqlite3.Error) are one 503 "data folder isn't
+  writable" (an exception handler, like GrampsError and ChatError); `/auth/me` still works without them.
 - **Find me:** `PUT /auth/me/person {person}` links the login to a person (anyone with a login, no approval;
   409 "Already linked to another login" — one login per person); `DELETE /auth/me/person` unlinks it. Kept as
-  `person` in the login's settings (`/auth/me` → `settings.person`). `GET /tree/logins` → `{person: login}`:
+  `person` in the login's settings (`/auth/me` → `settings.person`; `UNIQUE`, so one login per person). `GET /tree/logins` → `{person: login}`:
   login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. A person
   merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps; on the same site
   me.js also sets Gramps Web's browser-side home person (`grampsjs_settings_tree[tree].homePerson`, Gramps ID; always
@@ -100,7 +104,18 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
   `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays. Daily email: hourly task (started by the
   first chat request when `EMAIL_HOST` is set) → `send_waiting()`: unread for a day, not listed before, at most one a
-  day per login, off with `PUT /auth/settings {emails: false}`. SMTP from `EMAIL_*` or Gramps Web's `GRAMPSWEB_EMAIL_*`. 503 "data folder isn't writable" like settings.
+  day per login, off with `PUT /auth/settings {emails: false}`; one failed send doesn't stop the others. SMTP from
+  `EMAIL_*` or Gramps Web's `GRAMPSWEB_EMAIL_*`; with a login, STARTTLS is required (never a plain-text password).
+  **Privacy:** a person's conversation keeps Gramps' `private` flag (refreshed with every message); logins without
+  "view private" (`users.private`, from `can_view_private`) don't get it in the list, messages, email or
+  notifications. Logins not seen for 30 days (`chat.ACTIVE`, e.g. disabled in Gramps Web) get no email or
+  notifications and aren't listed. Several writes (delete a group, a person merge) run in one transaction (`Chat.tx`).
+  **Notifications:** `PUT /chat/push {endpoint, keys}` (only push services' https addresses: `push.PUSH_HOSTS`, so the
+  server can't be made to call anywhere else; the keys are tried once) / `DELETE /chat/push {endpoint}` (also on Log
+  out). Each new message → `notify()` → a background task sends `{title, body, conv}` to the devices of everyone who
+  may read it but the writer; 404/410 forgets the device. `push_key` is offered only when there's a contact for the
+  push services (an email address, or an https page). sw.js shows them (one per conversation); a tap focuses the page
+  (postMessage) or opens `?chat=<id>`.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
@@ -142,7 +157,8 @@ the name filled in (first word = first name). It must **not** open on an automat
 bar (red unread count; checked every 15 s, an open conversation every 5 s). Full screen like the editor, a history
 step (Back / Esc close it): left Groups (+ New group for editors), Groups you can join (Join), Private messages
 (+ Message someone), About people; right the conversation (day labels, photo + name + time, your own in blue, ⋯ →
-two-step delete, Leave group / Delete group, See their tree →, a big box + Send; Enter sends on a computer). Names
+two-step delete, Leave group / Delete group, See their tree →, a big box + Send; Enter sends on a computer). The unread
+count is also in the tab title and on the installed app's icon (`navigator.setAppBadge`, where it exists). Names
 and photos come from Find me, else the login name. Phones (≤ 700px): the list, then one conversation (← Chats).
 Panel: "Family talk about …" at the bottom (last 2 messages, See all, a box + Send; typing survives panel redraws)
 and "💬 Message …" under the name of someone with a linked login. Text only, no editing, no voice or photos.
@@ -156,7 +172,8 @@ Fit and centring use only the area not under the panel.
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
-switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me), Show tips (the tip bar
+switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me, the daily email, "Notify me of
+new chat messages on this device" where the browser can), Show tips (the tip bar
 is off until asked for), 📲 Install as an app (main.js; only while Chrome's `beforeinstallprompt` offers it),
 Full Gramps ↗, Log out.
 

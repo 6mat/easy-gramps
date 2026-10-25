@@ -4,3 +4,5 @@ uvicorn==0.54.0
 httpx==0.28.1
 python-multipart==0.0.32
 pillow==13.0.0  # makes the app icons from one picture
+py-vapid==1.9.4  # phone notifications: the server's own key (VAPID)
+http-ece==1.2.1  # phone notifications: each message encrypted for the device

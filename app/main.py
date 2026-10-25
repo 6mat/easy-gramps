@@ -13,8 +13,9 @@ import pathlib
 import smtplib
 import sqlite3
 import time
+import urllib.parse
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formatdate, make_msgid, parseaddr
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -26,6 +27,7 @@ from starlette.middleware.gzip import GZipMiddleware
 import chat
 import familytree
 import gramps
+import push
 
 GRAMPS_URL = os.environ["GRAMPS_URL"].rstrip("/")  # how this app reaches Gramps Web (can be an internal Docker URL)
 GRAMPS_PUBLIC_URL = os.environ.get("GRAMPS_PUBLIC_URL", "").rstrip("/") or GRAMPS_URL  # what users' browsers open
@@ -45,6 +47,10 @@ EMAIL = {k: (os.environ.get(k) or os.environ.get(f"GRAMPSWEB_{k}") or "").strip(
          for k in ("EMAIL_HOST", "EMAIL_PORT", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL")}
 APP_URL = os.environ.get("APP_URL", "").strip()  # this page's address for links in emails (default: GRAMPS_PUBLIC_URL + BASE_PATH)
 STATIC = pathlib.Path(__file__).parent / "static"
+# Easy Gramps' own data (chat.py): each login's settings and the family chat, in DATA_DIR/chat.sqlite3.
+CHAT = chat.Chat(DATA / "chat.sqlite3")
+PUSH = push.Push(DATA / "push-key.pem")  # phone notifications' key (push.py)
+NOT_WRITABLE = "The server can't save that: its data folder isn't writable. Ask the family tree's owner."
 
 # The app lives under BASE_PATH (e.g. /easy-gramps) so it can share a domain with Gramps Web.
 easy = FastAPI(title="Easy Gramps", docs_url=None, redoc_url=None, openapi_url=None)
@@ -99,6 +105,17 @@ UNREACHABLE = "Can't reach the family tree right now. Please try again in a minu
 async def gramps_unreachable(_, e: httpx.HTTPError):
     # Gramps Web is down or too slow: say so, and never as "please log in" (the page would drop the login).
     return JSONResponse({"detail": UNREACHABLE}, status_code=502)
+
+
+@easy.exception_handler(chat.ChatError)
+async def chat_error(_, e: chat.ChatError):
+    return JSONResponse({"detail": str(e)}, status_code=e.status)
+
+
+@easy.exception_handler(sqlite3.Error)
+async def storage_error(_, e: sqlite3.Error):  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
+    gramps.log.error("Storage in %s failed: %s. Give the container a writable volume there.", DATA, e)
+    return JSONResponse({"detail": NOT_WRITABLE}, status_code=503)
 
 
 async def json_body(request: Request) -> dict:
@@ -254,122 +271,68 @@ async def photo_session_end():
 @easy.get("/auth/me")
 async def me(request: Request):
     user = dict(await who(request))
-    user["settings"] = read_settings().get(user.get("name"), {})
+    try:
+        user["settings"] = CHAT.settings(user.get("name"))
+    except sqlite3.Error as e:  # (the page still opens, with the usual settings)
+        gramps.log.error("Can't read settings in %s: %s", DATA, e)
+        user["settings"] = {}
     user["chat_email"] = bool(EMAIL["EMAIL_HOST"])  # the Menu offers the daily email switch
+    try:
+        user["push_key"] = PUSH.public_key() if push_contact() else None  # and "Notify me on this device"
+    except (OSError, ValueError) as e:
+        gramps.log.error("No key for notifications in %s: %s", DATA, e)
+        user["push_key"] = None
     return user
 
 
-# ---------- each person's own settings (the date format), kept with their login ----------
-# In DATA_DIR/settings.json by Gramps Web user name, so they follow the person to every device.
-SETTINGS_FILE = DATA / "settings.json"
-DATE_FORMATS = ("d mon y", "d/m/y", "m/d/y", "y-m-d", "mon d, y")
-_settings_lock = asyncio.Lock()
+# ---------- each person's own settings, kept with their login (so they follow the person to every device) ----------
 
-
-def read_settings() -> dict:
-    try:
-        s = json.loads(SETTINGS_FILE.read_text())
-    except (OSError, ValueError):
-        return {}
-    return s if isinstance(s, dict) else {}
+def login_name(user: dict) -> str:
+    if not user.get("name"):
+        raise HTTPException(400, "Something was missing. Please try again.")
+    return user["name"]
 
 
 @easy.put("/auth/settings")
 async def save_settings(request: Request):
-    name = (await who(request)).get("name")
+    name = login_name(await who(request))
     body = await json_body(request)
-    ok = ("dates" in body or "emails" in body) and body.get("dates", DATE_FORMATS[0]) in DATE_FORMATS \
-        and isinstance(body.get("emails", True), bool)
-    if not name or not ok:
+    if not ("dates" in body or "emails" in body) or body.get("dates", chat.DATE_FORMATS[0]) not in chat.DATE_FORMATS \
+            or not isinstance(body.get("emails", True), bool):
         raise HTTPException(400, "Something was missing. Please try again.")
-    async with _settings_lock:
-        s = read_settings()
-        mine = s.setdefault(name, {})
-        mine.update({k: body[k] for k in ("dates", "emails") if k in body})
-        write_settings(s)
-    return mine
-
-
-def write_settings(s: dict):
-    """Save all the settings (call it holding _settings_lock)."""
-    try:
-        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = SETTINGS_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(s, indent=1, ensure_ascii=False))
-        tmp.replace(SETTINGS_FILE)  # all at once: a crash never leaves half a file
-    except OSError as e:  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
-        gramps.log.error("Can't save settings in %s: %s. Give the container a writable volume there.", SETTINGS_FILE.parent, e)
-        raise HTTPException(503, "The server can't save settings: its data folder isn't writable. Ask the family tree's owner.") from None
+    return CHAT.save_settings(name, {k: body[k] for k in ("dates", "emails") if k in body})
 
 
 # ---------- "Find me": each login linked to its own person in the tree ----------
 # Kept with the login's settings ("person": handle). Easy Gramps' own link: Gramps Web knows nothing of it.
 # Anyone with a login may link themselves (no approval); one login per person; editors can unlink anyone.
-TAKEN = "Already linked to another login. Ask an editor."
-
-
-def linked_login(s: dict, handle: str) -> str | None:
-    return next((n for n, v in s.items() if isinstance(v, dict) and v.get("person") == handle), None)
-
 
 @easy.put("/auth/me/person")
 async def claim_person(request: Request):
-    name = (await who(request)).get("name")
+    name = login_name(await who(request))
     handle = (await json_body(request)).get("person")
-    if not name or not isinstance(handle, str) or not handle.replace("-", "").isalnum():
+    if not isinstance(handle, str) or not handle.replace("-", "").isalnum():
         raise HTTPException(400, "Something was missing. Please try again.")
     await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
-    async with _settings_lock:
-        s = read_settings()
-        if linked_login(s, handle) not in (None, name):
-            raise HTTPException(409, TAKEN)
-        mine = s.setdefault(name, {})
-        mine["person"] = handle  # (a new link replaces their old one)
-        write_settings(s)
-    return mine
+    return CHAT.link(name, handle)  # (a new link replaces their old one)
 
 
 @easy.delete("/auth/me/person")
 async def unclaim_person(request: Request):
-    name = (await who(request)).get("name")
-    async with _settings_lock:
-        s = read_settings()
-        mine = s.get(name, {})
-        if mine.pop("person", None):
-            write_settings(s)
-    return mine
+    return CHAT.link(login_name(await who(request)), None)
 
 
 @easy.get("/tree/logins")
 async def tree_logins(request: Request):
     """Who is linked to a login: the login names for editors, only who has one for everyone else."""
     editor = (await who(request)).get("can_edit")
-    return {v["person"]: (n if editor else "") for n, v in read_settings().items() if isinstance(v, dict) and v.get("person")}
+    return {p: (n if editor else "") for n, p in CHAT.linked().items()}
 
 
 @easy.delete("/tree/logins/{handle}")
 async def tree_unlink_login(handle: str, request: Request):
     await need_edit(request, "Only editors can unlink a login.")
-    async with _settings_lock:
-        s = read_settings()
-        n = linked_login(s, handle)
-        if n:
-            del s[n]["person"]
-            write_settings(s)
-    return {"unlinked": n}
-
-
-async def move_login(absorb: str, keep: str):
-    """After a person merge: a login linked to the removed copy follows to the one kept (unless that one has a login)."""
-    async with _settings_lock:
-        s = read_settings()
-        n = linked_login(s, absorb)
-        if n:
-            if linked_login(s, keep):
-                del s[n]["person"]
-            else:
-                s[n]["person"] = keep
-            write_settings(s)
+    return {"unlinked": CHAT.unlink_person(handle)}
 
 
 # ---------- family tree ----------
@@ -506,21 +469,18 @@ async def tree_merge(request: Request):
     body = await json_body(request)
     res = await _tree_call(request, familytree.merge)
     if isinstance(body.get("keep"), str) and isinstance(body.get("absorb"), str):
-        await move_login(body["absorb"], body["keep"])
-        chat_call(CHAT.move_person, body["absorb"], body["keep"])
+        CHAT.move_person(body["absorb"], body["keep"])  # their login link and the talk about them
     return res
 
 
 # ---------- family chat (chat.py): text only, in DATA_DIR/chat.sqlite3, for every login ----------
-CHAT = chat.Chat(DATA / "chat.sqlite3")
-
 
 async def chat_user(request: Request) -> tuple[str, bool]:
     user = await who(request)
     name = user.get("name")
     if not name:
         raise HTTPException(403, NO_ACCESS)
-    chat_call(CHAT.seen, name, user.get("email"), user.get("full_name"))
+    CHAT.seen(name, user.get("email"), user.get("full_name"), user.get("can_view_private"))
     if EMAIL["EMAIL_HOST"] and not _mailer:
         _mailer.append(asyncio.create_task(mail_loop()))
     return name, bool(user.get("can_edit"))  # editors and the owner make groups and delete any message
@@ -541,14 +501,15 @@ async def mail_loop():
 
 def send_waiting(now: float | None = None) -> int:
     now = now or time.time()
-    off = {n for n, v in read_settings().items() if isinstance(v, dict) and v.get("emails") is False}
     names = CHAT.full_names()
     sent = 0
     for u in CHAT.waiting(now):
-        if u["login"] in off:
-            continue
         subject, body = waiting_email(u, names)
-        send_mail(u["email"], subject, body)
+        try:
+            send_mail(u["email"], subject, body)
+        except (smtplib.SMTPException, OSError) as e:  # one bad address mustn't stop the others (the next hour tries again)
+            gramps.log.warning("Chat email to %s failed: %s", u["login"], e)
+            continue
         CHAT.emailed(u["login"], now, max(m["id"] for m in u["messages"]))
         sent += 1
     return sent
@@ -574,7 +535,7 @@ def waiting_email(u: dict, names: dict) -> tuple[str, str]:
         if len(ms) > 5:
             lines.append(f"  … and {len(ms) - 5} more")
         lines.append("")
-    lines += [f"Open the family chat: {APP_URL or f'{GRAMPS_PUBLIC_URL}{BASE_PATH}/'}", "",
+    lines += [f"Open the family chat: {app_url()}", "",
               "You get at most one email a day, only for messages you haven't seen.",
               "To stop these emails: ☰ Menu → You, in the family tree."]
     return f"{n} {'message is' if n == 1 else 'messages are'} waiting for you in the family chat", "\n".join(lines)
@@ -589,52 +550,109 @@ def send_mail(to: str, subject: str, body: str):
     port = int(EMAIL["EMAIL_PORT"] or 465)
     smtp = smtplib.SMTP_SSL(EMAIL["EMAIL_HOST"], port, timeout=20) if port == 465 else smtplib.SMTP(EMAIL["EMAIL_HOST"], port, timeout=20)
     with smtp:
-        if port != 465 and smtp.has_extn("starttls"):
+        smtp.ehlo()
+        # The password never goes unencrypted: with a login, a server that doesn't offer STARTTLS is an error.
+        if port != 465 and (EMAIL["EMAIL_HOST_USER"] or smtp.has_extn("starttls")):
             smtp.starttls()
         if EMAIL["EMAIL_HOST_USER"]:
             smtp.login(EMAIL["EMAIL_HOST_USER"], EMAIL["EMAIL_HOST_PASSWORD"])
         smtp.send_message(msg)
 
 
-def chat_call(fn, *args):
+def app_url() -> str:
+    return APP_URL or f"{GRAMPS_PUBLIC_URL}{BASE_PATH}/"
+
+
+# ----- phone notifications (push.py): each new message, to the devices of everyone who may read it -----
+_pushing: set = set()  # the running sends (a task nobody holds can be dropped before it finishes)
+
+
+def notify(cid: int, login: str, text: str):
+    task = asyncio.create_task(push_new(cid, login, text))
+    _pushing.add(task)
+    task.add_done_callback(_pushing.discard)
+
+
+async def push_new(cid: int, login: str, text: str):
     try:
-        return fn(*args)
-    except chat.ChatError as e:
-        raise HTTPException(e.status, str(e)) from None
-    except (OSError, sqlite3.Error) as e:  # e.g. no writable volume at DATA_DIR
-        gramps.log.error("Chat storage in %s failed: %s", CHAT.path, e)
-        raise HTTPException(503, "The server can't keep messages: its data folder isn't writable. Ask the family tree's owner.") from None
+        devices = CHAT.devices(cid, login)
+        if not devices:
+            return
+        c, writer = CHAT.conv(cid), CHAT.full_names().get(login, login)
+        title = {"family": "Whole family", "group": c["name"], "private": writer,
+                 "person": f"About {c['name'] or 'someone in the tree'}"}[c["kind"]]
+        body = text[:200] if c["kind"] == "private" else f"{writer}: {text[:200]}"
+        data = json.dumps({"title": title, "body": body, "conv": cid}).encode()
+        for url in await PUSH.send(devices, data, push_contact()):
+            CHAT.remove_device(url)  # switched off in the browser, or the app was removed
+    except Exception:  # noqa: BLE001 - the message is saved; only its notification is lost
+        gramps.log.exception("Chat notifications failed")
 
 
-def linked_people() -> dict:
-    """login -> the person they found themselves as ("Find me"), for names and photos in the chat."""
-    return {n: v["person"] for n, v in read_settings().items() if isinstance(v, dict) and v.get("person")}
+def push_contact() -> str:
+    """Who push services can contact about our notifications: the email address, else this page if it's https
+    ("": neither, as on a test install over http, so no notifications)."""
+    addr = parseaddr(EMAIL["DEFAULT_FROM_EMAIL"] or EMAIL["EMAIL_HOST_USER"])[1]
+    page = urllib.parse.urlsplit(app_url())
+    return f"mailto:{addr}" if "@" in addr else f"https://{page.netloc}" if page.scheme == "https" else ""
+
+
+BAD_DEVICE = "This browser can't get notifications from the family tree."
+
+
+@easy.put("/chat/push")
+async def chat_push_on(request: Request):
+    """This device wants notifications: its pushManager subscription {endpoint, keys: {p256dh, auth}}."""
+    login, _ = await chat_user(request)
+    body = await json_body(request)
+    endpoint, keys = body.get("endpoint"), body.get("keys") if isinstance(body.get("keys"), dict) else {}
+    device = {"endpoint": endpoint, "keys": {k: keys.get(k) for k in ("p256dh", "auth")}}
+    if not (push_contact() and push.push_address(endpoint) and len(endpoint) < 1000
+            and all(isinstance(v, str) and 0 < len(v) < 200 for v in device["keys"].values())):
+        raise HTTPException(400, BAD_DEVICE)
+    try:
+        PUSH.request(device, b"check", push_contact())  # keys that can't be used: refused now, not at every message
+    except Exception:  # noqa: BLE001 - whatever the encryption says, the keys are bad
+        raise HTTPException(400, BAD_DEVICE) from None
+    CHAT.add_device(login, endpoint, device["keys"])
+    return {"ok": True}
+
+
+@easy.delete("/chat/push")
+async def chat_push_off(request: Request):
+    login, _ = await chat_user(request)
+    endpoint = (await json_body(request)).get("endpoint")
+    if isinstance(endpoint, str):
+        CHAT.remove_device(endpoint, login)
+    return {"ok": True}
 
 
 @easy.get("/chat")
 async def chat_list(request: Request):
     login, editor = await chat_user(request)
-    out = chat_call(CHAT.summary, login)
-    out.update(me=login, editor=editor, people=linked_people(), logins=chat_call(CHAT.logins), emoji=chat.EMOJI)
+    out = CHAT.summary(login)
+    out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), emoji=chat.EMOJI)
     return out
 
 
 @easy.get("/chat/c/{cid}")
 async def chat_messages(cid: int, request: Request, after: int = 0):
     login, _ = await chat_user(request)
-    return chat_call(CHAT.messages, cid, login, after)
+    return CHAT.messages(cid, login, after)
 
 
 @easy.post("/chat/c/{cid}")
 async def chat_post(cid: int, request: Request):
     login, _ = await chat_user(request)
-    return chat_call(CHAT.post, cid, login, (await json_body(request)).get("text"))
+    m = CHAT.post(cid, login, (await json_body(request)).get("text"))
+    notify(cid, login, m["text"])
+    return m
 
 
 @easy.delete("/chat/m/{mid}")
 async def chat_delete_message(mid: int, request: Request):
     login, editor = await chat_user(request)
-    return chat_call(CHAT.delete, mid, login, editor)
+    return CHAT.delete(mid, login, editor)
 
 
 @easy.post("/chat/groups")
@@ -643,13 +661,13 @@ async def chat_new_group(request: Request):
     if not editor:
         raise HTTPException(403, "Only editors can make groups.")
     body = await json_body(request)
-    return {"id": chat_call(CHAT.make_group, login, body.get("name"), body.get("emoji"), body.get("members"))}
+    return {"id": CHAT.make_group(login, body.get("name"), body.get("emoji"), body.get("members"))}
 
 
 @easy.post("/chat/c/{cid}/join")
 async def chat_join(cid: int, request: Request):
     login, _ = await chat_user(request)
-    chat_call(CHAT.join, cid, login, bool((await json_body(request)).get("join")))
+    CHAT.join(cid, login, bool((await json_body(request)).get("join")))
     return {"ok": True}
 
 
@@ -658,7 +676,7 @@ async def chat_delete_group(cid: int, request: Request):
     _, editor = await chat_user(request)
     if not editor:
         raise HTTPException(403, "Only editors can delete a group.")
-    chat_call(CHAT.delete_group, cid)
+    CHAT.delete_group(cid)
     return {"ok": True}
 
 
@@ -669,22 +687,22 @@ async def chat_private(request: Request):
     body = await json_body(request)
     other = body.get("login")
     if body.get("person"):
-        other = next((n for n, h in linked_people().items() if h == body["person"]), None)
+        other = next((n for n, h in CHAT.linked().items() if h == body["person"]), None)
         if not other:
             raise HTTPException(404, "They haven't linked a login to the tree yet.")
     if not isinstance(other, str):
         raise HTTPException(400, "Pick someone to write to.")
-    return {"id": chat_call(CHAT.private, login, other)}
+    return {"id": CHAT.private(login, other)}
 
 
 @easy.get("/chat/person/{handle}")
 async def chat_about(handle: str, request: Request, limit: int = 2):
     """The last few messages about a person (for their details panel); doesn't count as read."""
     login, _ = await chat_user(request)
-    cid = chat_call(CHAT.person_conv, handle, False)
+    cid = CHAT.person_conv(handle, False)
     if not cid:
         return {"id": None, "count": 0, "messages": []}
-    msgs = chat_call(CHAT.messages, cid, login, 0, 200, False)
+    msgs = CHAT.messages(cid, login, 0, 200, False)
     return {"id": cid, "count": sum(not m["deleted"] for m in msgs), "messages": msgs[-max(0, min(limit, 20)):]}
 
 
@@ -692,15 +710,16 @@ async def chat_about(handle: str, request: Request, limit: int = 2):
 async def chat_about_post(handle: str, request: Request):
     """Write about a person: their conversation starts with the first message."""
     login, _ = await chat_user(request)
-    text = (await json_body(request)).get("text")
-    chat_call(chat.clean_text, text)
+    text = chat.clean_text((await json_body(request)).get("text"))
     if not handle.replace("-", "").isalnum():
         raise HTTPException(400, "Something was missing. Please try again.")
-    p = await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="primary_name")  # 404 if not in the tree
+    p = await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="primary_name,private")  # 404 if not in the tree
     pn = (p or {}).get("primary_name") or {}
-    who = " ".join(x for x in (pn.get("first_name"), *(s.get("surname") for s in pn.get("surname_list") or [])) if x)
-    cid = chat_call(CHAT.person_conv, handle, True, who)
-    return {"id": cid, "message": chat_call(CHAT.post, cid, login, text)}
+    person_name = " ".join(x for x in (pn.get("first_name"), *(s.get("surname") for s in pn.get("surname_list") or [])) if x)
+    cid = CHAT.person_conv(handle, True, person_name, bool((p or {}).get("private")))
+    m = CHAT.post(cid, login, text)
+    notify(cid, login, m["text"])
+    return {"id": cid, "message": m}
 
 
 # ---------- screen diagnostics (tree page with ?debug) ----------
