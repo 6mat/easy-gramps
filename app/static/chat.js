@@ -166,16 +166,17 @@ function dayLabel(t) {
 }
 const timeOf = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 function message(m) {
-  const canDel = !m.deleted && (m.mine || D.editor);
+  const canDel = m.deleted ? D.editor : m.mine || D.editor;  // editors can also take away a "Message deleted" line
   const sure = C.sure === m.id;
   return h("div", { class: `msg${m.mine ? " me" : ""}${sure ? " sure" : ""}` }, avatar(m.login),
     h("div", { class: "mb" },
       h("div", { class: "who" }, h("strong", {}, whoName(m.login)), h("span", { class: "small muted" }, timeOf(m.at))),
       m.deleted ? h("div", { class: "txt gone" }, "Message deleted") : h("div", { class: "txt" }, m.text),
-      sure ? h("div", { class: "msgsure" }, h("span", { class: "small" }, `Delete ${m.mine ? "your" : `${first({ first: whoName(m.login) })}'s`} message? Everyone will see “Message deleted”.`),
-        h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: () => deleteMessage(m.id) }, "Yes, delete it"),
+      sure ? h("div", { class: "msgsure" }, h("span", { class: "small" }, m.deleted ? "Remove “Message deleted” for everyone?"
+        : `Delete ${m.mine ? "your" : `${first({ first: whoName(m.login) })}'s`} message? Everyone will see “Message deleted”.`),
+        h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: () => deleteMessage(m.id) }, m.deleted ? "Yes, remove it" : "Yes, delete it"),
           h("button", { onclick: () => { C.sure = null; renderConv(); } }, "Cancel"))) : ""),
-    canDel && !sure ? h("button", { class: "dots", title: "Delete this message", "aria-label": "Delete this message", onclick: () => { C.sure = m.id; renderConv(); } }, "⋯") : "");
+    canDel && !sure ? h("button", { class: "dots", title: m.deleted ? "Remove this line" : "Delete this message", "aria-label": m.deleted ? "Remove this line" : "Delete this message", onclick: () => { C.sure = m.id; renderConv(); } }, "⋯") : "");
 }
 function renderConv(toEnd) {
   const box = $("#chat .cconv"), c = D?.convs.find(x => x.id === C.cur);
@@ -235,7 +236,7 @@ async function post(cid, ta, btn) {
 async function deleteMessage(id) {
   try {
     const m = await send("DELETE", `/chat/m/${id}`);
-    C.msgs = C.msgs.map(x => (x.id === id ? m : x)); C.sure = null;
+    C.msgs = m.removed ? C.msgs.filter(x => x.id !== id) : C.msgs.map(x => (x.id === id ? m : x)); C.sure = null;
     renderConv(); refresh();
   } catch (err) { failed(err); }
 }

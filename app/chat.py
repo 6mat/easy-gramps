@@ -313,6 +313,11 @@ class Chat:
         if not m:
             raise ChatError("That message isn't there any more.", 404)
         self.check(m["conv"], login)
+        if m["deleted_by"] is not None:  # a second delete takes away the "Message deleted" line (editors)
+            if not editor:
+                raise ChatError("Only editors can remove this.", 403)
+            self.q("DELETE FROM messages WHERE id = ?", mid)
+            return {"id": mid, "removed": True}
         if m["login"] != login and not editor:
             raise ChatError("You can delete only your own messages.", 403)
         self.q("UPDATE messages SET deleted_by = ?, text = NULL WHERE id = ?", login, mid)  # "Message deleted" stays
