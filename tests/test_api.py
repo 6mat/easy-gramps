@@ -434,3 +434,38 @@ def test_invite_gives_the_role_and_person_once_they_sign_in(fake, client):  # #1
     fake.fail[("GET", "/users/")] = 500  # Gramps trouble doesn't stop the page
     client.post("/easy-gramps/invites", json={"email": "b@example.com", "person": p, "role": 0})
     assert client.get("/easy-gramps/auth/me").json()["joined"] == []
+
+
+def test_site_settings_owner_only(fake, client):  # #145
+    import io
+
+    import main
+    from PIL import Image
+    assert client.put("/easy-gramps/site", json={"name": "Ours"}).status_code == 403  # an editor
+    me = client.get("/easy-gramps/auth/me").json()
+    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone"} and me["gramps_link"]
+    fake.role = 4
+    main._who_cache.clear()
+    for bad in ({"name": "  "}, {"name": "x" * 41}, {"hide": ["logout"]}, {"hide": "theme"}, {"gramps": "admins"}):
+        assert client.put("/easy-gramps/site", json=bad).status_code == 400, bad
+    s = client.put("/easy-gramps/site", json={"name": " The  <Kumar> Family ", "hide": ["source", "theme"], "gramps": "owner"}).json()
+    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner"}
+    page = client.get("/easy-gramps/").text
+    assert "<title>The &lt;Kumar&gt; Family</title>" in page and "__NAME__" not in page
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["name"] == "The <Kumar> Family"
+    assert client.get("/easy-gramps/auth/me").json()["gramps_link"]  # the owner still gets it
+    fake.role = 3
+    main._who_cache.clear()
+    assert "gramps_link" not in client.get("/easy-gramps/auth/me").json()  # editors don't, now
+    fake.role = 4
+    main._who_cache.clear()
+    before = client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"]
+    assert client.put("/easy-gramps/site/icon", content=b"not a picture").status_code == 400
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 200), "red").save(buf, "JPEG")
+    assert client.put("/easy-gramps/site/icon", content=buf.getvalue()).status_code == 200
+    with Image.open(io.BytesIO(client.get("/easy-gramps/icon-192.png").content)) as im:
+        assert im.size == (192, 192) and im.getpixel((96, 96))[0] > 200  # the red picture, square
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] != before
+    client.delete("/easy-gramps/site/icon")
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] == before

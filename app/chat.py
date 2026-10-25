@@ -29,8 +29,10 @@ CREATE TABLE IF NOT EXISTS users (login TEXT PRIMARY KEY, seen REAL, email TEXT,
   private INTEGER);
 CREATE TABLE IF NOT EXISTS settings (login TEXT PRIMARY KEY, dates TEXT, emails INTEGER, person TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, login TEXT NOT NULL, keys TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS site (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
 """
+SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone"}  # the owner's site settings, and their defaults
 ADDED = (("convs", "private"), ("users", "private"))  # columns newer than 1.8.0's tables
 
 
@@ -350,6 +352,16 @@ class Chat:
 
     def full_names(self) -> dict:
         return {r["login"]: r["full_name"] or r["login"] for r in self.q("SELECT login, full_name FROM users")}
+
+    # ----- the owner's site settings (the same for everyone) -----
+    def site(self) -> dict:
+        return {**SITE, **{r["key"]: json.loads(r["value"]) for r in self.q("SELECT * FROM site") if r["key"] in SITE}}
+
+    def save_site(self, changes: dict) -> dict:
+        assert set(changes) <= set(SITE), changes
+        self.tx(*[("INSERT INTO site (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                   k, json.dumps(v)) for k, v in changes.items()])
+        return self.site()
 
     # ----- invites: the owner's choice of role and person for someone's email, applied once they sign in -----
     def invite(self, email: str, person: str, role: int, by: str) -> dict:

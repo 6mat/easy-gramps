@@ -283,9 +283,82 @@ async def me(request: Request):
     except (OSError, ValueError) as e:
         gramps.log.error("No key for notifications in %s: %s", DATA, e)
         user["push_key"] = None
+    user["site"] = site()
+    if user.get("role", 0) < GRAMPS_FOR[user["site"]["gramps"]]:
+        user.pop("gramps_link", None)  # (also the editors' "Open in Full Gramps ↗" links)
     if user.get("role", 0) >= ROLE_OWNER:
         user["joined"] = await let_in(bearer(request))
     return user
+
+
+# ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
+MENU_ITEMS = ("theme", "display", "dates", "you", "install", "tips", "keys", "source")  # what the owner may hide
+GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
+
+
+def site() -> dict:
+    try:
+        return CHAT.site()
+    except sqlite3.Error as e:  # the page still opens, as it comes
+        gramps.log.error("Can't read site settings in %s: %s", DATA, e)
+        return dict(chat.SITE)
+
+
+async def need_owner(request: Request):
+    if (await who(request)).get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can change this.")
+
+
+@easy.put("/site")
+async def save_site(request: Request):
+    await need_owner(request)
+    body, changes = await json_body(request), {}
+    if "name" in body:
+        name = " ".join(str(body["name"] or "").split())
+        if not 0 < len(name) <= 40:
+            raise HTTPException(400, "The name needs 1 to 40 letters.")
+        changes["name"] = name
+    if "hide" in body:
+        if not isinstance(body["hide"], list) or not set(body["hide"]) <= set(MENU_ITEMS):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["hide"] = [x for x in MENU_ITEMS if x in body["hide"]]
+    if "gramps" in body:
+        if body["gramps"] not in GRAMPS_FOR:
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["gramps"] = body["gramps"]
+    return CHAT.save_site(changes)
+
+
+@easy.put("/site/icon")
+async def save_icon(request: Request):
+    await need_owner(request)
+    body = await request.body()
+    if len(body) > 10_000_000:
+        raise HTTPException(413, "That picture is too big (10 MB at most).")
+    await asyncio.to_thread(store_icon, body)
+    return {"version": icon_master()["version"]}
+
+
+def store_icon(body: bytes):
+    try:
+        with Image.open(io.BytesIO(body)) as im:
+            im = ImageOps.exif_transpose(im).convert("RGBA")
+            im = ImageOps.fit(im, (min(min(im.size), 1024),) * 2)  # a square from the middle, at most 1024 px
+            buf = io.BytesIO()
+            im.save(buf, "PNG", optimize=True)  # stored as a fresh PNG: nothing of the upload but its pixels
+    except (OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(400, "That isn't a picture this app can read. Try a PNG or JPG.") from None
+    DATA.mkdir(parents=True, exist_ok=True)
+    tmp = ICON_UPLOAD.with_suffix(".tmp")
+    tmp.write_bytes(buf.getvalue())
+    tmp.replace(ICON_UPLOAD)
+
+
+@easy.delete("/site/icon")
+async def default_icon(request: Request):
+    await need_owner(request)
+    await asyncio.to_thread(ICON_UPLOAD.unlink, missing_ok=True)
+    return {"version": icon_master()["version"]}
 
 
 # ---------- invites: the owner picks a role and person for someone's email ----------
@@ -836,17 +909,18 @@ async def thumbnail(handle: str, size: int, request: Request):
 # One square picture makes every icon (ICON_FILE; default the bundled tree). Replace it and the icons
 # follow: their addresses carry a version of the picture, so installed phones pick up the new one.
 ICON_FILE = pathlib.Path(os.environ.get("ICON_FILE") or STATIC / "icon.png")
+ICON_UPLOAD = DATA / "icon.png"  # the owner's own, from Site settings: wins over ICON_FILE
 ICON_SIZES = (32, 180, 192, 512)  # browser tab, iPhone, and the two Android asks for
-APP_NAME = "Family Tree"
 _icons: dict = {}
 
 
 def icon_master() -> dict:
-    st = ICON_FILE.stat()
-    if _icons.get("key") != (st.st_mtime_ns, st.st_size):
-        data = ICON_FILE.read_bytes()
+    path = ICON_UPLOAD if ICON_UPLOAD.exists() else ICON_FILE
+    st = path.stat()
+    if _icons.get("key") != (path, st.st_mtime_ns, st.st_size):
+        data = path.read_bytes()
         _icons.clear()
-        _icons.update(key=(st.st_mtime_ns, st.st_size), data=data, version=hashlib.sha256(data).hexdigest()[:12])
+        _icons.update(key=(path, st.st_mtime_ns, st.st_size), data=data, version=hashlib.sha256(data).hexdigest()[:12])
     return _icons
 
 
@@ -883,7 +957,8 @@ async def manifest():
     icons = [{"src": f"{BASE_PATH}/icon-{s}.png?{q}v={v}", "sizes": f"{s}x{s}", "type": "image/png", "purpose": purpose}
              for purpose, q in (("any", ""), ("maskable", "maskable=1&")) for s in (192, 512)]
     # Its own id and scope (BASE_PATH), so it's an app of its own next to Gramps Web's (which claims "/").
-    return JSONResponse({"id": f"{BASE_PATH}/", "name": APP_NAME, "short_name": APP_NAME,
+    name = site()["name"]
+    return JSONResponse({"id": f"{BASE_PATH}/", "name": name, "short_name": name,
                          "start_url": f"{BASE_PATH}/", "scope": f"{BASE_PATH}/", "display": "standalone",
                          "background_color": "#f6f3ee", "theme_color": "#f6f3ee", "icons": icons},
                         media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
@@ -898,7 +973,7 @@ async def service_worker():  # served from BASE_PATH (not /static) so it may loo
 
 def page(name: str) -> HTMLResponse:
     text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH).replace("__ICONV__", icon_master()["version"])
-    text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True))
+    text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True)).replace("__NAME__", html.escape(site()["name"], quote=True))
     return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))
 
 

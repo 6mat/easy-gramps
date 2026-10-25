@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en" data-base="__BASE__" data-gramps="__GRAMPS__">
+<html lang="en" data-base="__BASE__" data-gramps="__GRAMPS__" data-name="__NAME__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Family Tree</title>
+<title>__NAME__</title>
 <link rel="stylesheet" href="__BASE__/static/tree.css">
 <link rel="icon" type="image/png" href="__BASE__/icon-32.png?v=__ICONV__">
 <!-- Installable as an app on phones and tablets ("Add to Home screen" / "Install app") -->
 <link rel="manifest" href="__BASE__/manifest.webmanifest">
 <link rel="apple-touch-icon" href="__BASE__/icon-180.png?v=__ICONV__">
-<meta name="apple-mobile-web-app-title" content="Family Tree">
+<meta name="apple-mobile-web-app-title" content="__NAME__">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f6f3ee" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)">
@@ -17,7 +17,7 @@
 <body>
 <div class="app">
   <header class="top">
-    <a class="brand" id="brand" href="#" title="Home: back to the start, to choose someone else"><span aria-hidden="true">⌂ </span>Family Tree</a>
+    <a class="brand" id="brand" href="#" title="Home: back to the start, to choose someone else"><span aria-hidden="true">⌂ </span>__NAME__</a>
     <div class="search">
       <input id="q" type="search" placeholder="Search a name" autocomplete="off" aria-label="Search a name">
       <div id="results" class="results" hidden></div>
@@ -26,26 +26,28 @@
     <div class="menuwrap">
       <button id="menubtn" aria-haspopup="true" aria-expanded="false">☰ Menu</button>
       <div class="menu-pop" id="menupop" hidden>
-        <h3>Theme</h3>
-        <div class="seg" role="radiogroup" aria-label="Theme">
-          <label title="Light background"><input type="radio" name="theme" value="light" id="th-light"><span>☀️ Light</span></label>
-          <label title="Dark background, easier at night"><input type="radio" name="theme" value="dark" id="th-dark"><span>🌙 Dark</span></label>
-          <label title="Follow my phone or computer's setting"><input type="radio" name="theme" value="system" id="th-system"><span>⚙️ Auto</span></label>
-        </div>
-        <h3>Display</h3>
-        <label class="swrow">Bigger text <input type="checkbox" class="sw" id="bigtext"></label>
-        <label class="swrow">Line from person to details <input type="checkbox" class="sw" id="showlink"></label>
-        <h3>Dates</h3>
-        <select id="datefmt" aria-label="Show dates as"></select>
-        <h3>You</h3>
-        <div id="menu-me" class="menu-me"></div>
-        <h3>Help</h3>
-        <button id="menu-install">📲 Install as an app</button>
-        <button id="tips-again">Show tips</button>
-        <button id="menu-keys">Keyboard keys</button>
-        <h3>Go to</h3>
-        <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
-        <a class="menulink" id="menu-source" href="__SOURCE__" target="_blank" rel="noopener">Source code ↗</a>
+        <div class="mgroup" data-item="theme"><h3>Theme</h3>
+          <div class="seg" role="radiogroup" aria-label="Theme">
+            <label title="Light background"><input type="radio" name="theme" value="light" id="th-light"><span>☀️ Light</span></label>
+            <label title="Dark background, easier at night"><input type="radio" name="theme" value="dark" id="th-dark"><span>🌙 Dark</span></label>
+            <label title="Follow my phone or computer's setting"><input type="radio" name="theme" value="system" id="th-system"><span>⚙️ Auto</span></label>
+          </div></div>
+        <div class="mgroup" data-item="display"><h3>Display</h3>
+          <label class="swrow">Bigger text <input type="checkbox" class="sw" id="bigtext"></label>
+          <label class="swrow">Line from person to details <input type="checkbox" class="sw" id="showlink"></label></div>
+        <div class="mgroup" data-item="dates"><h3>Dates</h3>
+          <select id="datefmt" aria-label="Show dates as"></select></div>
+        <div class="mgroup" data-item="you"><h3>You</h3>
+          <div id="menu-me" class="menu-me"></div></div>
+        <div class="mgroup"><h3>Help</h3>
+          <button id="menu-install" data-item="install">📲 Install as an app</button>
+          <button id="tips-again" data-item="tips">Show tips</button>
+          <button id="menu-keys" data-item="keys">Keyboard keys</button></div>
+        <div class="mgroup"><h3>Go to</h3>
+          <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
+          <a class="menulink" id="menu-source" href="__SOURCE__" data-item="source" target="_blank" rel="noopener">Source code ↗</a></div>
+        <div class="mgroup" id="menu-owner" hidden><h3>Owner</h3>
+          <button id="menu-site">⚙️ Site settings</button></div>
         <button id="logout">Log out</button>
       </div>
     </div>
