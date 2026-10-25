@@ -29,15 +29,15 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
-                    /tree/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
+app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
+                    /tree/* (incl. /tree/logins), /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · auth.js
+                    (the big photo view) · me.js ("Find me") · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -84,6 +84,11 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   relationships kept; `absorb` deleted). Not covered by Undo.
 - `GET /auth/me` also returns the person's `settings`; `PUT /auth/settings {dates}` saves their date
   format in `DATA_DIR/settings.json` by Gramps Web user name (follows them to every device).
+- **Find me:** `PUT /auth/me/person {person}` links the login to a person (anyone with a login, no approval;
+  409 "Already linked to another login" — one login per person); `DELETE /auth/me/person` unlinks it. Kept as
+  `person` in the login's settings (`/auth/me` → `settings.person`). `GET /tree/logins` → `{person: login}`:
+  login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. A person
+  merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
@@ -110,7 +115,11 @@ edge so it doesn't cross boxes; Menu switch "Line from person to details" hides 
 
 **Start screen** (no person chosen): "Whose family tree would you like to see?", search, Recently
 viewed (this device), Recently changed (anyone, with who/when), + Add a new person (duplicate-name
-check). One search only: the top-bar search and the title strip are hidden on the start screen.
+check). At the top: "👋 Are you in this family tree? [Find me] [Not now]" (Not now: this device), or, once
+linked, a "Your family tree" card. Find me (`me.js`): search with ⓘ preview → "Is this you?" (photo, born,
+parents) → Yes. ☰ Menu → You: Change / That's not me. Panel: "👤 This is you" under the name; editors see
+"Linked to the login …" with a two-step Unlink under More details.
+One search only: the top-bar search and the title strip are hidden on the start screen.
 **Search results** (start screen and top bar, `search.js`): photo, name, years · parent · birthplace, and an ⓘ
 that opens a preview under the row (photo, born, passed away, parents, wife/husband, children by name,
 See their tree →); one preview at a time. Keys: ↓ into the results, ↓ ↑, → / ← preview, Enter, Esc.
@@ -126,7 +135,7 @@ Fit and centring use only the area not under the panel.
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
-switches, Dates (5 formats, kept with the login; a year alone stays a year), Show tips (the tip bar
+switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me), Show tips (the tip bar
 is off until asked for), Full Gramps ↗, Log out.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
