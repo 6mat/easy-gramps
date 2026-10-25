@@ -30,7 +30,7 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 ## Layout
 ```
 app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
-                    /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
+                    /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}[/cropped/x1/y1/x2/y2]/thumbnail/{size} (the person's region of a picture: graph `crops` {media: rect}; login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
 app/push.py         Web Push for the chat: the server's VAPID key (DATA_DIR/push-key.pem, made on first use), http-ece encryption, send
@@ -122,13 +122,15 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
   The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
-- **Invites** (owner, role ≥ 4): `POST /invites {email, person, role 0–3}` / `GET /invites` (waiting ones), kept in chat.sqlite3
-  `invites`. A first Google sign-in makes a *disabled* Gramps Web account and gives it no token, so the invite is applied
-  from the owner's side: `/auth/me` for an owner runs `let_in()` — `GET /api/users/`, an account with a negative role
-  whose email matches gets `PUT /api/users/<name>/ {role}` and the Find me link; `/auth/me` → `joined` (toast). me.js:
-  "✉ Invite to the family tree" in More details (person without a login) → email (optional) + role → share text
-  (✉ Send by email = `POST /invites/send {email, name}`: only to a waiting invite, from DEFAULT_FROM_EMAIL, Reply-To the
-  owner; WhatsApp = wa.me; Share…; Copy). No email: just the text, nothing stored (approve in Gramps Web).
+- **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
+  `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
+  Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs
+  `let_in()` — `GET /api/users/`, an account with a negative role whose email matches gets `PUT /api/users/<name>/ {role}`
+  and the Find me link; `/auth/me` → `joined` (toast). me.js: "✉ Invite to the family tree" in More details (person
+  without a login, editors) → the message first (`inviteText`, same words as main.py `invite_text`: "I approve…" for the
+  owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
+  address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
+  Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.

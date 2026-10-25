@@ -143,7 +143,7 @@ class FakeGramps:
             keep["event_ref_list"] = (keep.get("event_ref_list") or []) + (gone.get("event_ref_list") or [])
             self._sync()
             return httpx.Response(200, json=[])
-        if len(parts) == 4 and parts[0] == "media" and parts[2] == "thumbnail":
+        if parts[:1] == ["media"] and len(parts) in (4, 8) and parts[-2] == "thumbnail":  # also .../cropped/x1/y1/x2/y2/thumbnail/n
             if request.headers.get("authorization") != "Bearer tok":
                 return httpx.Response(401, json={})
             return httpx.Response(200, content=b"\x89PNG", headers={"content-type": self.thumb_type, "cache-control": "max-age=60"})

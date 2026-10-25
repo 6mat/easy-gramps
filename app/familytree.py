@@ -65,6 +65,9 @@ async def graph(g: Gramps) -> dict:
             "burial": places.get((burial or {}).get("place"), ""),
             "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
             "photos": [m["ref"] for m in p.get("media_list") or [] if m["ref"] in pictures],  # every picture, main first
+            # The part of a picture that is this person (tagged in Gramps: x1, y1, x2, y2 in % of the picture).
+            "crops": {m["ref"]: m["rect"] for m in p.get("media_list") or [] if m["ref"] in pictures
+                      and m.get("rect") and list(m["rect"]) != [0, 0, 100, 100]},
             "fams": p.get("family_list") or [],  # marriage order: 1st spouse first
             "pfams": p.get("parent_family_list") or [],  # their parents' families; the first is the one shown
             # Gramps IDs for "open in Gramps Web" links (only the ones that exist).

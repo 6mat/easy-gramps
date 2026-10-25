@@ -1,7 +1,7 @@
 // Easy Gramps — "Find me": each login linked to its own person in the tree. Anyone with a login can link
 // themselves (no approval; one login per person); editors see who is linked and can unlink.
 import { api, auth, BASE, LoginNeeded, SHARED, store } from "./auth.js";
-import { $, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords } from "./common.js";
+import { $, APP_NAME, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { seeTree } from "./tree.js";
@@ -220,7 +220,7 @@ export function meTag(p) {
 // More details, editors only: which login is linked to this person, with Unlink (two-step).
 export function loginLine(p) {
   const login = canEdit() && LOGINS[p.id];
-  if (!login) return isOwner() ? inviteLine(p) : "";
+  if (!login) return canEdit() ? inviteLine(p) : "";
   const line = h("div", { class: "small loginline" });
   const ask = () => line.replaceChildren(h("span", {}, `Unlink the login “${login}” from ${name(p)}?`),
     h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: unlink }, "Yes, unlink"), h("button", { onclick: plain }, "Cancel")));
@@ -238,7 +238,7 @@ export function loginLine(p) {
   return line;
 }
 
-// ---------- the owner: invite someone, with their role ----------
+// ---------- editors: invite someone (the link to share; the owner can also give an email a role) ----------
 function inviteLine(p) {
   const inv = INVITES[p.id];
   const when = inv && new Date(inv.at * 1000);
@@ -247,50 +247,53 @@ function inviteLine(p) {
       h("button", { class: "linkish", onclick: () => openInvite(p) }, "Invite again")]
     : h("button", { onclick: () => openInvite(p) }, "✉ Invite to the family tree"));
 }
+// The same words as main.py invite_text.
+const inviteText = () => `You're invited to join our family tree!\n\nClick here: ${new URL(`${BASE}/`, location.href).href}\n\n`
+  + "Tap “Continue with Google” to join. No Google account? Message me and I'll make you a login.\n\n"
+  + `Note: ${isOwner() ? "I approve every account" : "Every account is approved"} by hand, so there might be a short delay. `
+  + "Once you're in, you can see the family tree, chat with the family and more.\n\nPlease message or call me if you have any questions.";
 function openInvite(p) {
+  const text = inviteText();
+  const box = h("textarea", { id: "inv-text", rows: 9, readonly: true }, text);
+  const say = h("div", { class: "small muted", role: "status" });
+  const wa = h("button", { class: "primary", onclick: () => open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener") }, "WhatsApp");
+  const mail = h("button", { onclick: () => emailStep(p, text) }, "✉ Email");
+  const share = navigator.share && h("button", { onclick: () => navigator.share({ text }).catch(() => {}) }, "Share…");
+  const copy = h("button", { onclick: async () => {
+    try { await navigator.clipboard.writeText(text); say.textContent = "Copied ✓ Paste it into a message."; }
+    catch { box.select(); say.textContent = "Select the text and copy it."; }
+  } }, "Copy");
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
+    h("p", { class: "muted" }, isOwner() ? "Send them this message. When they've signed in, let them in with a role in Full Gramps (user management), or use ✉ Email to do it for you."
+      : "Send them this message. The owner lets them in once they've signed in."),
+    box, say, h("div", { class: "btnrow end" }, wa, mail, share || "", copy, h("button", { onclick: hideDlg }, "Done")));
+  showDlg(false);
+  wa.focus();
+}
+// Email: from the server when it can send email, else from their own mail app. The owner's invite also keeps the
+// role and person, given the next time the owner opens the app after they sign in (main.py let_in).
+function emailStep(p, text) {
   const inv = INVITES[p.id];
   const email = h("input", { id: "inv-email", type: "email", value: inv?.email || p.email || "", autocomplete: "off", placeholder: "name@gmail.com" });
   const role = h("select", { id: "inv-role" }, ...ROLES.map(([v, n, what]) => h("option", { value: v }, `${n}: ${what}`)));
   role.value = String(inv?.role ?? 1);
-  const roleRow = h("label", { for: role.id }, "What they can do", role);
-  const sync = () => { roleRow.hidden = !email.value.trim(); };
-  email.addEventListener("input", sync);
   const say = h("div", { role: "status" });
   const go = h("button", { class: "primary", onclick: async () => {
-    if (!email.value.trim()) return shareStep(p, null);  // just the link: you let them in by hand in Gramps Web
+    const to = email.value.trim();
+    if (!email.checkValidity() || !to) return failed(new Error("That doesn't look like an email address."), say);
     go.disabled = true;
     try {
-      const i = await send("POST", "/invites", { email: email.value, person: p.id, role: Number(role.value) });
-      INVITES[p.id] = i; renderPanel(); shareStep(p, i);
+      if (isOwner()) { INVITES[p.id] = await send("POST", "/invites", { email: to, person: p.id, role: Number(role.value) }); renderPanel(); }
+      if (ME.chat_email) await send("POST", "/invites/send", { email: to });
+      else location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(`You're invited to ${APP_NAME}`)}&body=${encodeURIComponent(text)}`;
+      say.textContent = ME.chat_email ? `Sent ✓ to ${to}` : "Your mail app has the message: send it from there.";
+      go.hidden = true;
     } catch (err) { go.disabled = false; failed(err, say); }
-  } }, "Next");
-  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
-    h("label", { for: email.id }, "Their Google email (if you know it)", email),
-    h("p", { class: "muted small" }, "With it, they're let in with this role and linked to their place in the tree the next time you open the family tree after they sign in. Without it, you send just the link and let them in yourself in Full Gramps."),
-    roleRow, say, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
-  sync();
-  showDlg(false);
+  } }, ME.chat_email ? "Send" : "Write the email");
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Email ${name(p)} the invite`),
+    h("label", { for: email.id }, isOwner() ? "Their Google email" : "Their email", email),
+    isOwner() ? h("label", { for: role.id }, "What they can do", role) : "",
+    isOwner() ? h("p", { class: "muted small" }, "They're let in with this role and linked to their place in the tree the next time you open the family tree after they sign in with this email.") : "",
+    say, h("div", { class: "btnrow end" }, h("button", { onclick: () => openInvite(p) }, "Back"), go, h("button", { onclick: hideDlg }, "Done")));
   email.focus();
-}
-function shareStep(p, i) {
-  const url = new URL(`${BASE}/`, location.href).href;
-  const text = `Hi ${p.first || name(p)}, you're invited to our family tree: ${url}\nTap “Continue with Google”${i ? ` and use ${i.email}` : ""}. `
-    + "It can take a little while until I let you in. Then you'll see the family, can chat with everyone, and your own place in the tree is ready.";
-  const box = h("textarea", { id: "inv-text", rows: 6, readonly: true }, text);
-  const say = h("div", { class: "small muted", role: "status" });
-  const mail = i && ME.chat_email && h("button", { class: "primary", onclick: async () => {
-    mail.disabled = true;
-    try { await send("POST", "/invites/send", { email: i.email, name: p.first || "" }); say.textContent = `Sent ✓ to ${i.email}`; }
-    catch (err) { mail.disabled = false; failed(err, say); }
-  } }, "✉ Send by email");
-  const wa = h("button", { onclick: () => open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener") }, "WhatsApp");
-  const share = navigator.share && h("button", { onclick: () => navigator.share({ text }).catch(() => {}) }, "Share…");
-  const copy = h("button", { onclick: async () => {
-    try { await navigator.clipboard.writeText(text); say.textContent = "Copied ✓ Paste it into a text or an email."; }
-    catch { box.select(); say.textContent = "Select the text and copy it."; }
-  } }, "Copy");
-  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Send them the invite"),
-    h("p", { class: "muted" }, i ? "Send it by email, or from your phone." : "Send it from your phone. When they've signed in, give them a role in Full Gramps (user management)."),
-    box, say, h("div", { class: "btnrow end" }, mail || "", wa, share || "", copy, h("button", { onclick: hideDlg }, "Done")));
-  (mail || wa).focus();
 }

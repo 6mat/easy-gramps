@@ -477,18 +477,31 @@ def test_invite_sent_by_email(fake, client, monkeypatch):  # #147
     monkeypatch.setattr(main, "send_mail", lambda *a: sent.append(a))
     fake.role, fake.email = 4, "owner@example.com"
     main._who_cache.clear()
-    p = fake.person("Asha", "", 1)
     assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 400  # no EMAIL_HOST
     monkeypatch.setitem(main.EMAIL, "EMAIL_HOST", "smtp.example.com")
-    assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 400  # not invited
-    client.post("/easy-gramps/invites", json={"email": "asha@example.com", "person": p, "role": 1})
-    assert client.post("/easy-gramps/invites/send", json={"email": "Asha@example.com ", "name": "Asha"}).json() == {"sent": "asha@example.com"}
+    assert client.post("/easy-gramps/invites/send", json={"email": "nope"}).status_code == 400
+    assert client.post("/easy-gramps/invites/send", json={"email": "Asha@example.com "}).json() == {"sent": "asha@example.com"}
     (to, subject, text, reply_to), = sent
     assert (to, subject, reply_to) == ("asha@example.com", "You're invited to Family Tree", "owner@example.com")
-    assert text.startswith("Hi Asha,") and "/easy-gramps/" in text and "(asha@example.com)" in text
-    fake.role = 3
+    assert text.startswith("You're invited") and "/easy-gramps/" in text and "I approve every account by hand" in text
+    fake.role = 3  # #152: editors invite too, in neutral words
     main._who_cache.clear()
-    assert client.post("/easy-gramps/invites/send", json={"email": "asha@example.com"}).status_code == 403
+    assert client.post("/easy-gramps/invites/send", json={"email": "b@example.com"}).status_code == 200 and "Every account" in sent[-1][2]
+    fake.role = 2
+    main._who_cache.clear()
+    assert client.post("/easy-gramps/invites/send", json={"email": "b@example.com"}).status_code == 403
+
+
+def test_photo_shows_the_part_tagged_as_the_person(fake, client):  # #153
+    pic = fake.add("media", _class="Media", mime="image/jpeg")
+    p = fake.person("A", media_list=[{"_class": "MediaRef", "ref": pic, "rect": [10, 20, 40, 60]}])
+    whole = fake.person("B", media_list=[{"_class": "MediaRef", "ref": pic, "rect": [0, 0, 100, 100]}])
+    people = client.get("/easy-gramps/tree/graph").json()["people"]
+    assert people[p]["crops"] == {pic: [10, 20, 40, 60]} and people[whole]["crops"] == {}
+    client.post("/easy-gramps/auth/session")
+    assert client.get(f"/easy-gramps/gapi/media/{pic}/cropped/10/20/40/60/thumbnail/96?square=1").status_code == 200
+    assert fake.sent("GET", f"/media/{pic}/cropped/10/20/40/60/thumbnail/96")
+    assert client.get(f"/easy-gramps/gapi/media/{pic}/cropped/10/20/40/160/thumbnail/96").status_code == 400
 
 
 def test_someone_new_keeps_their_nickname(fake, client):  # #149

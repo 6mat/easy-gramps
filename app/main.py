@@ -361,7 +361,7 @@ async def default_icon(request: Request):
     return {"version": icon_master()["version"]}
 
 
-# ---------- invites: the owner picks a role and person for someone's email ----------
+# ---------- invites: editors send the link; the owner can also give an email a role and person ----------
 # A first Google sign-in makes a disabled Gramps Web account (no login token until the owner lets them in), so the
 # invite is applied from the owner's side: the next time the owner opens the app, by the email the account has.
 
@@ -407,24 +407,29 @@ async def invite(request: Request):
     return CHAT.invite(email, person, role, user["name"])
 
 
+def invite_text(owner: bool) -> str:
+    """The invite message; me.js inviteText says the same."""
+    return (f"You're invited to join our family tree!\n\nClick here: {app_url()}\n\n"
+            "Tap \u201cContinue with Google\u201d to join. No Google account? Message me and I'll make you a login.\n\n"
+            f"Note: {'I approve every account' if owner else 'Every account is approved'} by hand, so there might be a short delay. "
+            "Once you're in, you can see the family tree, chat with the family and more.\n\n"
+            "Please message or call me if you have any questions.\n")
+
+
 @easy.post("/invites/send")
 async def send_invite(request: Request):
-    """The owner's "Send by email": the invite for a waiting invite's address, from the server's email address."""
+    """An editor's "Email": the invite message to one address, from the server's email address (fixed text)."""
     user = await who(request)
-    if user.get("role", 0) < ROLE_OWNER:
-        raise HTTPException(403, "Only the owner can invite people.")
+    if user.get("role", 0) < ROLE_EDITOR:
+        raise HTTPException(403, "Only editors can invite people.")
     if not EMAIL["EMAIL_HOST"]:
         raise HTTPException(400, "This family tree can't send email (no EMAIL_HOST).")
     body = await json_body(request)
     email = str(body.get("email") or "").strip().lower()
-    if not any(i["email"] == email for i in CHAT.invites()):  # only to someone just invited: never a free mailer
-        raise HTTPException(400, "Make the invite first.")
-    name = " ".join(str(body.get("name") or "").split())[:80]
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or len(email) > 200:
+        raise HTTPException(400, "That doesn't look like an email address.")
     site_name, me = site()["name"], user.get("full_name") or user["name"]
-    text = (f"Hi{' ' + name if name else ''},\n\nYou're invited to our family tree, {site_name}:\n{app_url()}\n\n"
-            f"Open it and tap \"Continue with Google\", using this email address ({email}). It can take a little while "
-            "until you're let in. Then you'll see the family, can chat with everyone, and your own place in the tree "
-            f"is ready.\n\n{me}\n")
+    text = f"{invite_text(user.get('role', 0) >= ROLE_OWNER)}\n{me}\n"
     try:
         await asyncio.to_thread(send_mail, email, f"You're invited to {site_name}", text, user.get("email") or "")
     except (smtplib.SMTPException, OSError) as e:
@@ -920,12 +925,24 @@ PHOTO_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "applicatio
 
 @easy.get("/gapi/media/{handle}/thumbnail/{size}")
 async def thumbnail(handle: str, size: int, request: Request):
+    return await gramps_thumb(handle, "", size, request)
+
+
+@easy.get("/gapi/media/{handle}/cropped/{x1}/{y1}/{x2}/{y2}/thumbnail/{size}")
+async def cropped_thumbnail(handle: str, x1: int, y1: int, x2: int, y2: int, size: int, request: Request):
+    """The part of a picture that is one person (their region in Gramps)."""
+    if not all(0 <= v <= 100 for v in (x1, y1, x2, y2)):
+        raise HTTPException(400, "Bad thumbnail request")
+    return await gramps_thumb(handle, f"/cropped/{x1}/{y1}/{x2}/{y2}", size, request)
+
+
+async def gramps_thumb(handle: str, crop: str, size: int, request: Request) -> Response:
     if not handle.isalnum() or not 16 <= size <= 1024:
         raise HTTPException(400, "Bad thumbnail request")
     params = {k: v for k, v in request.query_params.items() if k == "square"}
     token = request.cookies.get(PHOTO_COOKIE)
     headers = {"Authorization": f"Bearer {token}"} if token else {}
-    r = await upstream.get(f"/media/{handle}/thumbnail/{size}", params=params, headers=headers)
+    r = await upstream.get(f"/media/{handle}{crop}/thumbnail/{size}", params=params, headers=headers)
     keep = {k: v for k, v in r.headers.items() if k.lower() == "cache-control"}
     # Only a plain picture is served as one: never something that could run as a page here (HTML, SVG).
     kind = r.headers.get("content-type", "").split(";")[0].strip().lower()
