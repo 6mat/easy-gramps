@@ -15,6 +15,8 @@ relatives who find the full Gramps interface too much.
   is one tap from the start (offers Gramps Web's home person when there is one).
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
+- **Invite people** (the owner): pick their role and their place in the tree, send the message from your phone;
+  they're let in when they sign in with Google.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
