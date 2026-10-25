@@ -2,6 +2,27 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.0 — 2026-10-25
+
+### Added
+- **Family chat** (text and emoji), for everyone with a login. **💬 Chat** in the top bar shows how many
+  messages are new. The chat opens full screen (Back closes it):
+  - **Whole family:** everyone is in it.
+  - **Groups:** editors and the owner make them (a name and a picture); everyone can see them, join and leave.
+  - **Private messages** between two people: "+ Message someone", or **💬 Message …** in the details panel of
+    someone who has found themselves in the tree.
+  - **About a person:** "Family talk about …" at the bottom of everyone's details panel: the last messages and
+    a box to ask or tell the family something about them. Everyone with a login can read and write there.
+  - Messages show the photo and name of the person the writer found themselves as ("Find me"), else their
+    login name. Delete your own messages (editors and the owner: anyone's); "Message deleted" stays in its
+    place. No editing. New messages appear within a few seconds.
+  - On a phone: the list of conversations, then one conversation (← Chats).
+- **A daily email** for chat messages that have waited a day unread: at most one a day, listing them by
+  conversation, with a link back; ☰ Menu → You switches it off. Needs the email settings (`EMAIL_HOST` and
+  the rest, the same values as Gramps Web's own); without them, no emails.
+- The chat is kept in `DATA_DIR/chat.sqlite3` (Python's own SQLite; nothing new to install), so include the
+  data folder in backups. Whoever runs the server can read it: it isn't end-to-end encrypted.
+
 ## 1.7.0 — 2026-10-25
 
 ### Added

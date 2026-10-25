@@ -136,6 +136,14 @@ async function cleanup() {
     await page.waitForSelector("#panel .metag", { state: "detached" });
     await page.click("#brand"); await page.waitForSelector(".mebanner");
   });
+  // The chat is kept by this app (DATA_DIR), not on the demo, so it's checked in the read-only run too.
+  await step(page, "family chat: write in Whole family, Back closes it", async () => {
+    await page.click("#chatbtn"); await page.waitForSelector("#chat .chead");
+    await page.fill("#chat .cfoot textarea", "ZZTEST hello from the screen check"); await page.click("#chat .cfoot button.primary");
+    await page.waitForSelector("#chat .msg.me .txt:has-text('ZZTEST hello')");
+    await page.click("#chat .msg.me .dots"); await page.click("#chat .msgsure .danger"); await page.waitForSelector("#chat .txt.gone");
+    await page.goBack(); await page.waitForSelector("#chat", { state: "hidden" });
+  });
   await step(page, "start search: preview and keys", async () => {
     await page.fill("#start-q", "Stewart");  // a surname in the demo tree
     await page.click("#startcard .hit .info >> nth=0");

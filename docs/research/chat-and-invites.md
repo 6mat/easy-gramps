@@ -1,6 +1,6 @@
 # Family chat, and inviting relatives to claim themselves (research, October 2026)
 
-Status: **chat picked by the owner (2026-10-25), mock-up shown; nothing built.** Invites are still open.
+Status: **"Find me" built in 1.7.0, the family chat in 1.8.0** (owner's picks below). Invites are still open.
 Researched 2026-10-24.
 
 ## Owner's picks for chat (2026-10-25)

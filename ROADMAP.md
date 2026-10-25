@@ -72,7 +72,7 @@ Researched, nothing built yet: details and numbered options in `docs/research/`.
 - **"Find me" / My tree:** each login linked to its person in the tree. Needed by the two items below.
 - **Invite relatives** (email through Gramps Web's own invite / password-reset email; text or WhatsApp from the
   inviter's phone) and **"Claim this person"** links. Never sent automatically.
-- **Family chat** (**picked 2026-10-25, mock-up shown**): built in (SQLite in `DATA_DIR`), text only, for every
+- **Family chat** (**built in 1.8.0**; "Find me" in 1.7.0): built in (SQLite in `DATA_DIR`), text only, for every
   login. Whole family, open groups made by editors, private messages, a public conversation per person, and an
   email when a message has waited a day. Picks and mock-up in `docs/research/chat-and-invites.md`.
 - Cheap read-only extras from the Kinnect comparison (`docs/research/kinnect.md`): life events timeline,

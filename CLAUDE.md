@@ -30,14 +30,15 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 ## Layout
 ```
 app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
-                    /tree/* (incl. /tree/logins), /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
+                    /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}/thumbnail/{size} (login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
+app/chat.py         the family chat's store (SQLite in DATA_DIR/chat.sqlite3): conversations, messages, reads, daily-email query
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · me.js ("Find me") · auth.js
+                    (the big photo view) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -89,6 +90,15 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `person` in the login's settings (`/auth/me` → `settings.person`). `GET /tree/logins` → `{person: login}`:
   login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. A person
   merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps.
+- **Family chat** (`chat.py`, routes `/chat*` in main.py): by Gramps Web login name, for every login (Guests too).
+  `GET /chat` → `{convs, unread, me, editor, people (login → person from Find me), logins, emoji}`. Conversations:
+  `family` (id 1, everyone, can't be left), `group` (editors make them: `POST /chat/groups`; open: `POST /chat/c/{id}/join
+  {join}`; only members read/write; editors `DELETE /chat/c/{id}`), `private` (`POST /chat/private {login|person}`; only
+  the two, not even editors), `person` (`GET/POST /chat/person/{h}`, starts with the first message; every login; a
+  person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
+  `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays. Daily email: hourly task (started by the
+  first chat request when `EMAIL_HOST` is set) → `send_waiting()`: unread for a day, not listed before, at most one a
+  day per login, off with `PUT /auth/settings {emails: false}`. 503 "data folder isn't writable" like settings.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
@@ -125,6 +135,15 @@ that opens a preview under the row (photo, born, passed away, parents, wife/husb
 See their tree →); one preview at a time. Keys: ↓ into the results, ↓ ↑, → / ← preview, Enter, Esc.
 No one found = amber box, "+ Add “…” as a new person" (if they can add) opens the start screen's form with
 the name filled in (first word = first name). It must **not** open on an automatic person.
+
+**Family chat** (`chat.js`; owner's picks 2026-10-25, `docs/research/chat-and-invites.md`): **💬 Chat** in the top
+bar (red unread count; checked every 15 s, an open conversation every 5 s). Full screen like the editor, a history
+step (Back / Esc close it): left Groups (+ New group for editors), Groups you can join (Join), Private messages
+(+ Message someone), About people; right the conversation (day labels, photo + name + time, your own in blue, ⋯ →
+two-step delete, Leave group / Delete group, See their tree →, a big box + Send; Enter sends on a computer). Names
+and photos come from Find me, else the login name. Phones (≤ 700px): the list, then one conversation (← Chats).
+Panel: "Family talk about …" at the bottom (last 2 messages, See all, a box + Send; typing survives panel redraws)
+and "💬 Message …" under the name of someone with a linked login. Text only, no editing, no voice or photos.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
