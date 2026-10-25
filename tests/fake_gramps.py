@@ -27,6 +27,7 @@ class FakeGramps:
         self.thumb_type = "image/png"  # what a thumbnail says it is
         self.oidc = {"enabled": False}  # Gramps Web's login settings (/api/oidc/config/)
         self.me_status = 200           # what /users/-/ answers a good login
+        self.user = "tester"           # the login's user name
 
     # ----- helpers for tests -----
     def add(self, kind, **obj):
@@ -105,7 +106,7 @@ class FakeGramps:
                 return httpx.Response(401, json={"msg": "Token has expired"})
             if self.me_status != 200:
                 return httpx.Response(self.me_status, json={})
-            return httpx.Response(200, json={"name": "tester", "role": self.role})
+            return httpx.Response(200, json={"name": self.user, "role": self.role})
         if path == "/transactions/history/":
             return httpx.Response(200, json=[])
         if path == "/objects/" and method == "POST":

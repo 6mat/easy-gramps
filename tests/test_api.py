@@ -362,3 +362,45 @@ def test_settings_say_so_when_the_data_folder_cant_be_written(fake, client, monk
     monkeypatch.setattr(main, "SETTINGS_FILE", tmp_path / "file" / "settings.json")  # a folder that can't exist
     r = client.put("/easy-gramps/auth/settings", json={"dates": "m/d/y"})
     assert r.status_code == 503 and "data folder" in r.json()["detail"]
+
+
+def as_user(fake, name, role=None):
+    import main
+    fake.user = name
+    if role is not None:
+        fake.role = role
+    main._who_cache.clear()
+
+
+def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: automatic, editors can undo
+    import main
+    main.SETTINGS_FILE.unlink(missing_ok=True)
+    me, other = fake.person("Ann"), fake.person("Bob")
+    as_user(fake, "ann", 1)  # a Member can link themselves
+    assert client.put("/easy-gramps/auth/me/person", json={"person": me}).json() == {"person": me}
+    assert client.get("/easy-gramps/auth/me").json()["settings"] == {"person": me}
+    assert client.put("/easy-gramps/auth/me/person", json={"person": "gone"}).status_code == 404
+    assert client.put("/easy-gramps/auth/me/person", json={"person": "../x"}).status_code == 400
+    as_user(fake, "bob")
+    r = client.put("/easy-gramps/auth/me/person", json={"person": me})
+    assert r.status_code == 409 and r.json()["detail"] == main.TAKEN  # one login per person
+    assert client.put("/easy-gramps/auth/me/person", json={"person": other}).status_code == 200
+    assert client.put("/easy-gramps/auth/me/person", json={"person": me}).status_code == 409
+    as_user(fake, "ann", 1)
+    assert client.get("/easy-gramps/tree/logins").json() == {me: "", other: ""}  # not the login names
+    assert client.delete(f"/easy-gramps/tree/logins/{other}").status_code == 403
+    assert client.delete("/easy-gramps/auth/me/person").json() == {}
+    as_user(fake, "ed", 3)
+    assert client.get("/easy-gramps/tree/logins").json() == {other: "bob"}
+    assert client.delete(f"/easy-gramps/tree/logins/{other}").json() == {"unlinked": "bob"}
+    assert client.get("/easy-gramps/tree/logins").json() == {}
+
+
+def test_a_merged_away_person_takes_its_login_along(fake, client):
+    import main
+    main.SETTINGS_FILE.unlink(missing_ok=True)
+    keep, dup = fake.person("Ann", "Lee", 0), fake.person("Anne", "Lee", 0)
+    as_user(fake, "ann")
+    client.put("/easy-gramps/auth/me/person", json={"person": dup})
+    assert client.post("/easy-gramps/tree/merge", json={"keep": keep, "absorb": dup, "fields": {}}).status_code == 200
+    assert main.read_settings()["ann"]["person"] == keep

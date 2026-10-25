@@ -465,3 +465,18 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   .vstep { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 64px; opacity: .85; }
   .vstep:first-child { left: 0; } .vstep:last-child { right: 0; }
 }
+
+/* ---------- "Find me": your own person in the tree (me.js) ---------- */
+.mebanner { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 14px 16px; border: 1.5px solid var(--accent);
+  border-radius: 12px; background: var(--accent-soft); }
+.mebanner > div:not(.btnrow) { flex: 1; min-width: 200px; }
+.mebanner .wave { font-size: 26px; }
+.mecard { width: 100%; border-color: var(--accent); }
+.mewho { display: flex; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
+.mewho .mename { font-size: 20px; }
+.metag { color: var(--accent); font-weight: 700; margin-top: 2px; }
+.menu-me { display: flex; flex-direction: column; gap: 8px; }
+.menu-me .btnrow button { flex: 1; padding: 6px 8px; font-size: 14px; white-space: nowrap; }
+.loginline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.loginline .linkish { border: 0; background: none; padding: 0; min-height: 0; min-width: 0; color: var(--accent); text-decoration: underline; font-weight: 400; }
+.loginline .btnrow button { padding: 4px 12px; font-size: 14px; }

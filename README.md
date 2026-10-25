@@ -11,6 +11,7 @@ relatives who find the full Gramps interface too much.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
+- **Find me:** link your login to yourself in the tree, and your own family tree is one tap from the start.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
@@ -157,9 +158,10 @@ the name-and-password form, as before.
   undo, merge) as Gramps Web API calls.
 - `app/gramps.py` — small Gramps Web API client and object helpers.
 - `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
-  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`); `auth.js` handles login and tokens.
+  `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`, `me.js`); `auth.js` handles login and tokens.
 - `app/remove_tag.py`, `app/unused_places.py` — one-off clean-ups the owner runs on the server (`cli_login.py`
-  logs them in). Each person's date format is kept in `data/settings.json`.
+  logs them in). Each login's date format and "Find me" person are kept in `data/settings.json`
+  (keep it in your backups).
 
 ## License
 

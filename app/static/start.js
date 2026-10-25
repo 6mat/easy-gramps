@@ -5,6 +5,7 @@ import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
+import { loadLogins, meBox, renderMenuMe } from "./me.js";
 
 export function renderAll() {
   renderTree(); renderPanel();
@@ -19,7 +20,7 @@ export function renderStart() {
   const list = h("div", { class: "pick hits" });
   q.addEventListener("input", () => showHits(list, q.value, { open: p => seeTree(p.id), addNew: startAdd }));
   searchKeys(q, list);
-  const parts = [h("h2", {}, "Whose family tree would you like to see?"),
+  const parts = [meBox(), h("h2", {}, "Whose family tree would you like to see?"),
     h("label", { for: "start-q", class: "flabel" }, "Search for someone", q), list, recentSections()];
   addForm = null;
   if (canAdd()) {
@@ -181,6 +182,8 @@ export async function start() {
   }
   S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
   useSettings(ME.settings);
+  renderMenuMe();
+  loadLogins();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
   S.focus = P[v.focus] ? v.focus : null;

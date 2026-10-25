@@ -2,6 +2,21 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.7.0 — 2026-10-25
+
+### Added
+- **Find me:** link your login to yourself in the tree. The start screen asks "Are you in this family tree?"
+  (Find me, or Not now for this device); you search, check "Is this you?" (photo, birth, parents) and say
+  yes. Then the start screen has **Your family tree** at the top, and your panel says "This is you".
+  Anyone with a login can do it, no approval; one login per person ("Already linked to another login").
+  ☰ Menu → You: Change, or That's not me. Editors see "Linked to the login …" under More details, with
+  Unlink. When two records of a person are merged, the link follows the one kept. This is the first step
+  towards the family chat (docs/research/chat-and-invites.md).
+- Kept in `DATA_DIR/settings.json` with the date format, so include the data folder in backups.
+
+### Fixed
+- The browser check clicked Undo on the previous add's message while a removal was still saving.
+
 ## 1.6.0 — 2026-10-25
 
 ### Added
