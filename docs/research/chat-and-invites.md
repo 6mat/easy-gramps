@@ -1,7 +1,48 @@
 # Family chat, and inviting relatives to claim themselves (research, October 2026)
 
-Status: **ideas under discussion; nothing built.** The owner picks numbered options before anything is
-mocked up and built (CLAUDE.md). Researched 2026-10-24.
+Status: **chat picked by the owner (2026-10-25), mock-up shown; nothing built.** Invites are still open.
+Researched 2026-10-24.
+
+## Owner's picks for chat (2026-10-25)
+Built into Easy Gramps (option A below): no Matrix, XMPP or WhatsApp bridge.
+| # | Question | Pick |
+|---|---|---|
+| 1 | Who gets chat | **Anyone with a login.** Claiming yourself in the tree only adds your photo and name |
+| 2 | Who approves a claim | **No one: automatic,** and an editor can undo it |
+| 3 | Who creates group chats | **Editors and the owner** |
+| 4 | Who can join a group | **Groups are open:** everyone sees them and can join or leave |
+| 5 | Private one-to-one messages | **Yes** |
+| 6 | Email for unread messages | **Yes, after a message has waited about 24 hours.** At most one email a day, off in ☰ Menu |
+| 7 | Photos, voice, video | **Text and emoji only, for good** |
+| 8 | Who deletes messages | **Your own; editors and the owner can delete anyone's** |
+
+Kept from the earlier suggestions: new messages appear by the page checking every ~15 s while open (no
+connection held open); the "Whole family" group has everyone in it automatically; conversations about a
+person are public to every login.
+
+### Mock-up (shown to the owner 2026-10-25, drawn into the real app with the demo's people)
+1. **Start screen:** "👋 Are you in this family tree? … [Find me]" above the search; **Recent conversations**
+   (with "2 new") above Recently changed. **💬 Chat** with a red unread count in the top bar, beside ☰ Menu.
+2. **"Is this you?"** after Find me: photo, name, born, parents; "Your login will be linked to this person…";
+   "If it's the wrong person, an editor can undo it, or you can change it in ☰ Menu." [No, go back] [Yes, this is me].
+3. **Details panel:** "Family talk about Claude" under More details: the last 2 messages, "See all 4 messages in
+   Chat →", a box "Ask or tell the family something about Claude…" and Send.
+4. **Someone with a linked login:** "💬 Uses the family chat · [Message Mary]" under their name; editors see
+   "Linked to the login mary · Unlink" in More details.
+5. **Family chat** (full screen like the editor; ← Back to tree, ⌂ Home): left, **Groups** (+ New group for
+   editors; Whole family, Reunion 2027), **Groups you can join** (Join), **Private messages** (+ Message
+   someone), **About people**; right, the conversation: day labels, photo + name + time, your own messages
+   tinted blue, ⋯ on each message, a big text box and Send.
+6. **About a person:** "About Claude George Bowes-Lyon · Everyone with a login can read this and write here",
+   See his tree →.
+7. **Delete (⋯):** "Delete Tom's message? Everyone will see “Message deleted”. [Yes, delete it] [Cancel]".
+8. **New group** (editors): name, a picture (one of 8 emoji), "Everyone in the family can see this group and
+   join it…", Add people now (optional).
+9. **☰ Menu → Chat:** "You are Elizabeth … · Change"; switch "Email me when a message waits for me a day".
+10–11. **Phone:** the list, then one conversation (← Chats).
+12. **Email:** "3 messages are waiting for you in the family chat", grouped by conversation, [Open the family
+   chat], "at most one email a day … To stop these emails: ☰ Menu → Chat".
+A login without a claimed person shows as "tom (not found in the tree yet)" with a grey initial.
 
 ## Facts checked
 - **Gramps Web's "Chat" is the AI assistant** (`/api/chat/`, `PERM_USE_CHAT`), not people talking to each other.
@@ -39,7 +80,7 @@ matters, or a chat platform beyond the tree is wanted.
 - Stored in `DATA_DIR/chat.sqlite3`, so backups must include the data volume. Not end-to-end encrypted: whoever
   runs the server can read it.
 
-### Picks offered (not answered yet)
+### Picks offered on 2026-10-24 (answered above)
 1. **Rooms:** a) one family room (~1.5–2 days) · b) + a thread per person (+½–1 day) · c) + private messages (+1 day)
 2. **New messages appear:** a) within a few seconds while open (the page checks regularly) · b) instantly
    (a connection kept open from the server; +½ day, more to look after behind Traefik)
@@ -67,11 +108,12 @@ Suggested: **1b 2a 3a 4b 5a, option A** (~2.5 days with "Find me").
   panel shows "Invited on …".
 - **Effort:** ~1.5–2 days including "Find me".
 
-## Proposed order (waiting for the owner's picks)
-1. **Base (~1 day):** "Find me" / My tree, life events timeline (read-only), "Last changed by X".
-2. **Invites and claims (~1.5 days).**
-3. **Built-in family chat (~2 days):** a family room + person threads, polling.
-4. **Later, optional:** Matterbridge WhatsApp mirror, phone notifications, photos in chat.
+## Proposed order
+1. **"Find me" and claims (~1 day):** link a login to a person (automatic, editors can undo).
+2. **Family chat, text (~3–4 days):** Whole family, groups, private messages, person conversations, unread
+   counts, the daily email (needs email server settings for Easy Gramps).
+3. **Invites (~1 day):** still waiting for the owner's picks.
+4. **Later, optional:** Matterbridge WhatsApp mirror, phone notifications. (Photos in chat: not planned.)
 
 Other candidates from the Kinnect comparison: occupation and "About" (2–3 h), people in photos (read-only ~½ day),
 more generations (1–2 days, mock-up first), map of a person's places (~1 day, outside map tiles).
