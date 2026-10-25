@@ -10,6 +10,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import smtplib
 import sqlite3
 import time
@@ -38,7 +39,7 @@ SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6ma
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
-ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR = 1, 2, 3  # Gramps Web roles: see private / can add / can change
+ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR, ROLE_OWNER = 1, 2, 3, 4  # Gramps Web roles: see private / add / change / users
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
 # The chat's daily email (unread messages that waited a day). The same names as Gramps Web's own email settings,
 # with or without its GRAMPSWEB_ prefix, so one env file can serve both; no host: no emails.
@@ -282,7 +283,62 @@ async def me(request: Request):
     except (OSError, ValueError) as e:
         gramps.log.error("No key for notifications in %s: %s", DATA, e)
         user["push_key"] = None
+    if user.get("role", 0) >= ROLE_OWNER:
+        user["joined"] = await let_in(bearer(request))
     return user
+
+
+# ---------- invites: the owner picks a role and person for someone's email ----------
+# A first Google sign-in makes a disabled Gramps Web account (no login token until the owner lets them in), so the
+# invite is applied from the owner's side: the next time the owner opens the app, by the email the account has.
+
+async def let_in(token: str) -> list[dict]:
+    """Invited people who have signed in since: give them the invite's role and person."""
+    try:
+        waiting = {i["email"]: i for i in CHAT.invites()}
+        if not waiting:
+            return []
+        auth = {"Authorization": f"Bearer {token}"}
+        r = await upstream.get("/users/", headers=auth)
+        r.raise_for_status()
+        out = []
+        for u in r.json():
+            inv = waiting.get((u.get("email") or "").strip().lower())
+            if not inv or u.get("role", 0) >= 0:  # only accounts still waiting for approval
+                continue
+            p = await upstream.put(f"/users/{urllib.parse.quote(u['name'], safe='')}/", json={"role": inv["role"]}, headers=auth)
+            p.raise_for_status()
+            CHAT.joined(inv["email"], u["name"])
+            try:
+                CHAT.link(u["name"], inv["person"])
+            except chat.ChatError:  # someone else is linked to that person already: Find me is still there
+                pass
+            out.append({"name": u.get("full_name") or u["name"], "person": inv["person"], "role": inv["role"]})
+        return out
+    except (httpx.HTTPError, ValueError, KeyError, sqlite3.Error) as e:  # the page opens anyway; tried again next time
+        gramps.log.error("Couldn't apply invites: %s", e)
+        return []
+
+
+@easy.post("/invites")
+async def invite(request: Request):
+    user = await who(request)
+    if user.get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can invite people.")
+    body = await json_body(request)
+    email, role, person = str(body.get("email") or "").strip().lower(), body.get("role"), body.get("person")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or len(email) > 200:
+        raise HTTPException(400, "That doesn't look like an email address.")
+    if type(role) is not int or not 0 <= role <= ROLE_EDITOR or not isinstance(person, str) or not 0 < len(person) <= 64:
+        raise HTTPException(400, "Something was missing. Please try again.")
+    return CHAT.invite(email, person, role, user["name"])
+
+
+@easy.get("/invites")
+async def invites(request: Request):
+    if (await who(request)).get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can invite people.")
+    return CHAT.invites()
 
 
 # ---------- each person's own settings, kept with their login (so they follow the person to every device) ----------

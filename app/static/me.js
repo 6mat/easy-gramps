@@ -1,6 +1,6 @@
 // Easy Gramps — "Find me": each login linked to its own person in the tree. Anyone with a login can link
 // themselves (no approval; one login per person); editors see who is linked and can unlink.
-import { api, auth, LoginNeeded, SHARED, store } from "./auth.js";
+import { api, auth, BASE, LoginNeeded, SHARED, store } from "./auth.js";
 import { $, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
@@ -10,14 +10,24 @@ import { showLogin } from "./start.js";
 
 const LATER = "eg_findme_later";  // "Not now" on the start screen, this device only
 let LOGINS = {};                  // editors: person -> login name
+let INVITES = {};                 // the owner: person -> waiting invite {email, role, at}
+const isOwner = () => (ME.role ?? 0) >= 4;
+const ROLES = [[0, "Guest", "can look at the tree, not private details"], [1, "Member", "can look, and sees private details"],
+  [2, "Contributor", "can also add people"], [3, "Editor", "can also change and remove"]];
 
 export const myPerson = () => (P[ME.settings?.person] ? ME.settings.person : null);
 
 // After login: editors get who is linked to which login (for "Linked to the login …" in the panel).
 export async function loadLogins() {
-  LOGINS = {};
+  LOGINS = {}; INVITES = {};
   if (!canEdit()) return;
   try { LOGINS = await api("/tree/logins"); renderPanel(); } catch { /* the panel just doesn't say */ }
+  if (isOwner()) try { for (const i of await api("/invites")) INVITES[i.person] = i; renderPanel(); } catch { /* nor here */ }
+}
+// The owner opened the app: who has come in through an invite since (main.py let_in).
+export function joinedToast() {
+  const j = ME.joined || [];
+  if (j.length) toast(`${j.map(x => `${x.name} (${ROLES[x.role][1]})`).join(", ")} joined the family tree ✓`);
 }
 
 const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
@@ -104,6 +114,7 @@ export function renderMenuMe() {
 }
 
 // ---------- ☰ Menu → You: chat notifications on this device (Web Push; on iPhones only in the installed app) ----------
+const ASKED = "eg_push_asked";  // the after-login question was answered on this device
 const canPush = () => ME.push_key && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 const pushSub = async () => (await navigator.serviceWorker.ready).pushManager.getSubscription();
 function pushSwitch() {
@@ -129,6 +140,25 @@ async function pushOn() {
   try { sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }); }
   catch { throw new Error("this browser can't get notifications here. Try again, or use the installed app."); }
   await send("PUT", "/chat/push", sub.toJSON());
+}
+// Asked once per device after login (the browser's own prompt only comes after a tap on Allow).
+export function askPush() {
+  if (!canPush() || Notification.permission !== "default" || store.get(ASKED)) return;
+  setTimeout(() => {  // once the tree is on screen, and not over another pop-up
+    if (!$("#dlg-wrap").hidden) return;
+    const say = h("div", { role: "status" });
+    const later = () => { store.set(ASKED, "1"); hideDlg(); };
+    const yes = h("button", { class: "primary", onclick: async () => {
+      yes.disabled = true;
+      try { await pushOn(); later(); renderMenuMe(); toast("Done ✓ This device will tell you about new chat messages."); }
+      catch (err) { store.set(ASKED, "1"); yes.disabled = false; failed(err, say); }
+    } }, "Allow");
+    $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "🔔 Get a notification when the family messages you?"),
+      h("p", {}, "Only when the family tree isn't open on your screen. Turn it off any time in ☰ Menu → You."), say,
+      h("div", { class: "btnrow end" }, h("button", { onclick: later }, "Not now"), yes));
+    showDlg(false);
+    yes.focus();
+  }, 1500);
 }
 // Off: this device, and on logout (so the next person to log in here doesn't get them).
 export async function pushOff() {
@@ -190,7 +220,7 @@ export function meTag(p) {
 // More details, editors only: which login is linked to this person, with Unlink (two-step).
 export function loginLine(p) {
   const login = canEdit() && LOGINS[p.id];
-  if (!login) return "";
+  if (!login) return isOwner() ? inviteLine(p) : "";
   const line = h("div", { class: "small loginline" });
   const ask = () => line.replaceChildren(h("span", {}, `Unlink the login “${login}” from ${name(p)}?`),
     h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: unlink }, "Yes, unlink"), h("button", { onclick: plain }, "Cancel")));
@@ -206,4 +236,50 @@ export function loginLine(p) {
   }
   plain();
   return line;
+}
+
+// ---------- the owner: invite someone, with their role ----------
+function inviteLine(p) {
+  const inv = INVITES[p.id];
+  const when = inv && new Date(inv.at * 1000);
+  return h("div", { class: "small loginline" }, inv
+    ? [h("span", { class: "muted" }, `✉ Invited as ${ROLES[inv.role][1]} on ${fmtDate({ y: when.getFullYear(), m: when.getMonth() + 1, d: when.getDate() })}, waiting for them to sign in · `),
+      h("button", { class: "linkish", onclick: () => openInvite(p) }, "Invite again")]
+    : h("button", { onclick: () => openInvite(p) }, "✉ Invite to the family tree"));
+}
+function openInvite(p) {
+  const inv = INVITES[p.id];
+  const email = h("input", { id: "inv-email", type: "email", value: inv?.email || p.email || "", autocomplete: "off", placeholder: "name@gmail.com" });
+  const role = h("select", { id: "inv-role" }, ...ROLES.map(([v, n, what]) => h("option", { value: v }, `${n}: ${what}`)));
+  role.value = String(inv?.role ?? 1);
+  const say = h("div", { role: "status" });
+  const go = h("button", { class: "primary", onclick: async () => {
+    go.disabled = true;
+    try {
+      const i = await send("POST", "/invites", { email: email.value, person: p.id, role: Number(role.value) });
+      INVITES[p.id] = i; renderPanel(); shareStep(p, i);
+    } catch (err) { go.disabled = false; failed(err, say); }
+  } }, "Make the invite");
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
+    h("p", { class: "muted" }, "They sign in with Google using this email. The next time you open the family tree, they're let in with this role and linked to their place in the tree."),
+    h("label", { for: email.id }, "Their Google email", email), h("label", { for: role.id }, "What they can do", role), say,
+    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
+  showDlg(false);
+  email.focus();
+}
+function shareStep(p, i) {
+  const url = new URL(`${BASE}/`, location.href).href;
+  const text = `Hi ${p.first || name(p)}, you're invited to our family tree: ${url}\nTap “Continue with Google” and use ${i.email}. `
+    + "It can take a little while until I let you in. Then you'll see the family, can chat with everyone, and your own place in the tree is ready.";
+  const box = h("textarea", { id: "inv-text", rows: 6, readonly: true }, text);
+  const say = h("div", { class: "small muted", role: "status" });
+  const share = navigator.share && h("button", { class: "primary", onclick: () => navigator.share({ text }).catch(() => {}) }, "Share…");
+  const copy = h("button", { class: share ? "" : "primary", onclick: async () => {
+    try { await navigator.clipboard.writeText(text); say.textContent = "Copied ✓ Paste it into WhatsApp, a text or an email."; }
+    catch { box.select(); say.textContent = "Select the text and copy it."; }
+  } }, "Copy");
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Send them the invite"),
+    h("p", { class: "muted" }, "Send this from your phone (WhatsApp, Messages or email). Nothing is sent by the family tree itself."),
+    box, say, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Done"), copy, share || ""));
+  (share || copy).focus();
 }

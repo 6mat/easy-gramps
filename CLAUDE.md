@@ -115,8 +115,13 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   server can't be made to call anywhere else; the keys are tried once) / `DELETE /chat/push {endpoint}` (also on Log
   out). Each new message → `notify()` → a background task sends `{title, body, conv}` to the devices of everyone who
   may read it but the writer; 404/410 forgets the device. `push_key` is offered only when there's a contact for the
-  push services (an email address, or an https page). sw.js shows them (one per conversation); a tap focuses the page
+  push services (an email address, or an https page). sw.js shows them (one per conversation; none while a window of the app is visible); a tap focuses the page
   (postMessage) or opens `?chat=<id>`.
+- **Invites** (owner, role ≥ 4): `POST /invites {email, person, role 0–3}` / `GET /invites` (waiting ones), kept in chat.sqlite3
+  `invites`. A first Google sign-in makes a *disabled* Gramps Web account and gives it no token, so the invite is applied
+  from the owner's side: `/auth/me` for an owner runs `let_in()` — `GET /api/users/`, an account with a negative role
+  whose email matches gets `PUT /api/users/<name>/ {role}` and the Find me link; `/auth/me` → `joined` (toast). me.js:
+  "✉ Invite to the family tree" in More details (person without a login) → email + role → share text (Share…/Copy).
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
@@ -177,7 +182,7 @@ Fit and centring use only the area not under the panel.
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
 switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me, the daily email, "Notify me of
-new chat messages on this device" where the browser can), Show tips (the tip bar
+new chat messages on this device" where the browser can; asked once per device after login, `askPush`), Show tips (the tip bar
 is off until asked for; in portrait it also says to turn the phone sideways), 📲 Install as an app (main.js; always, but not in the installed app: Chrome's `beforeinstallprompt` when it offers, else
 the steps for Android/iPhone),
 Full Gramps ↗, Log out.

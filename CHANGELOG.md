@@ -2,6 +2,20 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.7 — 2026-10-25
+
+### Added
+- **Invite someone, with their role** (the owner): in a person's More details, **✉ Invite to the family tree** →
+  their Google email and what they can do (Guest, Member, Contributor, Editor) → a ready message to send from your
+  phone (Share… or Copy). When they sign in with Google, Gramps Web makes their account and waits for approval; the
+  next time you open Easy Gramps they're let in with that role and linked to their place in the tree ("Asha (Member)
+  joined the family tree ✓"). Matched by email; Easy Gramps sends nothing by itself (#143).
+- **Asked once after login:** "Get a notification when the family messages you?" Allow brings the browser's own
+  question; Not now hides it on that device. The switch stays in ☰ Menu → You (#142).
+
+### Changed
+- **No notification while the family tree is on screen** (the chat's count shows it there) (#142).
+
 ## 1.8.6 — 2026-10-25
 
 ### Changed
