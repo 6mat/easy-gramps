@@ -136,7 +136,8 @@ Fit and centring use only the area not under the panel.
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
 the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
 switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me), Show tips (the tip bar
-is off until asked for), Full Gramps ↗, Log out.
+is off until asked for), 📲 Install as an app (main.js; only while Chrome's `beforeinstallprompt` offers it),
+Full Gramps ↗, Log out.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
 Ctrl+wheel blocked outside it) — owner's call. Drag anywhere moves the tree, pinch zooms the tree,

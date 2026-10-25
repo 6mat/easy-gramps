@@ -123,7 +123,8 @@ read-only screen check weekly.
 
 ## On a phone or tablet: install it as an app
 
-In Chrome on Android, open `/easy-gramps/` and choose **Install app** (or **Add to Home screen → Install**);
+In Chrome on Android, open `/easy-gramps/` and tap **Menu → 📲 Install as an app** (or Chrome's own
+**⋮ → Add to Home screen → Install**);
 on an iPhone, Safari's **Share → Add to Home Screen**. It then opens from its own **Family Tree** icon,
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
