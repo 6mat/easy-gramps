@@ -1,6 +1,7 @@
 // Easy Gramps service worker: lets phones install the page as an app. It keeps nothing on the phone:
 // every request goes to the network as usual. Only a page that can't load at all (no internet) gets a
-// plain "No internet" page instead of the browser's own error.
+// plain "No internet" page instead of the browser's own error. It also shows the family chat's
+// notifications (push.py); tapping one opens its conversation.
 const OFFLINE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Family Tree</title>
 <style>
@@ -22,4 +23,23 @@ self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", e => {
   if (e.request.mode !== "navigate") return;  // everything else: straight to the network, untouched
   e.respondWith(fetch(e.request).catch(() => new Response(OFFLINE, { headers: { "Content-Type": "text/html; charset=utf-8" } })));
+});
+
+// One notification per conversation: a newer message replaces the one before (and still rings).
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data.json(); } catch { /* shown with the plain title */ }
+  e.waitUntil(self.registration.showNotification(d.title || "Family chat", {
+    body: d.body || "", tag: `chat-${d.conv}`, renotify: true, data: { conv: d.conv }, icon: `${self.registration.scope}icon-192.png`,
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const conv = e.notification.data?.conv;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const win = wins.find(w => w.url.startsWith(self.registration.scope));
+    if (win) { await win.focus(); win.postMessage({ chat: conv }); }
+    else await self.clients.openWindow(`${self.registration.scope}${conv ? `?chat=${conv}` : ""}`);
+  })());
 });

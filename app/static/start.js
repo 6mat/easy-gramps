@@ -5,7 +5,7 @@ import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someoneNew, toast } from "./editor.js";
-import { grampsHome, loadLogins, meBox, renderMenuMe } from "./me.js";
+import { grampsHome, loadLogins, meBox, pushOff, renderMenuMe } from "./me.js";
 import { startChat } from "./chat.js";
 
 export function renderAll() {
@@ -199,4 +199,4 @@ export async function start() {
   if (S.focus) await restoreView(v);
 }
 // Log out: forget the login and reload, so nothing of the tree stays in the page for the next person.
-$("#logout").onclick = async () => { await flushSaves(); auth.clear(); location.replace(location.pathname); };
+$("#logout").onclick = async () => { await flushSaves(); await pushOff(); auth.clear(); location.replace(location.pathname); };
