@@ -4,6 +4,7 @@ import "./tree.js";
 import "./panel.js";
 import "./editor.js";
 import "./merge.js";
+import "./docs.js";
 import { BASE } from "./auth.js";
 import { $, closeMenu, h } from "./common.js";
 import { hideDlg, showDlg } from "./editor.js";

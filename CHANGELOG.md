@@ -2,9 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.8.12 — 2026-10-26
 
 ### Added
+- **📚 Family documents** in ☰ Menu: every file in Gramps that isn't a picture (a family book PDF, letters…), with its
+  cover, by title. **Read** opens a PDF in the browser's own viewer in a new tab; **Download** saves it under its title.
+  Add them in Full Gramps (Media); everyone with access sees them (Gramps keeps private ones from guests). The owner
+  can hide the item in Site settings (#156).
 - **The version** at the bottom of ☰ Menu ("Easy Gramps v1.8.12"), set by the release build ("dev" in your own builds).
 
 ## 1.8.11 — 2026-10-25

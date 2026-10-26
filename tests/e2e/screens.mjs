@@ -229,6 +229,11 @@ async function cleanup() {
     await page.click("label:has(#showlink)"); await page.click("label:has(#showlink)");
     await page.click("#tips-again"); await page.click("#tip-close");
   });
+  await step(page, "menu: family documents", async () => {  // #156: the demo may have none
+    await page.click("#menubtn"); await page.click("#menu-docs");
+    await page.waitForSelector("#dlg .docrow, #dlg p:has-text('No family documents yet')");
+    await page.click("#dlg button:has-text('Close')");
+  });
   await step(page, "portrait / narrow", async () => { await page.setViewportSize({ width: 800, height: 1100 }); await sleep(500); await page.setViewportSize({ width: 1366, height: 900 }); });
   await step(page, "log out", async () => { await page.click("#menubtn"); await page.click("#logout"); await page.waitForSelector("#lg-user"); });
   await page.context().close();

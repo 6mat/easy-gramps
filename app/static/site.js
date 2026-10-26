@@ -5,7 +5,7 @@ import { $, APP_NAME, ME, closeMenu, h } from "./common.js";
 import { hideDlg, showDlg } from "./editor.js";
 
 const ITEMS = [["theme", "Theme"], ["display", "Display (bigger text, the line to the details)"], ["dates", "Dates"],
-  ["you", "You (Find me, email, notifications)"], ["install", "Install as an app"], ["tips", "Show tips"],
+  ["you", "You (Find me, email, notifications)"], ["install", "Install as an app"], ["docs", "Family documents"], ["tips", "Show tips"],
   ["keys", "Keyboard keys"], ["source", "Source code"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
 

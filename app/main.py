@@ -20,9 +20,10 @@ from email.utils import formatdate, make_msgid, parseaddr
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
+from starlette.background import BackgroundTask
 from starlette.middleware.gzip import GZipMiddleware
 
 import chat
@@ -292,7 +293,7 @@ async def me(request: Request):
 
 
 # ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
-MENU_ITEMS = ("theme", "display", "dates", "you", "install", "tips", "keys", "source")  # what the owner may hide
+MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "tips", "keys", "source")  # what the owner may hide
 GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
 
 
@@ -511,6 +512,11 @@ async def tree_graph(request: Request):
 @easy.get("/tree/recent")
 async def tree_recent(request: Request):
     return await familytree.recent_changes(await gramps_as(request))
+
+
+@easy.get("/tree/documents")
+async def tree_documents(request: Request):
+    return await familytree.documents(await gramps_as(request))
 
 
 @easy.get("/tree/places")
@@ -948,6 +954,33 @@ async def gramps_thumb(handle: str, crop: str, size: int, request: Request) -> R
     kind = r.headers.get("content-type", "").split(";")[0].strip().lower()
     keep["content-type"] = kind if kind in PHOTO_TYPES else "application/octet-stream"
     return Response(r.content, status_code=r.status_code, headers=keep)
+
+
+@easy.get("/gapi/media/{handle}/file")
+async def media_file(handle: str, request: Request, name: str = "", download: int = 0):
+    """A family document (☰ Menu → Family documents), passed through as it comes. Only a PDF opens in the browser
+    (its own viewer); anything else is a download, never a page that could run here (HTML, SVG)."""
+    if not handle.isalnum():
+        raise HTTPException(400, "Bad file request")
+    token = request.cookies.get(PHOTO_COOKIE)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    r = await upstream.send(upstream.build_request("GET", f"/media/{handle}/file", headers=headers), stream=True)
+    if r.status_code != 200:
+        await r.aread()
+        await r.aclose()
+        return Response(r.content, status_code=r.status_code, media_type="application/json")
+    kind = r.headers.get("content-type", "").split(";")[0].strip().lower()
+    inline = kind == "application/pdf" and not download
+    ext = pathlib.PurePath(r.headers.get("content-disposition", "").rsplit("=", 1)[-1].strip('"')).suffix[:10]
+    title = " ".join(re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", name).split())[:100] or handle
+    keep = {"content-type": kind if inline else "application/octet-stream",
+            "content-disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{urllib.parse.quote(title + ext)}",
+            "cache-control": "private, max-age=3600",
+            # The page's CSP (object-src 'none') would stop the browser's own PDF viewer; a PDF runs no page code here.
+            "content-security-policy": "frame-ancestors 'none'"}
+    if "content-length" in r.headers and "content-encoding" not in r.headers:
+        keep["content-length"] = r.headers["content-length"]
+    return StreamingResponse(r.aiter_bytes(), headers=keep, background=BackgroundTask(r.aclose))
 
 
 # ---------- install as an app (phone / tablet home screen) ----------

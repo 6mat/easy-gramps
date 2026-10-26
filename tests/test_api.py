@@ -505,6 +505,29 @@ def test_photo_shows_the_part_tagged_as_the_person(fake, client):  # #153
     assert client.get(f"/easy-gramps/gapi/media/{pic}/cropped/10/20/40/160/thumbnail/96").status_code == 400
 
 
+def test_family_documents(fake, client):  # #156
+    from starlette.testclient import TestClient
+    import main
+    fake.add("media", _class="Media", mime="image/jpeg", desc="A photo")
+    book = fake.add("media", _class="Media", mime="application/pdf", desc="Family book (1985)", path="abc.pdf")
+    page = fake.add("media", _class="Media", mime="text/html", desc="", path="old/page.html")
+    assert client.get("/easy-gramps/tree/documents").json() == [
+        {"id": book, "title": "Family book (1985)", "mime": "application/pdf"},
+        {"id": page, "title": "page.html", "mime": "text/html"}]  # no pictures; a title from the file name
+    anon = TestClient(main.app)
+    assert anon.get(f"/easy-gramps/gapi/media/{book}/file").status_code == 401  # needs the login cookie
+    client.post("/easy-gramps/auth/session")
+    r = client.get(f"/easy-gramps/gapi/media/{book}/file?name=Family book (1985)")
+    assert r.status_code == 200 and r.content == b"%PDF-1.4 fake" and r.headers["content-type"] == "application/pdf"
+    assert r.headers["content-disposition"] == "inline; filename*=UTF-8''Family%20book%20%281985%29.pdf"
+    assert "object-src" not in r.headers["content-security-policy"]  # the browser's PDF viewer may run
+    d = client.get(f"/easy-gramps/gapi/media/{book}/file?name=a/b&download=1")
+    assert d.headers["content-disposition"] == "attachment; filename*=UTF-8''ab.pdf" and d.headers["content-type"] == "application/octet-stream"
+    h = client.get(f"/easy-gramps/gapi/media/{page}/file")  # never shown as a page here
+    assert h.headers["content-type"] == "application/octet-stream" and h.headers["content-disposition"].startswith("attachment")
+    assert client.get("/easy-gramps/gapi/media/a.b/file").status_code in (400, 404)
+
+
 def test_someone_new_keeps_their_nickname(fake, client):  # #149
     kid = fake.person("Sam", "", 1)
     r = client.post("/easy-gramps/tree/relative", json={"person": kid, "rel": "father", "new": {"first": "Ravi", "nick": " Chinnu "}})
