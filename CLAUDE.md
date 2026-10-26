@@ -123,6 +123,8 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `site` (key → JSON, defaults `chat.SITE`); `/auth/me` → `site`, and drops `gramps_link` below `GRAMPS_FOR[gramps]`.
   `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
   The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
+  `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
+  leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
 - **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
   `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
@@ -135,10 +137,12 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
 - **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
   non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`
-  streams Gramps' `/media/{h}/file` with the eg_photo cookie: only `application/pdf` (no download) is inline, everything
+  streams Gramps' `/media/{h}/file` for a `ticket` from `/tree/documents` (main.py `file_ticket`: random, that one
+  file, 10 minutes, holds the lister's Gramps token, in memory; the cookie doesn't reach a new tab from an installed
+  app — #158): only `application/pdf` (no download) is inline, everything
   else `attachment` + `application/octet-stream`; filename = name + Gramps' extension; its own CSP
   (`frame-ancestors 'none'` only: the page CSP's object-src 'none' would stop the browser's PDF viewer). The dialog
-  calls `renewPhotos()` first so the cookie is fresh for the links (new tab, no retry there).
+  calls `refreshLogin()` first, so the token behind the tickets has its full time ahead.
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.

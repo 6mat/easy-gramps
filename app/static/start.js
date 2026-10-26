@@ -190,8 +190,8 @@ export async function start() {
   joinedToast();
   askPush();
   startChat();
-  applySite();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
+  applySite();  // after the Full Gramps link's text: the owner may rename it
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
   S.focus = P[v.focus] ? v.focus : null;
   S.sel = S.focus && P[v.sel] ? v.sel : S.focus;

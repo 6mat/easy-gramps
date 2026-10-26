@@ -7,12 +7,23 @@ import { hideDlg, showDlg } from "./editor.js";
 const ITEMS = [["theme", "Theme"], ["display", "Display (bigger text, the line to the details)"], ["dates", "Dates"],
   ["you", "You (Find me, email, notifications)"], ["install", "Install as an app"], ["docs", "Family documents"], ["tips", "Show tips"],
   ["keys", "Keyboard keys"], ["source", "Source code"]];
+// What the owner may rename (main.py LABELS): key, where, the default text.
+const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Menu"], ["theme", "[data-item=theme] h3", "Theme"],
+  ["display", "[data-item=display] h3", "Display"], ["dates", "[data-item=dates] h3", "Dates"], ["you", "[data-item=you] h3", "You"],
+  ["help", "#h-help", "Help"], ["install", "#menu-install", "📲 Install as an app"], ["docs", "#menu-docs", "📚 Family documents"],
+  ["tips", "#tips-again", "Show tips"], ["keys", "#menu-keys", "Keyboard keys"], ["goto", "#h-goto", "Go to"],
+  ["gramps", "#menu-gramps", "Full Gramps ↗"], ["source", "#menu-source", "Source code ↗"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
 
 export function applySite() {
   const hide = new Set(ME.site?.hide || []);
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   $("#menu-owner").hidden = (ME.role ?? 0) < 4;
+  const names = ME.site?.labels || {};
+  for (const [k, sel] of LABELS) {
+    const el = $(sel);
+    if (el && names[k]) el.textContent = el.classList.contains("lbl") ? ` ${names[k]}` : names[k];  // .lbl: after the icon
+  }
 }
 
 $("#menu-site").onclick = () => { closeMenu(); openSite(); };
@@ -25,6 +36,8 @@ function openSite() {
   });
   const gramps = h("select", { id: "site-gramps" }, ...GRAMPS.map(([v, t]) => h("option", { value: v }, t)));
   gramps.value = s.gramps || "everyone";
+  const renames = LABELS.map(([k, , def]) => h("label", {}, def,
+    h("input", { "data-key": k, value: s.labels?.[k] || "", placeholder: def, maxlength: 40, autocomplete: "off" })));
   const iconImg = h("img", { class: "siteicon", src: `${BASE}/icon-192.png?t=${Date.now()}`, alt: "The app's icon now" });
   const say = h("div", { role: "status" });
   const file = h("input", { type: "file", accept: "image/*", hidden: true });
@@ -39,7 +52,8 @@ function openSite() {
     try {
       const hide = shows.map(l => l.querySelector("input")).filter(b => !b.checked).map(b => b.value);
       ME.site = await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value }) });
+        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value,
+          labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }) });
       location.reload();  // the name is in the page itself, the manifest and the Full Gramps links: simplest to load again
     } catch (err) { save.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
   } }, "Save");
@@ -50,6 +64,8 @@ function openSite() {
       h("div", { class: "btnrow" }, iconImg, h("button", { onclick: () => file.click() }, "Choose a picture…"),
         h("button", { onclick: () => icon("DELETE") }, "Use the default"), file)),
     h("fieldset", {}, h("legend", {}, "Show in the menu"), ...shows),
+    h("details", { class: "renames" }, h("summary", {}, "Rename menu items and buttons"),
+      h("p", { class: "muted small" }, "Leave a box empty to keep the name in grey. Emoji are fine."), ...renames),
     h("label", { for: gramps.id }, "Full Gramps link for", gramps),
     h("p", { class: "muted small" }, "Hiding the link doesn't change what anyone may do: their role in Gramps Web decides that."),
     say, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), save));

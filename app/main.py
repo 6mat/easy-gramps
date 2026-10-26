@@ -11,6 +11,7 @@ import json
 import os
 import pathlib
 import re
+import secrets
 import smtplib
 import sqlite3
 import time
@@ -294,6 +295,8 @@ async def me(request: Request):
 
 # ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
 MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "tips", "keys", "source")  # what the owner may hide
+LABELS = ("chat", "menu", "theme", "display", "dates", "you", "help", "install", "docs", "tips", "keys", "goto", "gramps",
+          "source")  # what the owner may rename (site.js LABELS)
 GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
 
 
@@ -327,6 +330,14 @@ async def save_site(request: Request):
         if body["gramps"] not in GRAMPS_FOR:
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["gramps"] = body["gramps"]
+    if "labels" in body:
+        given = body["labels"]
+        if not isinstance(given, dict) or not set(given) <= set(LABELS) or not all(isinstance(v, str) for v in given.values()):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        labels = {k: " ".join(given[k].split()) for k in LABELS if k in given}
+        if any(len(v) > 40 for v in labels.values()):
+            raise HTTPException(400, "Each name can have up to 40 letters.")
+        changes["labels"] = {k: v for k, v in labels.items() if v}  # empty: the default
     return CHAT.save_site(changes)
 
 
@@ -514,9 +525,27 @@ async def tree_recent(request: Request):
     return await familytree.recent_changes(await gramps_as(request))
 
 
+# A document opens in a new tab (or, from an installed app, in the browser): the photo cookie doesn't always get there
+# (an iPhone home-screen app has its own cookies; Android treats it as a link from another app). So each link carries a
+# ticket: random, for that one file, for 10 minutes, standing for the login that listed it.
+# shortcut: kept in memory, one process (uvicorn without --workers); put them in chat.sqlite3 if it ever runs several.
+TICKETS: dict[str, tuple[str, str, float]] = {}  # ticket -> (media handle, Gramps token, expires)
+TICKET_SECONDS = 600
+
+
+def file_ticket(handle: str, token: str) -> str:
+    now = time.time()
+    for k in [k for k, (_, _, until) in TICKETS.items() if until < now]:
+        del TICKETS[k]
+    t = secrets.token_urlsafe(18)
+    TICKETS[t] = (handle, token, now + TICKET_SECONDS)
+    return t
+
+
 @easy.get("/tree/documents")
 async def tree_documents(request: Request):
-    return await familytree.documents(await gramps_as(request))
+    docs = await familytree.documents(await gramps_as(request))
+    return [{**d, "ticket": file_ticket(d["id"], bearer(request))} for d in docs]
 
 
 @easy.get("/tree/places")
@@ -957,14 +986,18 @@ async def gramps_thumb(handle: str, crop: str, size: int, request: Request) -> R
 
 
 @easy.get("/gapi/media/{handle}/file")
-async def media_file(handle: str, request: Request, name: str = "", download: int = 0):
-    """A family document (☰ Menu → Family documents), passed through as it comes. Only a PDF opens in the browser
+async def media_file(handle: str, request: Request, ticket: str = "", name: str = "", download: int = 0):
+    """A family document (☰ Menu → Family documents), passed through as it comes, for a ticket from /tree/documents. Only a PDF opens in the browser
     (its own viewer); anything else is a download, never a page that could run here (HTML, SVG)."""
     if not handle.isalnum():
         raise HTTPException(400, "Bad file request")
-    token = request.cookies.get(PHOTO_COOKIE)
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    r = await upstream.send(upstream.build_request("GET", f"/media/{handle}/file", headers=headers), stream=True)
+    t = TICKETS.get(ticket)
+    if not t or t[0] != handle or t[2] < time.time():
+        return HTMLResponse("<!doctype html><meta name=viewport content='width=device-width'><title>Link ran out</title>"
+                            "<p>This link has run out. Go back to the family tree and open the document again.</p>",
+                            status_code=403)
+    r = await upstream.send(upstream.build_request("GET", f"/media/{handle}/file", headers={"Authorization": f"Bearer {t[1]}"}),
+                            stream=True)
     if r.status_code != 200:
         await r.aread()
         await r.aclose()

@@ -575,3 +575,5 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .docrow > img, .doccover { width: 64px; height: 64px; flex: none; border-radius: 8px; border: 1px solid var(--edge); object-fit: cover;
   display: grid; place-items: center; font-size: 28px; background: var(--card); }
 .docmain { min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.renames { margin: 8px 0 12px; } .renames summary { cursor: pointer; font-weight: 700; }
+.renames label { display: block; margin-top: 8px; }
