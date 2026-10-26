@@ -588,6 +588,15 @@ async def merge(g: Gramps, body: dict, tags: list) -> dict:
     return {"merged": keep, "name": name or "this person"}
 
 
+async def documents(g: Gramps) -> list:
+    """Family documents (☰ Menu): every media object that isn't a picture, such as a PDF book, by title.
+    Gramps leaves out private ones for logins that may not see them."""
+    rows = await g.get("/media/", keys="handle,mime,desc,path")
+    docs = [{"id": m["handle"], "title": (m.get("desc") or "").strip() or (m.get("path") or "").rsplit("/", 1)[-1],
+             "mime": m.get("mime") or ""} for m in rows if not (m.get("mime") or "").startswith("image/")]
+    return sorted(docs, key=lambda d: d["title"].lower())
+
+
 async def recent_changes(g: Gramps, limit: int = 8) -> list:
     """The people most recently added or changed (by anyone), with who changed them when Gramps can tell."""
     people = await g.get("/people/", sort="-change", pagesize=limit, page=1, keys="handle,change")

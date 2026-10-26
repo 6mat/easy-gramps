@@ -133,6 +133,12 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
   Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
+- **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
+  non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`
+  streams Gramps' `/media/{h}/file` with the eg_photo cookie: only `application/pdf` (no download) is inline, everything
+  else `attachment` + `application/octet-stream`; filename = name + Gramps' extension; its own CSP
+  (`frame-ancestors 'none'` only: the page CSP's object-src 'none' would stop the browser's PDF viewer). The dialog
+  calls `renewPhotos()` first so the cookie is fresh for the links (new tab, no retry there).
 - No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.

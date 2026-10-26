@@ -143,6 +143,12 @@ class FakeGramps:
             keep["event_ref_list"] = (keep.get("event_ref_list") or []) + (gone.get("event_ref_list") or [])
             self._sync()
             return httpx.Response(200, json=[])
+        if len(parts) == 3 and parts[0] == "media" and parts[2] == "file":
+            m = self.db["media"].get(parts[1])
+            if request.headers.get("authorization") != "Bearer tok" or m is None:
+                return httpx.Response(401 if m else 404, json={})
+            name = m.get("path") or "x.bin"
+            return httpx.Response(200, content=b"%PDF-1.4 fake", headers={"content-type": m["mime"], "content-disposition": f"inline; filename={name}"})
         if parts[:1] == ["media"] and len(parts) in (4, 8) and parts[-2] == "thumbnail":  # also .../cropped/x1/y1/x2/y2/thumbnail/n
             if request.headers.get("authorization") != "Bearer tok":
                 return httpx.Response(401, json={})
