@@ -4,6 +4,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 ENV DATA_DIR=/data
+# The release's version (release.yml passes VERSION), shown at the bottom of the Menu; "dev" in your own builds.
+ARG VERSION=dev
+ENV APP_VERSION=$VERSION
 # The app's own data (each person's settings): writable by the app's user, and a new volume mounted
 # here starts with this owner too.
 RUN mkdir -p /data && chown 1000:1000 /data

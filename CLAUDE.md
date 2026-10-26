@@ -15,6 +15,8 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
 - Small commits, one step each. `VERSION` holds the version (raise it in the PR). Release with GitHub
   **Actions → Release image → Run workflow** on main: it builds the image, then tags `vX.Y.Z` from `VERSION`
   and publishes the release with that version's CHANGELOG notes. A hand-made tag must match `VERSION`.
+  Changes merged without a release go under `## Unreleased` in CHANGELOG; rename it to the version when releasing.
+  The release passes `VERSION=vX.Y.Z` into the image (Dockerfile ARG → `APP_VERSION`), shown at the bottom of ☰ Menu.
 
 ## Run and check
 ```
