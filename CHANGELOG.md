@@ -2,6 +2,11 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Added
+- **The version** at the bottom of ☰ Menu ("Easy Gramps v1.8.12"), set by the release build ("dev" in your own builds).
+
 ## 1.8.11 — 2026-10-25
 
 ### Changed

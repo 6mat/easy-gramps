@@ -1015,10 +1015,12 @@ async def service_worker():  # served from BASE_PATH (not /static) so it may loo
 
 
 # ---------- pages ----------
+APP_VERSION = os.environ.get("APP_VERSION") or "dev"  # set by the release build (Dockerfile ARG VERSION), shown in the Menu
 
 def page(name: str) -> HTMLResponse:
     text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH).replace("__ICONV__", icon_master()["version"])
     text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True)).replace("__NAME__", html.escape(site()["name"], quote=True))
+    text = text.replace("__VERSION__", html.escape(APP_VERSION))
     return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))
 
 

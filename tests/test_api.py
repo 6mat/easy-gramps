@@ -198,6 +198,7 @@ def test_page_links_to_source_code(fake, client):
     import main
     assert f'id="menu-source" href="{main.SOURCE_URL}"' in client.get("/easy-gramps/").text
     assert "__SOURCE__" not in client.get("/easy-gramps/").text
+    assert "Easy Gramps dev</div>" in client.get("/easy-gramps/").text  # the version in the Menu (release: APP_VERSION)
 
 
 def test_tag_created_once_for_concurrent_first_edits(fake, client):  # #39
