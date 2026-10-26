@@ -2,6 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.14 — 2026-10-26
+
+### Fixed
+- **A photo showed twice** after uploading it here and then tagging the person on it in Full Gramps (Gramps adds a
+  second link to the same picture, with the region). Each picture now shows once, as the tagged part. "Make profile
+  photo" on such a picture also dropped the link with the region; now both links move together (#161).
+
 ## 1.8.13 — 2026-10-26
 
 ### Fixed

@@ -505,6 +505,18 @@ def test_photo_shows_the_part_tagged_as_the_person(fake, client):  # #153
     assert client.get(f"/easy-gramps/gapi/media/{pic}/cropped/10/20/40/160/thumbnail/96").status_code == 400
 
 
+def test_a_photo_linked_twice_shows_once(fake, client):  # #161: uploaded here, then tagged on it in Gramps
+    pic, other = fake.add("media", _class="Media", mime="image/jpeg"), fake.add("media", _class="Media", mime="image/png")
+    tagged = {"_class": "MediaRef", "ref": pic, "rect": [10, 20, 40, 60]}
+    p = fake.person("A", media_list=[{"_class": "MediaRef", "ref": other}, {"_class": "MediaRef", "ref": pic}, tagged])
+    me = client.get("/easy-gramps/tree/graph").json()["people"][p]
+    assert me["photos"] == [other, pic] and me["crops"] == {pic: [10, 20, 40, 60]}
+    assert client.post(f"/easy-gramps/tree/person/{p}/photos", json={"media": pic, "do": "main"}).json() == {"photo": pic}
+    assert [m.get("rect") for m in fake.get("people", p)["media_list"]] == [None, [10, 20, 40, 60], None]  # the region is kept
+    client.post(f"/easy-gramps/tree/person/{p}/photos", json={"media": pic, "do": "remove"})
+    assert [m["ref"] for m in fake.get("people", p)["media_list"]] == [other]
+
+
 def test_family_documents(fake, client, monkeypatch):  # #156, #158
     from starlette.testclient import TestClient
     import main
