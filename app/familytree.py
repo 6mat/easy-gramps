@@ -64,7 +64,8 @@ async def graph(g: Gramps) -> dict:
             "death": ymd((death or {}).get("date")),
             "burial": places.get((burial or {}).get("place"), ""),
             "photo": p["media_list"][0]["ref"] if p.get("media_list") else None,
-            "photos": [m["ref"] for m in p.get("media_list") or [] if m["ref"] in pictures],  # every picture, main first
+            # Every picture once, main first: tagging someone in Gramps on a photo they have already adds a second link.
+            "photos": list(dict.fromkeys(m["ref"] for m in p.get("media_list") or [] if m["ref"] in pictures)),
             # The part of a picture that is this person (tagged in Gramps: x1, y1, x2, y2 in % of the picture).
             "crops": {m["ref"]: m["rect"] for m in p.get("media_list") or [] if m["ref"] in pictures
                       and m.get("rect") and list(m["rect"]) != [0, 0, 100, 100]},
@@ -320,11 +321,11 @@ async def photo_change(g: Gramps, handle: str, body: dict) -> dict:
         raise GrampsError("Something was missing. Please try again.")
     p = await g.get(f"/people/{handle}")
     refs = p.get("media_list") or []
-    ref = next((m for m in refs if m["ref"] == media), None)
-    if ref is None:
+    mine = [m for m in refs if m["ref"] == media]  # all its links (one may carry their region in the picture)
+    if not mine:
         raise GrampsError("That photo isn't on this person any more.", 404)
     rest = [m for m in refs if m["ref"] != media]
-    p["media_list"] = rest if do == "remove" else [ref] + rest
+    p["media_list"] = rest if do == "remove" else mine + rest
     await g.put(f"/people/{handle}", p)
     return {"photo": p["media_list"][0]["ref"] if p["media_list"] else None}
 
