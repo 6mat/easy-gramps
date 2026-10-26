@@ -2,6 +2,17 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.13 — 2026-10-26
+
+### Fixed
+- **Family documents on phones:** Read and Download showed "Missing JWT…" when the new tab didn't get the login
+  cookie (from an installed app: an iPhone home-screen app has its own cookies, Android treats it as a link from another
+  app). Each link now carries a ticket for that one file, good for 10 minutes; an old link says it has run out (#158).
+
+### Added
+- **Site settings → Rename menu items and buttons:** the owner can rename the menu items and headings and the Chat and
+  Menu buttons, e.g. "📚 Family documents" → "📖 Family history". Empty keeps the default (#159).
+
 ## 1.8.12 — 2026-10-26
 
 ### Added

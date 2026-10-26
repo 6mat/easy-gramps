@@ -231,7 +231,7 @@ async function cleanup() {
   });
   await step(page, "menu: family documents", async () => {  // #156: the demo may have none
     await page.click("#menubtn"); await page.click("#menu-docs");
-    await page.waitForSelector("#dlg .docrow, #dlg p:has-text('No family documents yet')");
+    await page.waitForSelector("#dlg .docrow, #dlg p:has-text('Nothing here yet')");
     await page.click("#dlg button:has-text('Close')");
   });
   await step(page, "portrait / narrow", async () => { await page.setViewportSize({ width: 800, height: 1100 }); await sleep(500); await page.setViewportSize({ width: 1366, height: 900 }); });

@@ -444,13 +444,13 @@ def test_site_settings_owner_only(fake, client):  # #145
     from PIL import Image
     assert client.put("/easy-gramps/site", json={"name": "Ours"}).status_code == 403  # an editor
     me = client.get("/easy-gramps/auth/me").json()
-    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone"} and me["gramps_link"]
+    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}} and me["gramps_link"]
     fake.role = 4
     main._who_cache.clear()
     for bad in ({"name": "  "}, {"name": "x" * 41}, {"hide": ["logout"]}, {"hide": "theme"}, {"gramps": "admins"}):
         assert client.put("/easy-gramps/site", json=bad).status_code == 400, bad
     s = client.put("/easy-gramps/site", json={"name": " The  <Kumar> Family ", "hide": ["source", "theme"], "gramps": "owner"}).json()
-    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner"}
+    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}}
     page = client.get("/easy-gramps/").text
     assert "<title>The &lt;Kumar&gt; Family</title>" in page and "__NAME__" not in page
     assert client.get("/easy-gramps/manifest.webmanifest").json()["name"] == "The <Kumar> Family"
@@ -505,27 +505,46 @@ def test_photo_shows_the_part_tagged_as_the_person(fake, client):  # #153
     assert client.get(f"/easy-gramps/gapi/media/{pic}/cropped/10/20/40/160/thumbnail/96").status_code == 400
 
 
-def test_family_documents(fake, client):  # #156
+def test_family_documents(fake, client, monkeypatch):  # #156, #158
     from starlette.testclient import TestClient
     import main
     fake.add("media", _class="Media", mime="image/jpeg", desc="A photo")
     book = fake.add("media", _class="Media", mime="application/pdf", desc="Family book (1985)", path="abc.pdf")
     page = fake.add("media", _class="Media", mime="text/html", desc="", path="old/page.html")
-    assert client.get("/easy-gramps/tree/documents").json() == [
+    docs = client.get("/easy-gramps/tree/documents").json()
+    assert [{k: d[k] for k in ("id", "title", "mime")} for d in docs] == [
         {"id": book, "title": "Family book (1985)", "mime": "application/pdf"},
         {"id": page, "title": "page.html", "mime": "text/html"}]  # no pictures; a title from the file name
-    anon = TestClient(main.app)
-    assert anon.get(f"/easy-gramps/gapi/media/{book}/file").status_code == 401  # needs the login cookie
-    client.post("/easy-gramps/auth/session")
-    r = client.get(f"/easy-gramps/gapi/media/{book}/file?name=Family book (1985)")
+    tb, tp = docs[0]["ticket"], docs[1]["ticket"]
+    anon = TestClient(main.app)  # #158: no cookie (a new tab from an installed app): the ticket is the login
+    r = anon.get(f"/easy-gramps/gapi/media/{book}/file?ticket={tb}&name=Family book (1985)")
     assert r.status_code == 200 and r.content == b"%PDF-1.4 fake" and r.headers["content-type"] == "application/pdf"
     assert r.headers["content-disposition"] == "inline; filename*=UTF-8''Family%20book%20%281985%29.pdf"
     assert "object-src" not in r.headers["content-security-policy"]  # the browser's PDF viewer may run
-    d = client.get(f"/easy-gramps/gapi/media/{book}/file?name=a/b&download=1")
+    d = anon.get(f"/easy-gramps/gapi/media/{book}/file?ticket={tb}&name=a/b&download=1")
     assert d.headers["content-disposition"] == "attachment; filename*=UTF-8''ab.pdf" and d.headers["content-type"] == "application/octet-stream"
-    h = client.get(f"/easy-gramps/gapi/media/{page}/file")  # never shown as a page here
+    h = anon.get(f"/easy-gramps/gapi/media/{page}/file?ticket={tp}")  # never shown as a page here
     assert h.headers["content-type"] == "application/octet-stream" and h.headers["content-disposition"].startswith("attachment")
-    assert client.get("/easy-gramps/gapi/media/a.b/file").status_code in (400, 404)
+    assert anon.get(f"/easy-gramps/gapi/media/{book}/file").status_code == 403  # no ticket
+    assert anon.get(f"/easy-gramps/gapi/media/{book}/file?ticket={tp}").status_code == 403  # another file's ticket
+    assert anon.get("/easy-gramps/gapi/media/a.b/file").status_code in (400, 404)
+    monkeypatch.setattr(main.time, "time", lambda: 10**12)  # long after
+    assert anon.get(f"/easy-gramps/gapi/media/{book}/file?ticket={tb}").status_code == 403
+
+
+def test_site_labels(fake, client):  # #159
+    fake.role = 4
+    import main
+    main._who_cache.clear()
+
+    def put(labels):
+        return client.put("/easy-gramps/site", json={"labels": labels})
+    assert put({"docs": "  📖 Family   history ", "chat": ""}).json()["labels"] == {"docs": "📖 Family history"}  # empty: the default
+    assert client.get("/easy-gramps/auth/me").json()["site"]["labels"] == {"docs": "📖 Family history"}
+    assert put({"nope": "x"}).status_code == 400 and put({"docs": 3}).status_code == 400 and put({"docs": "x" * 41}).status_code == 400
+    fake.role = 3
+    main._who_cache.clear()
+    assert put({"docs": "x"}).status_code == 403
 
 
 def test_someone_new_keeps_their_nickname(fake, client):  # #149

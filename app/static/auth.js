@@ -55,6 +55,7 @@ export function photoSession() {
 }
 
 let refreshing = null;
+export async function refreshLogin() { return tryRefresh().catch(() => false); }  // a fresh access token now
 async function tryRefresh() {
   if (!auth.refresh) return false;
   refreshing ||= fetch(`${BASE}/auth/refresh`, { method: "POST", headers: { Authorization: `Bearer ${auth.refresh}` } })
