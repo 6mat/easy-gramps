@@ -289,7 +289,13 @@ async def me(request: Request):
     if user.get("role", 0) < GRAMPS_FOR[user["site"]["gramps"]]:
         user.pop("gramps_link", None)  # (also the editors' "Open in Full Gramps ↗" links)
     if user.get("role", 0) >= ROLE_OWNER:
-        user["joined"] = await let_in(bearer(request))
+        try:
+            users = await gramps_users(bearer(request))
+        except (httpx.HTTPError, ValueError) as e:  # the page opens anyway
+            gramps.log.error("Couldn't read the Gramps Web users: %s", e)
+            users = []
+        user["joined"] = await let_in(bearer(request), users, user)
+        user["joining"] = sum(u.get("role") == ROLE_DISABLED for u in users)  # ☰ Menu → Waiting to join
     suggest.add_to_me(user)
     return user
 
@@ -390,32 +396,111 @@ async def default_icon(request: Request):
 # A first Google sign-in makes a disabled Gramps Web account (no login token until the owner lets them in), so the
 # invite is applied from the owner's side: the next time the owner opens the app, by the email the account has.
 
-async def let_in(token: str) -> list[dict]:
+ROLE_DISABLED = -1  # Gramps Web: an account waiting for the owner (a first Google sign-in, or a confirmed sign-up)
+
+
+async def gramps_users(token: str) -> list[dict]:
+    r = await upstream.get("/users/", headers={"Authorization": f"Bearer {token}"})
+    r.raise_for_status()
+    return r.json()
+
+
+CAN_NOW = {0: "see the family tree", 1: "see the family tree, private details too", 2: "see the family tree and add people",
+           3: "see and change the family tree"}
+_welcomes: set = set()  # emails still being sent (see _pushing)
+
+
+async def admit(token: str, u: dict, role: int, owner: dict, person: str | None = None, wait: bool = True):
+    """Let a waiting account in with `role`; link them to `person` (an invite's) and email them that they're in
+    (wait=False: the email goes in the background, so the owner's page doesn't wait for it)."""
+    p = await upstream.put(f"/users/{urllib.parse.quote(u['name'], safe='')}/", json={"role": role},
+                           headers={"Authorization": f"Bearer {token}"})
+    p.raise_for_status()
+    u["role"] = role
+    email = (u.get("email") or "").strip().lower()
+    if email and CHAT.one("SELECT 1 FROM invites WHERE email = ?", email):
+        CHAT.joined(email, u["name"])
+    if person:
+        try:
+            CHAT.link(u["name"], person)
+        except chat.ChatError:  # someone else is linked to that person already: Find me is still there
+            pass
+    if not (email and EMAIL["EMAIL_HOST"]):
+        return False
+    first = (u.get("full_name") or u["name"]).split()[0]
+    me = owner.get("full_name") or owner["name"]
+    text = (f"Hello {first},\n\nYou're in! You can now {CAN_NOW[role]}:\n{app_url()}\n\n"
+            f"Sign in the same way you signed up.\n\n{me}\n")
+
+    async def send():
+        try:
+            await asyncio.to_thread(send_mail, email, f"You're in: {site()['name']}", text, owner.get("email") or "")
+            return True
+        except (smtplib.SMTPException, OSError) as e:
+            gramps.log.error("The welcome email to %s failed: %s", email, e)
+            return False
+    if wait:
+        return await send()
+    task = asyncio.create_task(send())
+    _welcomes.add(task)
+    task.add_done_callback(_welcomes.discard)
+    return True
+
+async def let_in(token: str, users: list[dict], owner: dict) -> list[dict]:
     """Invited people who have signed in since: give them the invite's role and person."""
     try:
         waiting = {i["email"]: i for i in CHAT.invites()}
-        if not waiting:
-            return []
-        auth = {"Authorization": f"Bearer {token}"}
-        r = await upstream.get("/users/", headers=auth)
-        r.raise_for_status()
         out = []
-        for u in r.json():
+        for u in users:
             inv = waiting.get((u.get("email") or "").strip().lower())
             if not inv or u.get("role", 0) >= 0:  # only accounts still waiting for approval
                 continue
-            p = await upstream.put(f"/users/{urllib.parse.quote(u['name'], safe='')}/", json={"role": inv["role"]}, headers=auth)
-            p.raise_for_status()
-            CHAT.joined(inv["email"], u["name"])
-            try:
-                CHAT.link(u["name"], inv["person"])
-            except chat.ChatError:  # someone else is linked to that person already: Find me is still there
-                pass
+            await admit(token, u, inv["role"], owner, inv["person"], wait=False)
             out.append({"name": u.get("full_name") or u["name"], "person": inv["person"], "role": inv["role"]})
         return out
     except (httpx.HTTPError, ValueError, KeyError, sqlite3.Error) as e:  # the page opens anyway; tried again next time
         gramps.log.error("Couldn't apply invites: %s", e)
         return []
+
+
+@easy.get("/joining")
+async def joining(request: Request):
+    """The owner's ☰ Menu → Waiting to join: accounts Gramps Web keeps disabled until someone lets them in."""
+    if (await who(request)).get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can let people in.")
+    try:
+        users = await gramps_users(bearer(request))
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    invites = {i["email"]: i for i in CHAT.invites()}
+    out = []
+    for u in users:
+        if u.get("role") != ROLE_DISABLED:
+            continue
+        inv = invites.get((u.get("email") or "").strip().lower())
+        out.append({"login": u["name"], "name": u.get("full_name") or u["name"], "email": u.get("email") or "",
+                    "role": inv["role"] if inv else 0, "person": inv and inv["person"],
+                    "before": bool(CHAT.one("SELECT 1 FROM users WHERE login = ?", u["name"]))})  # (turned off after using it)
+    return out
+
+
+@easy.post("/joining/{login}")
+async def let_them_in(login: str, request: Request):
+    """{role: 0–3}: let them in (an invite's person is linked too) and email them."""
+    owner = await who(request)
+    if owner.get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can let people in.")
+    role = (await json_body(request)).get("role")
+    if type(role) is not int or not 0 <= role <= ROLE_EDITOR:
+        raise HTTPException(400, "Something was missing. Please try again.")
+    try:
+        u = next((x for x in await gramps_users(bearer(request)) if x["name"] == login), None)
+        if not u or u.get("role") != ROLE_DISABLED:
+            raise HTTPException(404, "They're not waiting any more.")
+        inv = CHAT.one("SELECT person FROM invites WHERE email = ?", (u.get("email") or "").strip().lower())
+        return {"emailed": await admit(bearer(request), u, role, owner, inv and inv["person"])}
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
 
 
 @easy.post("/invites")

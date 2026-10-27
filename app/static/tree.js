@@ -235,6 +235,7 @@ function titleBar() {
   const fp = P[S.focus];
   $("#tree-title").textContent = `${name(fp)}'s family tree`;
   $("#tree-home").hidden = !S.full;  // otherwise ⌂ Family Tree in the top bar is Home
+  S.history = S.history.filter(x => P[x]);  // (a suggested person goes when it's rejected)
   const back = $("#tree-back"), prev = S.history.at(-1);
   back.hidden = !prev;
   if (prev) back.textContent = `← Back to ${P[prev].first}'s tree`;

@@ -167,13 +167,22 @@ async def history(request: Request, before: str = "", login: str = ""):
 @router.post("/suggestions/delete")
 async def delete(request: Request):
     """{ids: [...]} or {rejected: "all"}: editors take rejected ones off the history for good (approved ones stay: they
-    are the record of what changed the tree)."""
+    are the record of what changed the tree), with what builds on the new people in them (a new person's nickname
+    can't go in without them)."""
     await m.need_edit(request, "Only editors can delete suggestions.")
     body = await m.json_body(request)
     if body.get("rejected") == "all":
-        return {"deleted": len(q("DELETE FROM suggestions WHERE status = 'rejected' RETURNING id"))}
-    ids = [x for x in body.get("ids") or [] if type(x) is int][:1000]
-    return {"deleted": sum(len(q("DELETE FROM suggestions WHERE id = ? AND status = 'rejected' RETURNING id", k)) for k in ids)}
+        ids = [r["id"] for r in q("SELECT id FROM suggestions WHERE status = 'rejected'")]
+    else:
+        ids = [x for x in body.get("ids") or [] if type(x) is int][:1000]
+    gone = set()
+    for k in ids:
+        for r in q("DELETE FROM suggestions WHERE id = ? AND status = 'rejected' RETURNING id, item", k):
+            gone.add(r["id"])
+            it = json.loads(r["item"])
+            made = {x for x in (it.get("as"), it.get("fam")) if x}
+            ids += [o["id"] for o in q("SELECT id, item FROM suggestions WHERE status != 'approved'") if made & set(_uses(json.loads(o["item"])))]
+    return {"deleted": len(gone)}
 
 
 @router.get("/suggestions")

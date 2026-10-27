@@ -177,20 +177,24 @@ export function suggestMenu() {
   $("#menu-review").hidden = ME.suggestions == null;
   b.textContent = `📝 Suggestions${ME.suggestions ? ` (${ME.suggestions})` : ""}`;
 }
-$("#menu-suggest").onclick = () => { closeMenu(); openReview(); };
+$("#menu-suggest").onclick = () => { closeMenu(); openReview(true); };
 
-async function openReview() {
+async function openReview(fromMenu) {  // fromMenu: nothing waiting opens the History
   let d;
   try { d = await api("/suggestions"); } catch (err) { return toast(err.message, false); }
   ME.suggestions = d.items.length; suggestMenu();
   made = d.made;
-  if (!d.items.length) { if (S.review) await closeReview(); return openHistory("No suggestions waiting ✓"); }
+  if (!d.items.length) {
+    if (S.review) await closeReview();
+    return fromMenu && openHistory("No suggestions waiting ✓");
+  }
   const was = S.review;  // after approving: what they left unchecked stays unchecked
   const ticked = d.items.filter(r => !was?.rows.some(o => o.id === r.id) || was.ticked.has(r.id)).map(r => r.id);
   S.review = { rows: d.items, ticked: new Set(ticked), render: renderReview, sure: false, closed: was?.closed || new Set() };
   await loadGraph();
   S.panel = true;
-  seeTree(whose(d.items[0].item));
+  if (was && P[S.focus]) { if (!P[S.sel]) S.sel = S.focus; renderAll(); }  // after a decision: stay where they were
+  else seeTree(whose(d.items[0].item));
 }
 async function closeReview() {
   S.review = null;
@@ -324,7 +328,7 @@ async function decide(body) {
     const r = await postJSON("/suggestions/decide", body);
     await openReview();
     toast([r.approved && `${r.approved} added to the tree ✓`, r.rejected && `${r.rejected} rejected`,
-      r.failed.length && `${r.failed.length} couldn't be added: see why in the list`].filter(Boolean).join(". "));
+      r.failed.length && `${r.failed.length} couldn't be added: see why in the list`, !S.review && "Nothing else is waiting"].filter(Boolean).join(". "));
   } catch (err) { buttons.forEach(b => { b.disabled = false; }); toast(err.message, false); }
 }
 
@@ -354,16 +358,18 @@ function renderHistory() {
   const row = r => {
     const yes = r.status === "approved";
     const undo = r.undo && h("button", {}, "Undo");
-    if (undo) undo.onclick = sure(undo, yes ? "Yes, take it out of the tree" : "Yes, back to the list", async () => {
+    if (undo) undo.onclick = sure(undo, "Confirm undo", async () => {  // stays here: there may be more to undo
       await postJSON(`/suggestions/${r.id}/undo`, {});
-      hideDlg();
-      await openReview();
-      toast(yes ? "Undone ✓ It's out of the tree and back on the list." : "Back on the list ✓");
+      H.items = H.items.filter(x => x.id !== r.id);
+      await openReview();  // (the list behind, with it waiting again)
+      renderHistory();
+      toast(yes ? "Undone ✓ It's out of the tree and back on the waiting list." : "Undone ✓ It's back on the waiting list.");
     });
     const del = !yes && h("button", { class: "danger" }, "Delete");
-    if (del) del.onclick = sure(del, "Yes, delete", async () => {
-      await postJSON("/suggestions/delete", { ids: [r.id] });
-      H.items = H.items.filter(x => x.id !== r.id); renderHistory();
+    if (del) del.onclick = sure(del, "Confirm delete", async () => {
+      const d = await postJSON("/suggestions/delete", { ids: [r.id] });  // (with the changes that build on it)
+      await openHistory(H.first);
+      toast(`${d.deleted} deleted`);
     });
     return h("div", { class: "sugdone" }, h("span", { "aria-hidden": "true" }, yes ? "✓" : "✗"),
       h("div", {}, h("div", {}, ...says(r, true)),
@@ -374,7 +380,7 @@ function renderHistory() {
     ...H.who.map(w => h("option", { value: w.login, selected: w.login === H.login }, w.name)));
   who.onchange = () => { H.login = who.value; openHistory(); };
   const all = h("button", { class: "danger" }, "Delete all rejected");
-  all.onclick = sure(all, "Yes, delete every rejected one", async () => {
+  all.onclick = sure(all, "Confirm: delete every rejected one", async () => {
     const r = await postJSON("/suggestions/delete", { rejected: "all" });
     toast(`${r.deleted} deleted`); openHistory();
   });
@@ -382,7 +388,7 @@ function renderHistory() {
     () => { if (g.id && P[g.id]) { hideDlg(); seeTree(g.id); } }, nested(g.rows, row)));
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Decided suggestions"),
     H.first ? h("p", {}, h("strong", {}, H.first)) : "",
-    h("p", { class: "small muted" }, "Approved or rejected by mistake? Undo puts it back on the list to decide again; an approved one is taken out of the tree first."),
+    h("p", { class: "small muted" }, "Approved or rejected by mistake? Undo puts it back on the waiting list to decide again; an approved one is taken out of the tree first. Deleting a new person also deletes the changes to them."),
     h("div", { class: "btnrow" }, h("label", {}, "Suggested by ", who), H.items.some(r => r.status === "rejected") ? all : ""),
     ...(groups.length ? groups : [h("p", { class: "muted" }, "Nothing decided yet.")]),
     H.more ? h("button", { onclick: moreHistory }, "Show older") : "", say,

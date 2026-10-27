@@ -154,3 +154,18 @@ def test_history_pages_and_delete(fake, client):
     assert [x["id"] for x in client.get(f"{E}/suggestions/history").json()["items"]] == [ids[0]]
     as_user(fake, "ann", 1)
     assert client.post(f"{E}/suggestions/delete", json={"rejected": "all"}).status_code == 403
+
+
+def test_deleting_a_new_person_deletes_their_changes(fake, client):
+    ravi = fake.person("Ravi", "Kumar", 1)
+    turn_on(fake, client)
+    as_user(fake, "ann", 1)
+    client.post(f"{E}/suggestions", json={"items": [
+        {"op": "add", "person": ravi, "rel": "father", "new": {"first": "Kumar"}, "as": "new-dad00001", "fam": "new-fam00001"},
+        {"op": "set", "id": "new-dad00001", "field": "nick", "value": "Appa"},
+        {"op": "set", "id": ravi, "field": "nick", "value": "Ravi anna"}]})
+    as_user(fake, "ed", 3)
+    ids = [x["id"] for x in client.get(f"{E}/suggestions").json()["items"]]
+    client.post(f"{E}/suggestions/decide", json={"reject": ids})
+    assert client.post(f"{E}/suggestions/delete", json={"ids": [ids[0]]}).json()["deleted"] == 2  # him and his nickname
+    assert [x["id"] for x in client.get(f"{E}/suggestions/history").json()["items"]] == [ids[2]]

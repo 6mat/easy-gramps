@@ -152,12 +152,17 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   Reject `down(checked)` (what builds on them); checking/unchecking cascades down only. Rows are grouped by family
   (`families()`: the anchor person's own family, else the one they grew up in) and nested under the row whose stand-in they
   use (`giver`). History: `GET /suggestions/history?before=<decided>:<id>&login=` (PAGE = 100, `more`, `who`), same grouping;
-  `POST /suggestions/delete {ids}` or `{rejected: "all"}` removes rejected rows only.
+  `POST /suggestions/delete {ids}` or `{rejected: "all"}` removes rejected rows only, with the rejected rows that use the
+  stand-ins they made.
 - **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
   `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
   Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs
   `let_in()` — `GET /api/users/`, an account with a negative role whose email matches gets `PUT /api/users/<name>/ {role}`
-  and the Find me link; `/auth/me` → `joined` (toast). me.js: "✉ Invite to the family tree" in More details (person
+  and the Find me link (`admit()`, which also emails "You're in", in the background here); `/auth/me` → `joined` (toast)
+  and `joining` (how many accounts wait, role -1). **Waiting to join** (owner, site.js, ☰ Menu → Owner): `GET /joining`
+  lists role -1 accounts (role preset: the invite's, else 0 Guest; `before`: the login was used before, i.e. turned off),
+  `POST /joining/<login> {role 0–3}` → `admit()`: role, invite's person linked, "You're in" email (Gramps Web sends none
+  on approval). me.js: "✉ Invite to the family tree" in More details (person
   without a login, editors) → the message first (`inviteText`, same words as main.py `invite_text`: "I approve…" for the
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
