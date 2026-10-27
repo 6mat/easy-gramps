@@ -18,6 +18,8 @@ relatives who find the full Gramps interface too much.
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
   given when they sign in with Google.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
+- **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
+  editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
 - **Site settings** (the owner): the app's name and icon, which menu items show and what they're called, and who gets the Full Gramps link.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,

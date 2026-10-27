@@ -290,6 +290,7 @@ async def me(request: Request):
         user.pop("gramps_link", None)  # (also the editors' "Open in Full Gramps ↗" links)
     if user.get("role", 0) >= ROLE_OWNER:
         user["joined"] = await let_in(bearer(request))
+    suggest.add_to_me(user)
     return user
 
 
@@ -330,6 +331,10 @@ async def save_site(request: Request):
         if body["gramps"] not in GRAMPS_FOR:
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["gramps"] = body["gramps"]
+    if "suggest" in body:
+        if body["suggest"] not in ("off", "members", "everyone"):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["suggest"] = body["suggest"]
     if "talk" in body:
         if not isinstance(body["talk"], bool):
             raise HTTPException(400, "Something was missing. Please try again.")
@@ -1100,6 +1105,10 @@ def page(name: str) -> HTMLResponse:
 async def index():
     return page("tree.html")
 
+
+import suggest  # noqa: E402  (suggestions from people who can't change the tree)
+
+easy.include_router(suggest.router)
 
 easy.mount("/static", StaticFiles(directory=STATIC), name="static")
 

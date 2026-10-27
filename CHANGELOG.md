@@ -2,6 +2,21 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.0 — 2026-10-27
+
+### Added
+- **Suggestions** (#166). The owner turns them on in Site settings → "Who may suggest changes": members and contributors, or
+  everyone (guests too). They then get "✎ Suggest a change" instead of editing: the same editor, but what they change
+  (fields, a new father, mother, husband or wife, child, and that new person's own details) collects as a suggestion on
+  their device until they press "Send to the editors", with a note on where it's from. Nothing goes into Gramps yet.
+- Editors: **☰ Menu → 📝 Suggestions** shows the tree as it would be with the ticked suggestions (new people in green,
+  changed ones in amber) and the list beside it. Untick what shouldn't go in: unticking a new person unticks everything that
+  builds on them, ticking something ticks the new person it needs. "Approve ticked" saves them with the editor's login;
+  "Reject the other …" rejects the rest. A field changed since it was suggested is marked. The suggester gets a chat message.
+- **History** of decisions with **Undo**: it goes back on the list to decide again; an approved one is first taken out of the
+  tree (the field gets its earlier value; a new person is deleted).
+- Contributors who may suggest no longer add people straight into the tree here (Full Gramps still lets them).
+
 ## 1.8.15 — 2026-10-26
 
 ### Added

@@ -248,7 +248,7 @@ function titleBar() {
 
 function nodeEl(id, focus) {
   const p = P[id], rel = REL[id]?.tag;
-  const el = h("div", { class: `node${focus ? " focus" : ""}${S.sel === id ? " sel" : ""}`, "data-key": id, tabindex: "0",
+  const el = h("div", { class: `node${focus ? " focus" : ""}${S.sel === id ? " sel" : ""}${p.sug ? ` sug-${p.sug}` : ""}`, "data-key": id, tabindex: "0",
     role: "button", "aria-label": `${rel ? rel + ": " : ""}${name(p)} ${years(p)}`,
     onclick: e => { e.stopPropagation(); if (S.dragged) return; select(id, true); },
     onkeydown: e => {  // Enter: edit them; Space: their details
@@ -257,7 +257,8 @@ function nodeEl(id, focus) {
     } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
-    h("span", { class: "pl" }, p.birthPlace || " "));
+    h("span", { class: "pl" }, p.birthPlace || " "),
+    p.sug && h("span", { class: "sugn" }, p.sug === "new" ? "New" : `${p.sugN} ${p.sugN === 1 ? "change" : "changes"}`));  // suggest.js
   return el;
 }
 // The ✎ on the selected box sits beside it in the page (a button inside the box's own button
@@ -557,7 +558,7 @@ function placePopcard() {
       h("div", { class: "btnrow" },
         h("button", { class: "primary", onclick: showPanel }, "More info"),
         S.pop !== S.focus && h("button", { onclick: () => seeTree(p.id) }, "Their tree"),
-        canAdd() && h("button", { onclick: () => openEditor(p.id) }, "✎ Edit person")));
+        canAdd() && h("button", { onclick: () => openEditor(p.id) }, S.role === "suggest" ? "✎ Suggest a change" : "✎ Edit person")));
   }
   card.hidden = false;
   const left = Math.min(Math.max(8, r.left - pane.left), pane.width - card.offsetWidth - 8);

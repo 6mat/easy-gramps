@@ -1,12 +1,13 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canChange, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
+import { draftAdd, draftBar, draftSet, suggesting } from "./suggest.js";
 
 // ---------- undo + toast ----------
 let toastTimer, undoToken = null;
@@ -52,6 +53,7 @@ const pending = {};          // person id -> fields waiting to be saved
 let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
 let sentSaves = false;  // anything saved since the editor opened: closing it then reloads the tree
 function setStatus(text, cls = "") {
+  if (suggesting() && text === "Saved ✓") text = "Not in the tree yet";  // it's a suggestion until an editor approves it
   const st = $("#ed-status");
   st.className = `status ${cls}`.trim();
   st.replaceChildren(text);
@@ -68,6 +70,11 @@ export function flushSaves(keepalive = false) {  // keepalive: the page is closi
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
   if (!work.length) return saveChain;
+  if (suggesting()) {  // kept in the draft until they send it (suggest.js)
+    for (const [id, patch] of work) draftSet(id, patch);
+    setStatus("Kept in your suggestion");
+    return saveChain;
+  }
   sentSaves = true;
   saveChain = saveChain.then(async () => {
     for (const [id, patch] of work) {
@@ -90,7 +97,8 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 // ---------- full-screen family editor ----------
 async function ensureDetails(id) {
   if (P[id]._details) return;
-  Object.assign(P[id], await api(`/tree/details/${id}`), { _details: true });
+  const d = await api(`/tree/details/${id}`);
+  Object.assign(P[id], d, { _details: true, _orig: d });  // _orig: "before" for a suggestion
 }
 export async function openEditor(id, rel, famId, restoring = false) {
   S.stack = [id]; S.edMore = false; S.menu = null;
@@ -125,7 +133,7 @@ document.addEventListener("keydown", e => {
 
 function rcard(id, rel, famObj, base, isNew) {
   const p = P[id];
-  const card = h("div", { class: `rcard${isNew ? " new" : ""}` },
+  const card = h("div", { class: `rcard${isNew ? " new" : ""}${p.sug ? ` sug-${p.sug}` : ""}` },
     h("span", { class: "role" }, rel === "spouse" ? spouseWord(P[base]) : rel),
     photoEl(p), h("span", { class: "nm" }, name(p)),
     h("button", { class: "more", "aria-label": `Options for ${name(p)}`, "aria-expanded": String(S.menu === `${rel}:${id}`),
@@ -138,7 +146,7 @@ function rcard(id, rel, famObj, base, isNew) {
 function menuEl(id, rel, famObj, base) {
   return h("div", { class: "menu" },
     h("button", { onclick: async () => { await flushSaves(); await ensureDetails(id).catch(() => {}); S.stack.push(id); S.menu = null; S.edMore = false; renderEditor(); } }, `Open ${P[id].first}'s family`),
-    canLink() && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
+    canEdit() && h("button", { class: "danger", onclick: () => { S.menu = `confirm:${rel}:${id}`; renderEditor(); } }, "Remove from this family"));
 }
 function confirmEl(id, rel, famObj, base) {
   const w = relWord(rel, P[base]);
@@ -176,7 +184,7 @@ function genderPick(prefix, current, onPick, { disabled = false, ...attrs } = {}
 }
 function field(label, input, cls) { return h("label", { class: cls || "", for: input.id }, label, input); }
 function bindText(p, key, id, opts = {}) {
-  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canEdit() || opts.disabled, rows: opts.area ? 3 : null });
+  const el = h(opts.area ? "textarea" : "input", { id, type: opts.type || "text", disabled: !canChange() || opts.disabled, rows: opts.area ? 3 : null });
   el.value = p[key] || "";
   el.addEventListener("input", () => { p[key] = el.value; if (key === "first" || key === "last") $("#ed-title").textContent = `${name(p)}'s family`; autosave(p.id, { [key]: el.value }, 2000); });
   el.addEventListener("change", () => flushSaves());  // left the box
@@ -187,7 +195,7 @@ function bindText(p, key, id, opts = {}) {
 let places = null;  // every place, loaded once when a place box is first used
 const loadPlaces = () => places ??= api("/tree/places").catch(err => { places = null; throw err; });
 function placeField(label, p, key, id) {
-  const el = h("input", { id, type: "text", disabled: !canEdit(), autocomplete: "off", role: "combobox",
+  const el = h("input", { id, type: "text", disabled: !canChange(), autocomplete: "off", role: "combobox",
     "aria-autocomplete": "list", "aria-expanded": "false", "aria-controls": `${id}-list` });
   const list = h("ul", { id: `${id}-list`, class: "suggest", role: "listbox", hidden: true });
   const ask = h("div", { class: "ask small", hidden: true });
@@ -244,15 +252,15 @@ function dateInputs(prefix, label, get, set) {
   const yearOnlyStart = !!(d.y && !(d.m && d.d));
   const pad = n => String(n).padStart(2, "0");
   // Typed in the order of Menu → Dates, with the number keypad; the browser's own date box only for the 📅 calendar.
-  const txt = h("input", { id: `${prefix}-date`, inputmode: "numeric", autocomplete: "off", placeholder: dateHint(), disabled: !canEdit(), "aria-label": `${label} (${dateHint()})` });
+  const txt = h("input", { id: `${prefix}-date`, inputmode: "numeric", autocomplete: "off", placeholder: dateHint(), disabled: !canChange(), "aria-label": `${label} (${dateHint()})` });
   txt.value = d.y && d.m && d.d ? typedDate(d) : "";
-  const cal = h("input", { id: `${prefix}-cal`, type: "date", tabindex: "-1", disabled: !canEdit(), "aria-label": `${label}: pick from a calendar` });
+  const cal = h("input", { id: `${prefix}-cal`, type: "date", tabindex: "-1", disabled: !canChange(), "aria-label": `${label}: pick from a calendar` });
   const calBtn = h("span", { class: "calpick", title: "Pick from a calendar" }, h("span", { "aria-hidden": "true" }, "📅"), cal);
   cal.addEventListener("click", () => { try { cal.showPicker(); } catch { /* the tap opens it anyway */ } });
   const bad = h("div", { class: "warn small", hidden: true });
-  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canEdit(), "aria-label": `${label}: year` });
+  const yr = h("input", { id: `${prefix}-year`, type: "number", min: "1500", max: "2100", placeholder: "Year", disabled: !canChange(), "aria-label": `${label}: year` });
   yr.value = yearOnlyStart ? d.y : "";
-  const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canEdit() });
+  const yo = h("input", { id: `${prefix}-yo`, type: "checkbox", disabled: !canChange() });
   yo.checked = yearOnlyStart;
   const row = h("div", { class: "daterow" }, txt, calBtn);
   const sync = () => { row.hidden = yo.checked; yr.hidden = !yo.checked; bad.hidden = true; };
@@ -362,8 +370,8 @@ function centreCard(p) {
         h("img", { src: thumbUrl(m, 192, p.crops?.[m]), alt: "", loading: "lazy" }), i === 0 && h("span", { class: "star", title: "Profile photo" }, "★"))),
       canEdit() && h("button", { class: "phadd", onclick: () => more.click() }, "+ Add photos")),
     more);
-  const gender = genderPick("ed", p.gender, v => { p.gender = v; autosave(p.id, { gender: v }); }, { disabled: !canEdit() });
-  const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canEdit() });
+  const gender = genderPick("ed", p.gender, v => { p.gender = v; autosave(p.id, { gender: v }); }, { disabled: !canChange() });
+  const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canChange() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
     h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
@@ -394,7 +402,7 @@ function centreCard(p) {
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, mainPhoto,
       canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
-      !canEdit() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
+      !canChange() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
     photos,
     field("First name", bindText(p, "first", "ed-first")),
     field("Last name", bindText(p, "last", "ed-last")),
@@ -471,7 +479,7 @@ export function renderEditor() {
   });
   if (!sfs.length) kidGroups.push(h("div", { class: "kidgroup" }, h("span", { class: "glabel" }, "Children"),
     canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "child") }, "Add child")));
-  $("#ed-body").replaceChildren(
+  $("#ed-body").replaceChildren(draftBar(),
     h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
     h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
     h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)));
@@ -595,14 +603,14 @@ async function doAdd(choice) {
   setStatus("Saving…", "saving");
   try {
     await flushSaves();
-    const res = await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
+    const res = suggesting() ? draftAdd(A, choice) : await postJSON("/tree/relative", { person: A.pid, rel: A.rel, famId: A.famId, ...choice });
     const who = choice.existing ? P[choice.existing].first : (choice.new.first || choice.new.last);
     hideDlg(); S.add = null; dropClosedSteps();
     S.newlyAdded = res.added;
     await refresh();
     S.newlyAdded = null;
     setStatus("Saved ✓");
-    toast(res.joined  // they were already a couple: the children joined that family (no second one)
+    toast(suggesting() ? `Added to your suggestion: ${who} as ${base.first}'s ${relWord(A.rel, base)}.` : res.joined  // they were already a couple: the children joined that family (no second one)
       ? `Saved: ${who} added as ${base.first}'s ${A.rel}, in the family ${who} already had with ${P[parentFam(A.pid)?.[A.rel === "mother" ? "f" : "m"]]?.first || "them"}.`
       : `Saved: ${who} added as ${base.first}'s ${relWord(A.rel, base)}.`, res.undo);
   } catch (err) {

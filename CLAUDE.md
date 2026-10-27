@@ -35,6 +35,8 @@ app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /au
                     /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}[/cropped/x1/y1/x2/y2]/thumbnail/{size} (the person's region of a picture: graph `crops` {media: rect}; login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
+app/suggest.py      Suggestions (APIRouter, included by main.py): table `suggestions` in chat.sqlite3; /suggestions, /suggestions/decide,
+                    /suggestions/history, /suggestions/{id}/undo
 app/push.py         Web Push for the chat: the server's VAPID key (DATA_DIR/push-key.pem, made on first use), http-ece encryption, send
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
@@ -42,7 +44,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · site.js (the owner's Site settings) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · site.js (the owner's Site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -129,6 +131,20 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
+- **Suggestions** (#{i}; site `suggest`: off | members (roles 1–2) | everyone (0–2); `/auth/me` → `can_suggest`, and editors get
+  `suggestions` = waiting count while on). The page's role is then `"suggest"`: `canChange()`/`canLink()` are true (fields, Add
+  slots, pick existing), photos/unlink/merge stay editors-only, and `canAddNew()` (lone new person) is editors and contributors.
+  editor.js `flushSaves` → `draftSet`, `doAdd` → `draftAdd` (suggest.js; the draft is in localStorage `eg_suggestion`). Items:
+  `{op: "set", id, field, value, before, label}` / `{op: "add", person, rel, famId?, new|existing, as?, fam?, label}`; new people
+  and families get stand-in ids `new-xxxxxxxx` that later items may use. `POST /suggestions {items, note}` checks the shape,
+  that stand-ins are made before use, and that the real people are visible to the suggester; one row per item.
+  The tree with suggestions on top: `loadGraph()` calls `S.overlay` (suggest.js), which keeps a copy of Gramps' data (`base`)
+  and applies the draft (suggesting) or the ticked items (reviewing, `S.review`); ticking redraws from `base`, no fetch. Boxes
+  get `sug-new` / `sug-changed`. While reviewing, `renderPanel` shows the list (`S.review.render`), and `canAdd`/`canChange` are off.
+  `POST /suggestions/decide {approve, reject}` (editors): oldest first, with the editor's login, through `update_person` /
+  `add_relative`; `made` maps stand-ins to real ids; a failing one stays waiting with `error`. Each approved row keeps `undo`:
+  the field's earlier value (`familytree.fields_now`, places as `{id}`) or add_relative's undo token. `POST
+  /suggestions/{id}/undo` puts it back to waiting (refused while approved items of the batch use the person it made).
 - **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
   `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
   Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs
