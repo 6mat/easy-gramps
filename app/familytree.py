@@ -84,22 +84,28 @@ async def graph(g: Gramps) -> dict:
 
 
 async def details(g: Gramps, handle: str) -> dict:
-    """Where they live, phone, email and notes: loaded only when someone opens "More details"."""
-    p = await g.get(f"/people/{handle}", extend="note_list")
+    """Where they live, phone, email, work, education and notes: loaded only when someone opens "More details"."""
+    p = await g.get(f"/people/{handle}", extend="note_list,event_ref_list")
     addr = next(iter(p.get("address_list") or []), {})
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
     # The editor changes only the first note (the one it shows); any others are shown read-only.
     notes = [(n.get("text") or {}).get("string", "") for n in (p.get("extended") or {}).get("notes", [])]
     # "Lives in" edits the city; the rest of the address (from Gramps Web) is shown but left alone.
     rest = ", ".join(x for x in (addr.get("state"), addr.get("country")) if x)
-    return {"residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
+    # Gramps keeps work and education as Occupation / Education events, the words in the description.
+    # The editor changes the first of each; any others are shown read-only.
+    events = (p.get("extended") or {}).get("events", [])
+    said = {t: [(e.get("description") or "").strip() for e in events if e.get("type") == t] for t in ("Occupation", "Education")}
+    return {"work": (said["Occupation"] or [""])[0], "otherWork": [x for x in said["Occupation"][1:] if x],
+            "education": (said["Education"] or [""])[0], "otherEducation": [x for x in said["Education"][1:] if x],
+            "residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
             "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t]}
 
 
 # ---------- editing one person, a field at a time (the editor autosaves each change) ----------
 
 FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",
-          "residence", "phone", "email", "notes"}
+          "residence", "phone", "email", "notes", "work", "education"}
 ADDRESS_PARTS = ("street", "locality", "city", "county", "state", "country", "postal", "phone")
 EMPTY_DATE = {"_class": "Date", "calendar": 0, "modifier": 0, "quality": 0, "dateval": [0, 0, 0, False],
               "sortval": 0, "newyear": 0, "text": "", "year": 0}
@@ -247,6 +253,16 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
             ev = await event("Burial", None, create=bool(place))
             if ev and place:
                 ev["place"] = place
+            elif ev:
+                drop_event(ev)
+
+    for key, etype in (("work", "Occupation"), ("education", "Education")):
+        if key in changes:
+            text = (changes[key] or "").strip()
+            ev = await event(etype, None, create=bool(text))
+            if ev and (text or ev.get("place") or ev.get("note_list") or ev.get("citation_list")
+                       or any((ev.get("date") or {}).get(k) for k in ("sortval", "text"))):
+                ev["description"] = text  # an emptied one with a date or place (set in Full Gramps) keeps those
             elif ev:
                 drop_event(ev)
 

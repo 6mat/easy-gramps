@@ -374,13 +374,17 @@ function centreCard(p) {
     if (!passed.checked) { p.death = null; p.burial = ""; }
     autosave(p.id, { deceased: passed.checked });
   });
-  // These four come from a separate request; if it failed, don't let empty boxes overwrite real values.
+  // These come from a separate request; if it failed, don't let empty boxes overwrite real values.
   const off = { disabled: !p._details };
   const moreBox = h("div", { class: "box full" },
     !p._details && h("div", { class: "warn full" }, "Couldn't load these details.",
       h("button", { onclick: async () => { try { await ensureDetails(p.id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); } renderEditor(); } }, "Try again")),
     field("Residing at", bindText(p, "residence", "ed-res", off), "full"),
     p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
+    field("Work", bindText(p, "work", "ed-work", off), "full"),
+    p.otherWork?.length ? h("div", { class: "small muted full" }, `Also: ${p.otherWork.join("; ")} (change in Full Gramps)`) : "",
+    field("Education", bindText(p, "education", "ed-edu", off), "full"),
+    p.otherEducation?.length ? h("div", { class: "small muted full" }, `Also: ${p.otherEducation.join("; ")} (change in Full Gramps)`) : "",
     field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
     field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
     field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
@@ -401,7 +405,7 @@ function centreCard(p) {
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
     h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
-      "More details ▸ (residing at, phone, email, notes)"),
+      "More details ▸ (residing at, work, education, phone, email, notes)"),
     moreBox);
 }
 

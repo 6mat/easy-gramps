@@ -68,12 +68,14 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   checked server-side before anything is created; the page hides those buttons for them.
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
   `{y,m,d,about}`, birthplace, burial, first photo, `fams` in marriage order.
-- `GET /tree/details/{h}` — residence, phone, email, notes (loaded on demand).
+- `GET /tree/details/{h}` — residence, phone, email, notes, work, education (loaded on demand; work/education = the
+  description of the first Occupation / Education event, `otherWork`/`otherEducation` the rest).
 - `GET /tree/places` — every place `{id, name, area}` for the editor's place boxes.
 - `PATCH /tree/person/{h}` — fields `first last nick gender birth birthPlace deceased death burial
-  residence phone email notes`. `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
+  residence phone email notes work education`. `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
   name (merge: reuses an exact match, else makes it). Unticking deceased removes Death and Burial. Residence/phone go in a
-  **private** Address, email in a **private** Url.
+  **private** Address, email in a **private** Url. `work`/`education` set the first
+  Occupation/Education event's description (made if none; emptied: deleted unless it has a date, place, note or citation).
 - `POST /tree/person/{h}/photo` — upload and make it the main photo (`main=0`: add it after the others).
   `POST /tree/person/{h}/photos {media, do: main|remove}` — make one the main photo, or take it off the
   person (the Media stays in Gramps; never deleted). The graph's `photos` lists their pictures, main first.
@@ -123,6 +125,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `site` (key → JSON, defaults `chat.SITE`); `/auth/me` → `site`, and drops `gramps_link` below `GRAMPS_FOR[gramps]`.
   `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
   The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
+  `talk` (bool, default true): off hides "Family talk about …" (panel.js) and `POST /chat/person/{h}` is a 403.
   `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
@@ -194,7 +197,7 @@ and "💬 Message …" under the name of someone with a linked login. Text only,
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
-details ▾ (burial, lives in, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
+details ▾ (burial, lives in, work, education, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
 sets `contactHidden`); **"⧉ Duplicate profile? Merge."** for editors: a button in a
 strip pinned to the panel's bottom edge (top line, shadow) so it shows without scrolling (#55).
 Fit and centring use only the area not under the panel.
@@ -226,7 +229,7 @@ the person's card, spouses beside, children grouped by spouse. Fields: photo, Ph
 + Add photos), first/last/nickname,
 **Male / Female only**, birthday (typed in Menu → Dates' order (`dateHint`/`parseTyped` in common.js) with the number keypad, 📅 = the browser's
 date box laid invisibly over it; or "I only know the year"), place of birth, Passed away?
-(reveals death date and burial place), More details (residing at, phone, email, notes). Autosave:
+(reveals death date and burial place), More details (residing at, work, education, phone, email, notes). Autosave:
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year
 once it has 4 digits. Place boxes list the existing places (with their area) and save only a place
 you pick, or a new one after "Add it as a new place" (never one per keystroke, #49). Add pop-up: opens on **Someone new**; "🔍 Pick someone already in the

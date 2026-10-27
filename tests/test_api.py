@@ -444,13 +444,13 @@ def test_site_settings_owner_only(fake, client):  # #145
     from PIL import Image
     assert client.put("/easy-gramps/site", json={"name": "Ours"}).status_code == 403  # an editor
     me = client.get("/easy-gramps/auth/me").json()
-    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}} and me["gramps_link"]
+    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True} and me["gramps_link"]
     fake.role = 4
     main._who_cache.clear()
     for bad in ({"name": "  "}, {"name": "x" * 41}, {"hide": ["logout"]}, {"hide": "theme"}, {"gramps": "admins"}):
         assert client.put("/easy-gramps/site", json=bad).status_code == 400, bad
     s = client.put("/easy-gramps/site", json={"name": " The  <Kumar> Family ", "hide": ["source", "theme"], "gramps": "owner"}).json()
-    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}}
+    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}, "talk": True}
     page = client.get("/easy-gramps/").text
     assert "<title>The &lt;Kumar&gt; Family</title>" in page and "__NAME__" not in page
     assert client.get("/easy-gramps/manifest.webmanifest").json()["name"] == "The <Kumar> Family"
@@ -567,3 +567,21 @@ def test_someone_new_keeps_their_nickname(fake, client):  # #149
     h = client.post("/easy-gramps/tree/person", json={"first": "Asha", "nick": "Ammu"}).json()["added"]
     assert fake.db["people"][h]["primary_name"]["nick"] == "Ammu"
     assert {p["nick"] for p in client.get("/easy-gramps/tree/graph").json()["people"].values()} >= {"Chinnu", "Ammu"}
+
+
+def test_work_and_education(fake, client):  # Gramps' Occupation / Education events
+    p = fake.person("Sam", "", 1)
+
+    def patch(**c):
+        assert client.patch(f"/easy-gramps/tree/person/{p}", json=c).status_code == 200
+        return client.get(f"/easy-gramps/tree/details/{p}").json()
+    d = patch(work=" Teacher ", education="BSc, Madras University")
+    assert (d["work"], d["education"], d["otherWork"]) == ("Teacher", "BSc, Madras University", [])
+    types = [fake.db["events"][r["ref"]]["type"] for r in fake.db["people"][p]["event_ref_list"]]
+    assert sorted(types) == ["Education", "Occupation"]
+    assert patch(work="Head teacher")["work"] == "Head teacher" and len(fake.db["events"]) == 2  # the same event
+    d = patch(work="")
+    assert d["work"] == "" and len(fake.db["events"]) == 1  # nothing else on it: the event goes
+    ev = next(iter(fake.db["events"].values()))
+    ev["date"] = {"sortval": 2440000, "text": ""}  # a date set in Full Gramps stays
+    assert patch(education="")["education"] == "" and len(fake.db["events"]) == 1
