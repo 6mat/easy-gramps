@@ -40,6 +40,9 @@ function openSite() {
   const talk = h("input", { type: "checkbox", checked: s.talk !== false });
   const suggest = h("select", { id: "site-suggest" }, ...SUGGEST.map(([v, t]) => h("option", { value: v }, t)));
   suggest.value = s.suggest || "off";
+  const sends = h("select", { id: "site-sends" }, h("option", { value: "auto" }, "Automatically, with each change (easiest)"),
+    h("option", { value: "manual" }, "When they press “Send to the editors”"));
+  sends.value = s.suggest_send || "auto";
   const renames = LABELS.map(([k, , def]) => h("label", {}, def,
     h("input", { "data-key": k, value: s.labels?.[k] || "", placeholder: def, maxlength: 40, autocomplete: "off" })));
   const iconImg = h("img", { class: "siteicon", src: `${BASE}/icon-192.png?t=${Date.now()}`, alt: "The app's icon now" });
@@ -56,7 +59,7 @@ function openSite() {
     try {
       const hide = shows.map(l => l.querySelector("input")).filter(b => !b.checked).map(b => b.value);
       ME.site = await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value, talk: talk.checked, suggest: suggest.value,
+        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value, talk: talk.checked, suggest: suggest.value, suggest_send: sends.value,
           labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }) });
       location.reload();  // the name is in the page itself, the manifest and the Full Gramps links: simplest to load again
     } catch (err) { save.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
@@ -73,6 +76,7 @@ function openSite() {
       h("p", { class: "muted small" }, "Turned off, no one can write new ones. Earlier ones stay in Chat.")),
     h("label", { for: suggest.id }, "Who may suggest changes", suggest),
     h("p", { class: "muted small" }, "They change the tree like an editor, but it goes to the editors first: ☰ Menu → Suggestions shows them on the tree to approve or reject."),
+    h("label", { for: sends.id }, "Suggestions are sent", sends),
     h("details", { class: "renames" }, h("summary", {}, "Rename menu items and buttons"),
       h("p", { class: "muted small" }, "Leave a box empty to keep the name in grey. Emoji are fine."), ...renames),
     h("label", { for: gramps.id }, "Full Gramps link for", gramps),

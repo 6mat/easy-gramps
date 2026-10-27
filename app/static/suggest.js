@@ -1,5 +1,6 @@
 // Easy Gramps — Suggestions (suggest.py; the owner turns them on in Site settings). People who can't change the tree
-// use the same editor, but their changes collect in a draft on this device until they send it. Editors open
+// use the same editor; each change goes to the editors as they make it (Site settings: automatic), or collects in a
+// draft on this device until they press "Send to the editors". Their waiting ones show on their tree. Editors open
 // ☰ Menu → Suggestions: the tree shows what it would look like with the ticked ones, the list is in the panel.
 import { api } from "./auth.js";
 import { $, FAMS, ME, P, S, closeMenu, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord } from "./common.js";
@@ -7,7 +8,6 @@ import { seeTree } from "./tree.js";
 import { renderAll } from "./start.js";
 import { closeEditor, flushSaves, hideDlg, showDlg, toast } from "./editor.js";
 
-const KEY = "eg_suggestion";
 const PLACES = new Set(["birthPlace", "burial"]);
 const GRAPH = new Set(["first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial"]);  // in the tree's data
 const WORD = { first: "First name", last: "Last name", nick: "Nickname", gender: "Gender", birth: "Born", birthPlace: "Place of birth",
@@ -18,8 +18,11 @@ const standIn = () => "new-" + [...crypto.getRandomValues(new Uint8Array(8))].ma
 const isStandIn = x => typeof x === "string" && x.startsWith("new-");
 
 export const suggesting = () => S.role === "suggest";
-let draft = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || { items: [] }; } catch { return { items: [] }; } })();
-const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(draft)); } catch { /* this device only */ } };
+const auto = () => (ME.site?.suggest_send || "auto") === "auto";
+const KEY = () => `eg_suggestion:${ME.name || ""}`;  // per login: a shared tablet doesn't send one person's changes as another's
+let draft = { items: [] };  // not sent yet (loaded in suggestMenu)
+let mine = [];  // their suggestions waiting for an editor (from the server)
+const keep = () => { try { localStorage.setItem(KEY(), JSON.stringify(draft)); } catch { /* this device only */ } };
 
 // ---------- the tree with the suggestions on top ----------
 let base = null;  // the tree as Gramps has it, taken at each load before the suggestions go on top
@@ -28,7 +31,7 @@ S.overlay = () => {
   base = structuredClone({ P, FAMS });
   apply(shown());
 };
-const shown = () => S.review ? S.review.rows.filter(r => S.review.ticked.has(r.id)).map(r => r.item) : suggesting() ? draft.items : [];
+const shown = () => S.review ? S.review.rows.filter(r => S.review.ticked.has(r.id)).map(r => r.item) : suggesting() ? [...mine, ...draft.items] : [];
 let made = {};  // stand-ins already approved → their real ids
 const real = id => made[id] || id;
 function rebuild() {  // again from `base` with what's ticked now (no trip to the server)
@@ -87,26 +90,57 @@ function link(it, mark) {
 // ---------- suggesting: the editor's saves go into the draft ----------
 export function draftSet(id, patch) {
   for (const [field, value] of Object.entries(patch)) {
-    const was = draft.items.find(x => x.op === "set" && x.id === id && x.field === field);
-    const before = was ? was.before : GRAPH.has(field) ? base?.P[id]?.[field] : P[id]?._orig?.[field];
+    const like = x => x.op === "set" && x.id === id && x.field === field;
+    const was = draft.items.find(like), sent = mine.find(like);
+    const before = (was || sent) ? (was || sent).before : GRAPH.has(field) ? base?.P[id]?.[field] : P[id]?._orig?.[field];
     draft.items = draft.items.filter(x => x !== was);
     const label = PLACES.has(field) ? P[id]?.[field] || "" : undefined;
     const same = JSON.stringify(PLACES.has(field) ? label : value ?? "") === JSON.stringify(before ?? "");
-    if (!same || isStandIn(id)) draft.items.push({ op: "set", id, field, value, before: before ?? "", label });
+    // (back to what Gramps has: nothing to send, unless one was sent already, which the server then takes off the list)
+    if (!same || sent || isStandIn(id)) draft.items.push({ op: "set", id, field, value, before: before ?? "", label });
   }
   keep(); redrawBar();
+  if (auto()) sendNow();
 }
 export function draftAdd(A, choice) {
   const it = { op: "add", person: A.pid, rel: A.rel, ...(A.famId && { famId: A.famId }), ...choice, fam: standIn(),
     label: choice.existing ? name(P[choice.existing]) : name(choice.new) };
   if (choice.new) it.as = standIn();
   draft.items.push(it); keep();
+  if (auto()) sendNow();
   return { added: it.as || choice.existing };
+}
+let sending = Promise.resolve(), unsent = false;
+function sendNow() {  // one at a time, in order: a later change may use a new person an earlier one made
+  sending = sending.then(async () => {
+    const items = draft.items.slice();
+    if (!items.length) return;
+    try {
+      await postJSON("/suggestions", { items });
+      draft.items = draft.items.filter(x => !items.includes(x)); keep(); unsent = false;
+      await loadMine();
+    } catch (err) {
+      unsent = true;  // no internet: kept, and sent with the next change or when the page opens again
+      if (err.status >= 400 && err.status < 500 && ![401, 429].includes(err.status)) {  // refused: trying again won't help
+        draft.items = draft.items.filter(x => !items.includes(x)); keep(); unsent = false;
+        toast(`Not sent: ${err.message}`, false);
+      }
+    }
+    redrawBar();
+  });
+  return sending;
+}
+async function loadMine() {
+  const d = await api("/suggestions");
+  mine = d.items.map(r => r.item); made = d.made;
 }
 export function draftBar() {
   if (!suggesting()) return "";
-  const n = draft.items.length;
-  if (!n) return h("div", { class: "sugbar", id: "sugbar" }, "📝 What you change here is a suggestion: an editor looks at it before it goes in the tree.");
+  const n = draft.items.length, waits = mine.length ? ` ${mine.length} waiting for an editor.` : "";
+  if (auto()) return h("div", { class: "sugbar", id: "sugbar" },
+    h("div", {}, "📝 What you change here goes to the editors as a suggestion. It shows in green or amber until an editor adds it to the tree.", h("strong", {}, waits)),
+    unsent ? h("div", { class: "warn small" }, "Not sent yet (no internet?). It goes with your next change, or when you open the family tree again.") : "");
+  if (!n) return h("div", { class: "sugbar", id: "sugbar" }, "📝 What you change here is a suggestion: an editor looks at it before it goes in the tree.", h("strong", {}, waits));
   const note = h("input", { id: "sug-note", value: draft.note || "", maxlength: 500, autocomplete: "off" });
   note.oninput = () => { draft.note = note.value; keep(); };
   const drop = h("button", { onclick: async () => {
@@ -119,6 +153,7 @@ export function draftBar() {
       await flushSaves();
       await postJSON("/suggestions", { items: draft.items, note: draft.note || "" });
       draft = { items: [] }; keep();
+      await loadMine().catch(() => {});
       toast("Sent ✓ An editor will look at it. You'll get a message in Chat.");
       await closeEditor(); await loadGraph(); renderAll();
     } catch (err) { send.disabled = false; toast(`Not sent: ${err.message}`, false); }
@@ -132,6 +167,10 @@ function redrawBar() { $("#sugbar")?.replaceWith(draftBar()); }
 
 // ---------- reviewing (editors) ----------
 export function suggestMenu() {
+  if (suggesting()) {  // their unsent draft (this device) and their waiting ones (server), on the tree
+    try { draft = JSON.parse(localStorage.getItem(KEY())) || { items: [] }; } catch { draft = { items: [] }; }
+    loadMine().then(() => { if (base) { rebuild(); renderAll(); } if (auto()) sendNow(); }).catch(() => {});
+  }
   const b = $("#menu-suggest");
   $("#menu-review").hidden = ME.suggestions == null;
   b.textContent = `📝 Suggestions${ME.suggestions ? ` (${ME.suggestions})` : ""}`;
@@ -192,10 +231,11 @@ function says(r, decided) {
 }
 function renderReview() {
   const R = S.review, panel = $("#panel");
-  const batches = [...new Set(R.rows.map(r => r.batch))].map(b => {
-    const rows = R.rows.filter(r => r.batch === b), first = rows[0];
+  const batches = [...new Set(R.rows.map(r => r.login))].map(who => {  // by who suggested (sent as they go: many small sends)
+    const rows = R.rows.filter(r => r.login === who), first = rows[0];
+    const notes = [...new Set(rows.map(r => r.note).filter(Boolean))].map(n => ` · “${n}”`);
     return h("section", { class: "sugbatch" },
-      h("div", { class: "small muted" }, h("strong", {}, first.name), ` · ${new Date(first.at * 1000).toLocaleDateString()}`, first.note ? ` · “${first.note}”` : ""),
+      h("div", { class: "small muted" }, h("strong", {}, first.name), ` · since ${new Date(first.at * 1000).toLocaleDateString()}`, ...notes),
       ...rows.map(r => {
         const box = h("input", { type: "checkbox", checked: R.ticked.has(r.id), "aria-label": "Take this one" });
         box.onchange = () => retick(() => tick(r, box.checked));
