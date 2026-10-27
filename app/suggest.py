@@ -31,6 +31,7 @@ def q(sql, *args):
     c = m.CHAT
     if not getattr(c, "_suggestions", False):
         c.q(SCHEMA)
+        c.q("CREATE INDEX IF NOT EXISTS suggestions_decided ON suggestions (status, decided, id)")
         c._suggestions = True
     return c.q(sql, *args)
 
@@ -135,15 +136,44 @@ def _made() -> dict:
     return out
 
 
+PAGE = 100
+
+
 @router.get("/suggestions/history")
-async def history(request: Request):
-    """Editors: the last 200 decided, newest first (Undo puts one back on the waiting list)."""
+async def history(request: Request, before: str = "", login: str = ""):
+    """Editors: decided ones, newest first, PAGE at a time (`before`: the last one's "decided:id"; `login`: only theirs).
+    Undo puts one back on the waiting list."""
     await m.need_edit(request, "Only editors can see this.")
     names = m.CHAT.full_names()
-    rows = q("SELECT * FROM suggestions WHERE status != 'waiting' ORDER BY decided DESC, id DESC LIMIT 200")
-    return {"items": [{"id": r["id"], "status": r["status"], "name": names.get(r["login"], r["login"]), "by": names.get(r["by"], r["by"]),
-                       "decided": r["decided"], "item": json.loads(r["item"]), "undo": r["status"] == "rejected" or bool(r["undo"])}
-                      for r in rows], "made": _made()}
+    where, args = ["status != 'waiting'"], []
+    if before:
+        try:
+            t, k = before.split(":")
+            args += [float(t), float(t), int(k)]
+        except ValueError:
+            raise HTTPException(400, "Something was missing. Please try again.") from None
+        where.append("(decided < ? OR (decided = ? AND id < ?))")
+    if login:
+        where.append("login = ?")
+        args.append(login)
+    rows = q(f"SELECT * FROM suggestions WHERE {' AND '.join(where)} ORDER BY decided DESC, id DESC LIMIT {PAGE + 1}", *args)
+    who = [r["login"] for r in q("SELECT DISTINCT login FROM suggestions WHERE status != 'waiting' ORDER BY login")]
+    return {"items": [{"id": r["id"], "status": r["status"], "login": r["login"], "name": names.get(r["login"], r["login"]),
+                       "by": names.get(r["by"], r["by"]), "decided": r["decided"], "item": json.loads(r["item"]),
+                       "undo": r["status"] == "rejected" or bool(r["undo"])} for r in rows[:PAGE]],
+            "more": len(rows) > PAGE, "who": [{"login": x, "name": names.get(x, x)} for x in who], "made": _made()}
+
+
+@router.post("/suggestions/delete")
+async def delete(request: Request):
+    """{ids: [...]} or {rejected: "all"}: editors take rejected ones off the history for good (approved ones stay: they
+    are the record of what changed the tree)."""
+    await m.need_edit(request, "Only editors can delete suggestions.")
+    body = await m.json_body(request)
+    if body.get("rejected") == "all":
+        return {"deleted": len(q("DELETE FROM suggestions WHERE status = 'rejected' RETURNING id"))}
+    ids = [x for x in body.get("ids") or [] if type(x) is int][:1000]
+    return {"deleted": sum(len(q("DELETE FROM suggestions WHERE id = ? AND status = 'rejected' RETURNING id", k)) for k in ids)}
 
 
 @router.get("/suggestions")
@@ -172,7 +202,7 @@ async def decide(request: Request):
     for k in ids["reject"]:
         for r in q("UPDATE suggestions SET status = 'rejected', by = ?, decided = ? WHERE id = ? AND status = 'waiting' "
                    "RETURNING login", editor, now, k):
-            done.setdefault(r["login"], [0, 0])[1] += 1
+            done.setdefault(r["login"], [[], []])[1].append(k)
     for k in sorted(ids["approve"]):
         row = q("SELECT * FROM suggestions WHERE id = ? AND status = 'waiting'", k)
         if not row:
@@ -204,15 +234,75 @@ async def decide(request: Request):
             continue
         q("UPDATE suggestions SET status = 'approved', by = ?, decided = ?, error = NULL, made = ?, undo = ? WHERE id = ?",
           editor, now, json.dumps(new) if new else None, json.dumps(back) if back else None, k)
-        done.setdefault(row[0]["login"], [0, 0])[0] += 1
-    for login, (yes, no) in done.items():  # tell them, in a private message from the editor
-        if login == editor:
-            continue
-        said = [f"{yes} added to the family tree ✓" if yes else "", f"{no} not added" if no else ""]
+        done.setdefault(row[0]["login"], [[], []])[0].append(k)
+    for login, (yes, no) in done.items():  # tell them what, in a private message from the editor
+        lines = [f"✓ Added: {x}" for x in await _say(g, yes)] + [f"✗ Not added: {x}" for x in await _say(g, no)]
+        _tell(editor, login, "I looked at your suggestions. Thank you!\n" + "\n".join(lines))
+    return {"approved": sum(len(v[0]) for v in done.values()), "rejected": sum(len(v[1]) for v in done.values()), "failed": failed}
+
+
+WORDS = {"first": "first name", "last": "last name", "nick": "nickname", "gender": "gender", "birth": "date of birth", "birthPlace": "place of birth",
+         "deceased": "passed away", "death": "date of death", "burial": "place of burial", "residence": "lives in", "phone": "phone",
+         "email": "email", "notes": "notes", "work": "work", "education": "education"}
+MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+
+
+async def _say(g, ids, most=15) -> list:
+    """Each suggestion in words, for the message to the person who made it: "Ravi Kumar's nickname: Ravi anna"."""
+    rows = [r for k in ids for r in q("SELECT item FROM suggestions WHERE id = ?", k)]
+    if not rows:
+        return []
+    new = {}  # stand-in → the name it was suggested with
+    for r in q("SELECT item FROM suggestions WHERE item LIKE '%\"as\"%'"):
+        it = json.loads(r["item"])
+        if it.get("as"):
+            new[it["as"]] = _label(it)
+    names, genders = {}, {}
+
+    async def who(h):
+        if h in new:
+            return new[h]
+        if h not in names:
+            try:
+                p = await g.get(f"/people/{h}", keys="primary_name,gender")
+                n = p["primary_name"]
+                names[h] = " ".join(x for x in (n.get("first_name"), (n.get("surname_list") or [{}])[0].get("surname")) if x) or "someone"
+                genders[h] = p.get("gender")
+            except (gramps.GrampsError, HTTPException, KeyError, IndexError, TypeError):
+                names[h] = "someone"
+        return names[h]
+
+    def value(f, v):
+        if isinstance(v, bool):
+            return "yes" if v else "no"
+        if f == "gender":
+            return {"m": "male", "f": "female"}.get(v, "unknown")
+        if isinstance(v, dict):
+            return " ".join(str(x) for x in (v.get("d"), MONTHS[v["m"] - 1] if 1 <= (v.get("m") or 0) <= 12 else None, v.get("y")) if x) or v.get("new", "")
+        return str(v) if v not in (None, "") else "(none)"
+    out = []
+    for r in rows[:most]:
+        it = json.loads(r["item"])
+        if it["op"] == "set":
+            v = it.get("label") if it["field"] in ("birthPlace", "burial") else value(it["field"], it.get("value"))
+            out.append(f"{await who(it['id'])}'s {WORDS.get(it['field'], it['field'])}: {v or '(none)'}")
+        else:
+            whose = await who(it["person"])
+            rel = {1: "wife", 0: "husband"}.get(genders.get(it["person"]), "husband or wife") if it["rel"] == "spouse" else it["rel"]
+            out.append(f"{_label(it)} as {whose}'s {rel}")
+    return out + ([f"…and {len(rows) - most} more"] if len(rows) > most else [])
+
+
+def _label(it: dict) -> str:
+    n = it.get("new") or {}
+    return it.get("label") or " ".join(str(n.get(k) or "") for k in ("first", "last")).strip() or "someone new"
+
+
+def _tell(editor: str, login: str, text: str):
+    if login != editor:
         cid = m.CHAT.private(editor, login)
-        msg = m.CHAT.post(cid, editor, f"I looked at your suggestions: {', '.join(x for x in said if x)}. Thank you!")
+        msg = m.CHAT.post(cid, editor, text)
         m.notify(cid, editor, msg["text"])
-    return {"approved": sum(v[0] for v in done.values()), "rejected": sum(v[1] for v in done.values()), "failed": failed}
 
 
 @router.post("/suggestions/{sid}/undo")
@@ -236,6 +326,9 @@ async def undo(sid: int, request: Request):
             await familytree.update_person(g, u["id"], {u["field"]: u["value"]}, await m.tree_tags(g))
         else:
             await familytree.undo(g, u, await m.tree_tags(g))
+        said = await _say(g, [sid])  # (before the row loses `made`: a new person is still named)
+        editor, _ = await m.chat_user(request)
+        _tell(editor, r["login"], f"I took this back out of the family tree to look at it again: {said[0]}")
     q("UPDATE suggestions SET status = 'waiting', by = NULL, decided = NULL, error = NULL, made = NULL, undo = NULL WHERE id = ?", sid)
     return {"ok": True}
 

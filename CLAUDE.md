@@ -36,7 +36,7 @@ app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /au
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
 app/suggest.py      Suggestions (APIRouter, included by main.py): table `suggestions` in chat.sqlite3; /suggestions, /suggestions/decide,
-                    /suggestions/history, /suggestions/{id}/undo
+                    /suggestions/history, /suggestions/delete, /suggestions/{id}/undo
 app/push.py         Web Push for the chat: the server's VAPID key (DATA_DIR/push-key.pem, made on first use), http-ece encryption, send
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
@@ -142,12 +142,17 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   and families get stand-in ids `new-xxxxxxxx` that later items may use. `POST /suggestions {items, note}` checks the shape,
   that stand-ins are made before use, and that the real people are visible to the suggester; one row per item.
   The tree with suggestions on top: `loadGraph()` calls `S.overlay` (suggest.js), which keeps a copy of Gramps' data (`base`)
-  and applies the draft (suggesting) or the ticked items (reviewing, `S.review`); ticking redraws from `base`, no fetch. Boxes
+  and applies the draft (suggesting) or the checked items plus what they need (`up()`, reviewing, `S.review`); checking redraws from `base`, no fetch. Boxes
   get `sug-new` / `sug-changed`. While reviewing, `renderPanel` shows the list (`S.review.render`), and `canAdd`/`canChange` are off.
   `POST /suggestions/decide {approve, reject}` (editors): oldest first, with the editor's login, through `update_person` /
   `add_relative`; `made` maps stand-ins to real ids; a failing one stays waiting with `error`. Each approved row keeps `undo`:
   the field's earlier value (`familytree.fields_now`, places as `{id}`) or add_relative's undo token. `POST
-  /suggestions/{id}/undo` puts it back to waiting (refused while approved items of the batch use the person it made).
+  /suggestions/{id}/undo` puts it back to waiting (refused while approved items of the batch use the person it made) and
+  messages the suggester; decide's message lists each item in words (`_say`). Review (#171): Approve sends `up(checked)`,
+  Reject `down(checked)` (what builds on them); checking/unchecking cascades down only. Rows are grouped by family
+  (`families()`: the anchor person's own family, else the one they grew up in) and nested under the row whose stand-in they
+  use (`giver`). History: `GET /suggestions/history?before=<decided>:<id>&login=` (PAGE = 100, `more`, `who`), same grouping;
+  `POST /suggestions/delete {ids}` or `{rejected: "all"}` removes rejected rows only.
 - **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
   `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
   Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs

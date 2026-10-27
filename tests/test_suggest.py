@@ -69,7 +69,11 @@ def test_approve_some_and_reject_the_rest(fake, client):
     assert [x["id"] for x in left["items"]] == [ids[3]] and left["items"][0]["error"] and left["made"]["new-dad00001"] == dad
     as_user(fake, "ann", 1)
     said = client.get(f"{E}/chat").json()["convs"]
-    assert any(c["kind"] == "private" for c in said)  # "I looked at your suggestions: 3 added …, 1 not added"
+    assert any(c["kind"] == "private" for c in said)
+    import main
+    text = main.CHAT.q("SELECT text FROM messages ORDER BY id DESC LIMIT 1")[0]["text"]
+    assert "✓ Added: Kumar as Ravi Kumar's father" in text and "✓ Added: Kumar's date of birth: 1920" in text
+    assert "✓ Added: Ravi Kumar's nickname: Ravi anna" in text and "✗ Not added: Meena as Ravi Kumar's wife" in text
 
 
 def test_undo_puts_it_back_on_the_list(fake, client):
@@ -91,6 +95,9 @@ def test_undo_puts_it_back_on_the_list(fake, client):
     def undo(k):
         return client.post(f"{E}/suggestions/{k}/undo")
     assert undo(ids[2]).status_code == 200 and not fake.db["people"][ravi]["primary_name"].get("nick")  # the old value again
+    import main
+    assert main.CHAT.q("SELECT text FROM messages ORDER BY id DESC LIMIT 1")[0]["text"] == \
+        "I took this back out of the family tree to look at it again: Ravi Kumar's nickname: Ravi anna"
     assert undo(ids[0]).status_code == 409  # his nickname (approved) needs him: that one first
     assert undo(ids[1]).status_code == 200 and undo(ids[0]).status_code == 200
     assert "Kumar" not in {p["primary_name"]["first_name"] for p in fake.db["people"].values()}  # the person it made is gone
@@ -120,3 +127,30 @@ def test_sent_as_they_go(fake, client):  # Site settings: automatic (the default
     assert send({"op": "set", "id": "new-dad00001", "field": "nick", "value": "Appa"}) == 200
     as_user(fake, "bob", 1)  # but not someone else's
     assert send({"op": "set", "id": "new-dad00001", "field": "nick", "value": "x"}) == 400
+
+
+def test_history_pages_and_delete(fake, client):
+    import suggest
+    ravi = fake.person("Ravi", "Kumar", 1)
+    turn_on(fake, client)
+    for who in ("ann", "bob"):
+        as_user(fake, who, 1)
+        client.post(f"{E}/suggestions", json={"items": [{"op": "set", "id": ravi, "field": f, "value": who} for f in ("nick", "phone")]})
+    as_user(fake, "ed", 3)
+    ids = [x["id"] for x in client.get(f"{E}/suggestions").json()["items"]]
+    client.post(f"{E}/suggestions/decide", json={"approve": ids[:1], "reject": ids[1:]})
+    suggest.PAGE = 2
+    try:
+        page = client.get(f"{E}/suggestions/history").json()
+        assert page["more"] and len(page["items"]) == 2 and {w["login"] for w in page["who"]} == {"ann", "bob"}
+        last = page["items"][-1]
+        rest = client.get(f"{E}/suggestions/history", params={"before": f"{last['decided']}:{last['id']}"}).json()
+        assert not rest["more"] and {x["id"] for x in page["items"] + rest["items"]} == set(ids)
+    finally:
+        suggest.PAGE = 100
+    assert [x["login"] for x in client.get(f"{E}/suggestions/history", params={"login": "bob"}).json()["items"]] == ["bob", "bob"]
+    assert client.post(f"{E}/suggestions/delete", json={"ids": [ids[0], ids[1]]}).json()["deleted"] == 1  # not the approved one
+    assert client.post(f"{E}/suggestions/delete", json={"rejected": "all"}).json()["deleted"] == 2
+    assert [x["id"] for x in client.get(f"{E}/suggestions/history").json()["items"]] == [ids[0]]
+    as_user(fake, "ann", 1)
+    assert client.post(f"{E}/suggestions/delete", json={"rejected": "all"}).status_code == 403
