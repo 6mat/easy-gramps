@@ -131,10 +131,13 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
-- **Suggestions** (#{i}; site `suggest`: off | members (roles 1–2) | everyone (0–2); `/auth/me` → `can_suggest`, and editors get
+- **Suggestions** (#166, #168; site `suggest`: off | members (roles 1–2) | everyone (0–2), `suggest_send`: auto | manual; `/auth/me` → `can_suggest`, and editors get
   `suggestions` = waiting count while on). The page's role is then `"suggest"`: `canChange()`/`canLink()` are true (fields, Add
   slots, pick existing), photos/unlink/merge stay editors-only, and `canAddNew()` (lone new person) is editors and contributors.
-  editor.js `flushSaves` → `draftSet`, `doAdd` → `draftAdd` (suggest.js; the draft is in localStorage `eg_suggestion`). Items:
+  editor.js `flushSaves` → `draftSet`, `doAdd` → `draftAdd` (suggest.js; the draft is in localStorage `eg_suggestion:<login>`;
+  auto: `sendNow()` posts it at once, one send at a time, kept on network errors, dropped on a 4xx refusal). Suggesters' own
+  waiting items (`mine`, GET /suggestions) go on their tree with the draft. Server: a set item for a field they already have
+  waiting replaces it (keeps its `before`; back to `before` deletes it); stand-ins from their earlier waiting/approved rows count. Items:
   `{op: "set", id, field, value, before, label}` / `{op: "add", person, rel, famId?, new|existing, as?, fam?, label}`; new people
   and families get stand-in ids `new-xxxxxxxx` that later items may use. `POST /suggestions {items, note}` checks the shape,
   that stand-ins are made before use, and that the real people are visible to the suggester; one row per item.
