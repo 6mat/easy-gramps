@@ -2,6 +2,20 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.2 — 2026-10-27
+
+### Changed
+- **Reviewing suggestions** (#171): "Check all" / "Uncheck all", and "Approve" and "Reject" act on the checked ones. Approving
+  also takes the new people they need, and rejecting also takes what builds on them; both say so before they act. Changes
+  that build on a new person are indented under them. The list is grouped by family; tap a family's name to see it in the tree.
+- **History** is grouped by family too, shows 100 at a time ("Show older"), and can show one person's suggestions
+  ("Suggested by"). Rejected ones can be deleted, one at a time or all at once.
+- The message to the person who suggested lists each change ("✓ Added: Ravi Kumar's nickname: Ravi anna"), and undoing an
+  approved one tells them it was taken back out of the tree.
+
+### Fixed
+- A person added as a suggestion showed on the tree only after reloading the page.
+
 ## 1.9.1 — 2026-10-27
 
 ### Added
