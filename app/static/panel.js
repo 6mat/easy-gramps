@@ -1,6 +1,6 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { api, LoginNeeded } from "./auth.js";
-import { $, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
@@ -59,11 +59,14 @@ export function renderPanel() {
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
     const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
-    const any = p.burial || p.residence || p.phone || p.email || p.contactHidden || notes;
+    const work = [p.work, ...(p.otherWork || [])].filter(Boolean).join("; ");
+    const education = [p.education, ...(p.otherEducation || [])].filter(Boolean).join("; ");
+    const any = p.burial || p.residence || work || education || p.phone || p.email || p.contactHidden || notes;
     panel.append(h("div", { class: "details" },
       loginLine(p),
       h("dl", { class: "kv" },
         row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
+        row("Work", work), row("Education", education),
         row("Phone", p.phone), row("Email", p.email), row("Notes", notes)),
       p.phone || p.email ? h("div", { class: "private" }, "🔒 Only editors see phone and email.") : "",
       p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are shown only to editors.") : "",
@@ -73,7 +76,7 @@ export function renderPanel() {
           ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
           .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
   }
-  panel.append(talkSection(p));
+  if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
   if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
     "Duplicate profile? Merge.")));
   drawSelink();

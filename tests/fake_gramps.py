@@ -170,8 +170,12 @@ class FakeGramps:
             out = copy.deepcopy(obj)
             if request.url.params.get("backlinks"):
                 out["backlinks"] = self._backlinks(h)
-            if request.url.params.get("extend") == "note_list":
+            extend = (request.url.params.get("extend") or "").split(",")
+            if "note_list" in extend:
                 out["extended"] = {"notes": [copy.deepcopy(self.db["notes"][n]) for n in obj.get("note_list") or [] if n in self.db["notes"]]}
+            if "event_ref_list" in extend:
+                out.setdefault("extended", {})["events"] = [copy.deepcopy(self.db["events"][r["ref"]]) for r in obj.get("event_ref_list") or []
+                                                            if r["ref"] in self.db["events"]]
             return httpx.Response(200, json=out)
         if method == "PUT":
             if self.role < 3:

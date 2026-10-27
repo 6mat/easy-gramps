@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.8.15 — 2026-10-26
+
+### Added
+- **Work and education** under More details, and in the editor's More details. Gramps keeps them as Occupation and
+  Education events (the words in the description), so what's typed in Full Gramps shows here too. The editor changes
+  the first of each; any others are listed (#164).
+- **Site settings → "Family talk about …"** can be turned off: it goes from everyone's details panel and the server
+  refuses new messages about a person. Earlier ones stay in Chat (#163).
+
 ## 1.8.14 — 2026-10-26
 
 ### Fixed

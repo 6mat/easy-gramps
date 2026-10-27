@@ -330,6 +330,10 @@ async def save_site(request: Request):
         if body["gramps"] not in GRAMPS_FOR:
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["gramps"] = body["gramps"]
+    if "talk" in body:
+        if not isinstance(body["talk"], bool):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["talk"] = body["talk"]
     if "labels" in body:
         given = body["labels"]
         if not isinstance(given, dict) or not set(given) <= set(LABELS) or not all(isinstance(v, str) for v in given.values()):
@@ -911,6 +915,8 @@ async def chat_about(handle: str, request: Request, limit: int = 2):
 async def chat_about_post(handle: str, request: Request):
     """Write about a person: their conversation starts with the first message."""
     login, _ = await chat_user(request)
+    if not site()["talk"]:
+        raise HTTPException(403, "The owner has turned off family talk about people.")
     text = chat.clean_text((await json_body(request)).get("text"))
     if not handle.replace("-", "").isalnum():
         raise HTTPException(400, "Something was missing. Please try again.")

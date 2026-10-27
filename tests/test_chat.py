@@ -381,3 +381,15 @@ def test_phone_notifications(fake, chat, monkeypatch, tmp_path):  # #133
     as_user(fake, "ann")
     chat.request("DELETE", f"{E}/chat/push", json={"endpoint": sub["endpoint"]})
     assert main.CHAT.devices(1, "bob") == []
+
+
+def test_owner_can_turn_off_talk_about_people(fake, chat):
+    import main
+    p = fake.person("George")
+    fake.role = 4
+    main._who_cache.clear()
+    assert chat.put(f"{E}/site", json={"talk": "no"}).status_code == 400
+    assert chat.put(f"{E}/site", json={"talk": False}).json()["talk"] is False
+    as_user(fake, "ann")
+    assert chat.post(f"{E}/chat/person/{p}", json={"text": "hi"}).status_code == 403
+    assert chat.get(f"{E}/auth/me").json()["site"]["talk"] is False

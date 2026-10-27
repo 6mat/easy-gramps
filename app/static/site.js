@@ -36,6 +36,7 @@ function openSite() {
   });
   const gramps = h("select", { id: "site-gramps" }, ...GRAMPS.map(([v, t]) => h("option", { value: v }, t)));
   gramps.value = s.gramps || "everyone";
+  const talk = h("input", { type: "checkbox", checked: s.talk !== false });
   const renames = LABELS.map(([k, , def]) => h("label", {}, def,
     h("input", { "data-key": k, value: s.labels?.[k] || "", placeholder: def, maxlength: 40, autocomplete: "off" })));
   const iconImg = h("img", { class: "siteicon", src: `${BASE}/icon-192.png?t=${Date.now()}`, alt: "The app's icon now" });
@@ -52,7 +53,7 @@ function openSite() {
     try {
       const hide = shows.map(l => l.querySelector("input")).filter(b => !b.checked).map(b => b.value);
       ME.site = await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value,
+        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value, talk: talk.checked,
           labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }) });
       location.reload();  // the name is in the page itself, the manifest and the Full Gramps links: simplest to load again
     } catch (err) { save.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
@@ -64,6 +65,9 @@ function openSite() {
       h("div", { class: "btnrow" }, iconImg, h("button", { onclick: () => file.click() }, "Choose a picture…"),
         h("button", { onclick: () => icon("DELETE") }, "Use the default"), file)),
     h("fieldset", {}, h("legend", {}, "Show in the menu"), ...shows),
+    h("fieldset", {}, h("legend", {}, "In each person's details"),
+      h("label", { class: "inline" }, talk, "“Family talk about …” (messages about that person)"),
+      h("p", { class: "muted small" }, "Turned off, no one can write new ones. Earlier ones stay in Chat.")),
     h("details", { class: "renames" }, h("summary", {}, "Rename menu items and buttons"),
       h("p", { class: "muted small" }, "Leave a box empty to keep the name in grey. Emoji are fine."), ...renames),
     h("label", { for: gramps.id }, "Full Gramps link for", gramps),
