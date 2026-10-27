@@ -1,6 +1,6 @@
 // Easy Gramps — The start screen (search, recently viewed/changed, add a new person), login and loading.
 import { api, auth, BASE, GRAMPS, login, LoginNeeded, onLoginChange, photoSession, SHARED } from "./auth.js";
-import { $, APP_NAME, ME, P, S, canAdd, desc, fmtDate, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
+import { $, APP_NAME, ME, P, S, canAddNew, desc, fmtDate, h, loadGraph, name, parseView, photoEl, postJSON, years } from "./common.js";
 import { searchKeys, showHits } from "./search.js";
 import { noteViewed, recentViewed, rememberFocus, renderTree, seeTree, useSettings } from "./tree.js";
 import { renderPanel } from "./panel.js";
@@ -8,6 +8,7 @@ import { closeEditor, flushSaves, openEditor, renderEditor, restoreView, someone
 import { applySite } from "./site.js";
 import { askPush, grampsHome, joinedToast, loadLogins, meBox, pushOff, renderMenuMe } from "./me.js";
 import { startChat } from "./chat.js";
+import { suggestMenu } from "./suggest.js";
 
 export function renderAll() {
   renderTree(); renderPanel();
@@ -25,7 +26,7 @@ export function renderStart() {
   const parts = [meBox(), h("h2", {}, "Whose family tree would you like to see?"),
     h("label", { for: "start-q", class: "flabel" }, "Search for someone", q), list, recentSections()];
   addForm = null;
-  if (canAdd()) {
+  if (canAddNew()) {
     const form = newPersonForm();
     form.hidden = true;
     const open = h("button", { class: "pill", onclick: () => addForm() }, "+ Add a new person");
@@ -175,6 +176,7 @@ export async function start() {
   gate("Loading the family tree…");
   try {
     Object.assign(ME, await api("/auth/me"));
+    S.role = ME.can_edit ? "editor" : ME.can_suggest ? "suggest" : ME.can_add ? "contributor" : "guest";  // (before the tree: suggest.js)
     await Promise.all([photoSession(), loadGraph()]);  // the tree doesn't need the photo cookie: both at once
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();
@@ -182,7 +184,6 @@ export async function start() {
       h("button", { onclick: () => { auth.clear(); location.replace(location.pathname); } }, "Log out"));
     return gate(`Couldn't load the family tree: ${err.message}`, h("button", { onclick: start }, "Try again"));
   }
-  S.role = ME.can_edit ? "editor" : ME.can_add ? "contributor" : "guest";
   useSettings(ME.settings);
   renderMenuMe();
   grampsHome();
@@ -192,6 +193,7 @@ export async function start() {
   startChat();
   if (ME.gramps_link) { const a = $("#menu-gramps"); a.href = ME.gramps_link.url; a.textContent = `${ME.gramps_link.label} ↗`; a.hidden = false; }
   applySite();  // after the Full Gramps link's text: the owner may rename it
+  suggestMenu();
   const v = parseView();  // a reload comes back to the same tree, selection, editor and pop-up
   S.focus = P[v.focus] ? v.focus : null;
   S.sel = S.focus && P[v.sel] ? v.sel : S.focus;

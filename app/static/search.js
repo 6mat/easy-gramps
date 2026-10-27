@@ -1,7 +1,7 @@
 // Easy Gramps — Search results, shared by the start screen and the top bar: photo and name, an ⓘ
 // preview under the row (born, parents, wife or husband, children), keys (↓ ↑ through the results,
 // → preview, ← close it, Enter opens their tree) and a "No one found" you can't miss.
-import { P, byBirth, canAdd, desc, fmtDate, h, matches, name, nameNick, other, parentFam, photoEl, searchWords, spouseFams, spouseHeading } from "./common.js";
+import { P, byBirth, canAddNew, desc, fmtDate, h, matches, name, nameNick, other, parentFam, photoEl, searchWords, spouseFams, spouseHeading } from "./common.js";
 
 const LIMIT = 30;
 
@@ -21,7 +21,7 @@ export function showHits(list, text, { open, addNew }) {
     list.append(h("div", { class: "nohit", role: "status" },
       h("strong", {}, `No one called “${said}” in the tree.`),
       h("span", {}, "Check the spelling, or try just the first name."),
-      canAdd() && addNew && h("button", { class: "addnew", onclick: () => addNew(said) }, `+ Add “${said}” as a new person`)));
+      canAddNew() && addNew && h("button", { class: "addnew", onclick: () => addNew(said) }, `+ Add “${said}” as a new person`)));
   }
 }
 

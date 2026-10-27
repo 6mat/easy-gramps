@@ -13,6 +13,7 @@ const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Me
   ["help", "#h-help", "Help"], ["install", "#menu-install", "📲 Install as an app"], ["docs", "#menu-docs", "📚 Family documents"],
   ["tips", "#tips-again", "Show tips"], ["keys", "#menu-keys", "Keyboard keys"], ["goto", "#h-goto", "Go to"],
   ["gramps", "#menu-gramps", "Full Gramps ↗"], ["source", "#menu-source", "Source code ↗"]];
+const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
 
 export function applySite() {
@@ -37,6 +38,8 @@ function openSite() {
   const gramps = h("select", { id: "site-gramps" }, ...GRAMPS.map(([v, t]) => h("option", { value: v }, t)));
   gramps.value = s.gramps || "everyone";
   const talk = h("input", { type: "checkbox", checked: s.talk !== false });
+  const suggest = h("select", { id: "site-suggest" }, ...SUGGEST.map(([v, t]) => h("option", { value: v }, t)));
+  suggest.value = s.suggest || "off";
   const renames = LABELS.map(([k, , def]) => h("label", {}, def,
     h("input", { "data-key": k, value: s.labels?.[k] || "", placeholder: def, maxlength: 40, autocomplete: "off" })));
   const iconImg = h("img", { class: "siteicon", src: `${BASE}/icon-192.png?t=${Date.now()}`, alt: "The app's icon now" });
@@ -53,7 +56,7 @@ function openSite() {
     try {
       const hide = shows.map(l => l.querySelector("input")).filter(b => !b.checked).map(b => b.value);
       ME.site = await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value, talk: talk.checked,
+        body: JSON.stringify({ name: nameIn.value, hide, gramps: gramps.value, talk: talk.checked, suggest: suggest.value,
           labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }) });
       location.reload();  // the name is in the page itself, the manifest and the Full Gramps links: simplest to load again
     } catch (err) { save.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
@@ -68,6 +71,8 @@ function openSite() {
     h("fieldset", {}, h("legend", {}, "In each person's details"),
       h("label", { class: "inline" }, talk, "“Family talk about …” (messages about that person)"),
       h("p", { class: "muted small" }, "Turned off, no one can write new ones. Earlier ones stay in Chat.")),
+    h("label", { for: suggest.id }, "Who may suggest changes", suggest),
+    h("p", { class: "muted small" }, "They change the tree like an editor, but it goes to the editors first: ☰ Menu → Suggestions shows them on the tree to approve or reject."),
     h("details", { class: "renames" }, h("summary", {}, "Rename menu items and buttons"),
       h("p", { class: "muted small" }, "Leave a box empty to keep the name in grey. Emoji are fine."), ...renames),
     h("label", { for: gramps.id }, "Full Gramps link for", gramps),

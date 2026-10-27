@@ -102,6 +102,23 @@ async def details(g: Gramps, handle: str) -> dict:
             "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t]}
 
 
+async def fields_now(g: Gramps, handle: str) -> dict:
+    """One person's fields as PATCH /tree/person takes them (places as {id}): what to put back to undo a change."""
+    p = await g.get(f"/people/{handle}", extend="event_ref_list")
+    events = {e["handle"]: e for e in (p.get("extended") or {}).get("events", [])}
+    refs = p.get("event_ref_list") or []
+
+    def at(i):
+        return events.get(refs[i]["ref"]) if 0 <= i < len(refs) else None
+    birth, death = at(p.get("birth_ref_index", -1)), at(p.get("death_ref_index", -1))
+    burial = next((e for e in events.values() if e.get("type") == "Burial"), None)
+    name = p["primary_name"]
+    return {**await details(g, handle), "first": (name.get("first_name") or "").strip(), "last": surname_of(name),
+            "nick": name.get("nick") or "", "gender": GENDER_CODE.get(p.get("gender"), ""), "birth": ymd((birth or {}).get("date")),
+            "birthPlace": {"id": birth["place"]} if (birth or {}).get("place") else "", "deceased": death is not None,
+            "death": ymd((death or {}).get("date")), "burial": {"id": burial["place"]} if (burial or {}).get("place") else ""}
+
+
 # ---------- editing one person, a field at a time (the editor autosaves each change) ----------
 
 FIELDS = {"first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial",

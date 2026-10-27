@@ -12,6 +12,7 @@ export async function loadGraph() {
   FAMS.length = 0; FAMS.push(...g.families);
   for (const k of Object.keys(MEDIA)) delete MEDIA[k];
   Object.assign(MEDIA, g.media);
+  S.overlay?.();  // suggestions on top (suggest.js), while suggesting or reviewing
 }
 
 
@@ -82,9 +83,12 @@ export const matches = (p, words) => words.every(w => `${p.first} ${p.last} ${p.
 // People already in the tree with the name being typed: match each part that was given.
 export const sameName = (first, last) => Object.values(P).filter(p =>
   (!first || p.first.toLowerCase() === first.toLowerCase()) && (!last || p.last.toLowerCase() === last.toLowerCase()));
-export const canAdd = () => S.role !== "guest";
+export const canAdd = () => S.role !== "guest" && !S.review;  // may open the editor (S.review: editors looking at suggestions)
+export const canAddNew = () => S.role === "editor" || S.role === "contributor";  // a new person on their own, straight into Gramps
 export const canEdit = () => S.role === "editor";
-export const canLink = () => canEdit();  // Gramps lets only editors link people into a family (Contributors can only add)
+// Change fields and link people: editors, and (as a suggestion, suggest.js) anyone the owner lets suggest.
+export const canChange = () => (S.role === "editor" || S.role === "suggest") && !S.review;
+export const canLink = () => canChange();  // Gramps lets only editors link people into a family (Contributors can only add)
 // A link to a record's own page in Gramps Web (person, family, event, place, media), opened in a new tab.
 // Editors only, so the people the simple tree is for don't land in the full Gramps Web by accident.
 export function grampsLink(kind, gid, text = "Full Gramps ↗", label = text) {

@@ -22,6 +22,7 @@ async function toggleMore(id) {
 
 export function renderPanel() {
   if (!S.focus || !P[S.sel]) return;
+  if (S.review) { S.review.render(); drawSelink(); return; }  // the suggestions' list (suggest.js)
   const p = P[S.sel], pf = parentFam(p.id);
   const isMember = S.sel !== S.focus;
   $("#panel").classList.toggle("sel-view", isMember);
@@ -38,7 +39,7 @@ export function renderPanel() {
   panel.replaceChildren(
     h("div", { class: "ptop" },
       h("button", { class: "pill hide", onclick: hidePanel, title: "Hide this panel to give the tree more room" }, "Hide panel »"),
-      canAdd() && h("button", { class: "pill edit", onclick: () => openEditor(p.id) }, "✎ Edit person")),
+      canAdd() && h("button", { class: "pill edit", onclick: () => openEditor(p.id) }, S.role === "suggest" ? "✎ Suggest a change" : "✎ Edit person")),
     h("div", { class: "who" }, p.photos[0] && p.photos[0] === p.photo
       ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
       : photoEl(p, true),
