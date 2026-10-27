@@ -17,6 +17,7 @@ relatives who find the full Gramps interface too much.
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
   given when they sign in with Google.
+- **Waiting to join** (owner, ☰ Menu): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
 - **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.

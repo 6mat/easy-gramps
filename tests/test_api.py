@@ -437,6 +437,27 @@ def test_invite_gives_the_role_and_person_once_they_sign_in(fake, client):  # #1
     assert client.get("/easy-gramps/auth/me").json()["joined"] == []
 
 
+def test_owner_lets_people_in_and_they_get_an_email(fake, client, monkeypatch):
+    import main
+    sent = []
+    monkeypatch.setattr(main, "send_mail", lambda to, subject, body, reply_to="": sent.append((to, subject, body)))
+    monkeypatch.setitem(main.EMAIL, "EMAIL_HOST", "mail.example.com")
+    fake.users = [{"name": "google_ravi", "email": "Ravi@example.com", "full_name": "Ravi Kumar", "role": -1},
+                  {"name": "old", "email": "", "full_name": "", "role": 1}]
+    assert client.get("/easy-gramps/joining").status_code == 403  # an editor
+    fake.role = 4
+    main._who_cache.clear()
+    assert client.get("/easy-gramps/auth/me").json()["joining"] == 1
+    assert client.get("/easy-gramps/joining").json() == [{"login": "google_ravi", "name": "Ravi Kumar", "email": "Ravi@example.com",
+                                                          "role": 0, "person": None, "before": False}]  # a guest, unless invited
+    assert client.post("/easy-gramps/joining/google_ravi", json={"role": 7}).status_code == 400
+    assert client.post("/easy-gramps/joining/old", json={"role": 0}).status_code == 404  # already in
+    assert client.post("/easy-gramps/joining/google_ravi", json={"role": 1}).json() == {"emailed": True}
+    assert fake.users[0]["role"] == 1 and client.get("/easy-gramps/joining").json() == []
+    (to, subject, body), = sent
+    assert to == "ravi@example.com" and subject.startswith("You're in") and body.startswith("Hello Ravi,") and "private details" in body
+
+
 def test_site_settings_owner_only(fake, client):  # #145
     import io
 

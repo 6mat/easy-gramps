@@ -2,6 +2,23 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.3 — 2026-10-27
+
+### Added
+- **Waiting to join** (☰ Menu → Owner, with how many wait): people who signed up and wait for the owner. Pick what they can
+  do (Guest unless they were invited with a role) and let them in, without going to Full Gramps. They get an email saying
+  they're in, which Gramps Web doesn't send. Invited people let in automatically get that email too (#173).
+
+### Changed
+- Suggestions History: Undo and Delete ask "Confirm undo" / "Confirm delete" and the History stays open. Deleting a
+  rejected new person also deletes the rejected changes to them.
+- After approving or rejecting, the tree stays where it was, and no History pops up when nothing is left (the toast says
+  "Nothing else is waiting"); ☰ Menu → Suggestions still opens the History then.
+
+### Fixed
+- Approving or rejecting after looking at a suggested person's tree showed "can't access property "first"…" and left the
+  decided suggestions on the list until a reload.
+
 ## 1.9.2 — 2026-10-27
 
 ### Changed

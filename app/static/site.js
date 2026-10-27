@@ -1,8 +1,9 @@
 // Easy Gramps — the owner's Site settings (☰ Menu → Owner): which menu items everyone sees, who gets the Full Gramps
 // link, the app's name and its icon. Kept on the server (main.py /site), the same for everyone.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, ME, closeMenu, h } from "./common.js";
-import { hideDlg, showDlg } from "./editor.js";
+import { $, APP_NAME, ME, closeMenu, h, postJSON } from "./common.js";
+import { hideDlg, showDlg, toast } from "./editor.js";
+import { ROLES } from "./me.js";
 
 const ITEMS = [["theme", "Theme"], ["display", "Display (bigger text, the line to the details)"], ["dates", "Dates"],
   ["you", "You (Find me, email, notifications)"], ["install", "Install as an app"], ["docs", "Family documents"], ["tips", "Show tips"],
@@ -20,6 +21,7 @@ export function applySite() {
   const hide = new Set(ME.site?.hide || []);
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   $("#menu-owner").hidden = (ME.role ?? 0) < 4;
+  $("#menu-joining").textContent = `👋 Waiting to join${ME.joining ? ` (${ME.joining})` : ""}`;
   const names = ME.site?.labels || {};
   for (const [k, sel] of LABELS) {
     const el = $(sel);
@@ -28,6 +30,38 @@ export function applySite() {
 }
 
 $("#menu-site").onclick = () => { closeMenu(); openSite(); };
+
+// Waiting to join: accounts Gramps Web keeps disabled until the owner lets them in (main.py /joining). Letting them
+// in here also emails them that they're in (Gramps Web itself doesn't).
+$("#menu-joining").onclick = () => { closeMenu(); openJoining(); };
+async function openJoining() {
+  let list;
+  try { list = await api("/joining"); } catch (err) { return toast(err.message, false); }
+  ME.joining = list.length; applySite();
+  const rows = list.map(u => {
+    const role = h("select", { "aria-label": `What ${u.name} can do` }, ...ROLES.map(([v, n, what]) => h("option", { value: v }, `${n}: ${what}`)));
+    role.value = String(u.role);
+    const say = h("div", { class: "small", role: "status" });
+    const go = h("button", { class: "primary", onclick: async () => {
+      go.disabled = true;
+      try {
+        const r = await postJSON(`/joining/${encodeURIComponent(u.login)}`, { role: Number(role.value) });
+        say.textContent = r.emailed ? `Let in ✓ We emailed ${u.email} that they're in.` : "Let in ✓ No email was sent, so let them know yourself.";
+        role.disabled = true; go.hidden = true;
+        ME.joining = Math.max(0, (ME.joining || 1) - 1); applySite();
+      } catch (err) { go.disabled = false; say.textContent = err.message; }
+    } }, "Let them in");
+    return h("div", { class: "joinrow" }, h("div", {}, h("strong", {}, u.name), u.email ? ` · ${u.email}` : "",
+      u.person ? h("div", { class: "small muted" }, "Invited: their place in the tree is linked when they're in.") : "",
+      u.before ? h("div", { class: "small warn" }, "This login was used before and then turned off.") : ""),
+      h("div", { class: "btnrow" }, role, go), say);
+  });
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Waiting to join"),
+    h("p", { class: "small muted" }, "People who signed up and are waiting for you. Pick what they can do and let them in; they get an email saying they're in. To say no, leave them here or remove them in Full Gramps."),
+    ...(rows.length ? rows : [h("p", { class: "muted" }, "Nobody is waiting ✓")]),
+    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
+  showDlg(false);
+}
 function openSite() {
   const s = ME.site || {};
   const nameIn = h("input", { id: "site-name", value: s.name || APP_NAME, maxlength: 40, autocomplete: "off" });

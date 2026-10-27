@@ -12,7 +12,7 @@ const LATER = "eg_findme_later";  // "Not now" on the start screen, this device 
 let LOGINS = {};                  // editors: person -> login name
 let INVITES = {};                 // the owner: person -> waiting invite {email, role, at}
 const isOwner = () => (ME.role ?? 0) >= 4;
-const ROLES = [[0, "Guest", "can look at the tree, not private details"], [1, "Member", "can look, and sees private details"],
+export const ROLES = [[0, "Guest", "can look at the tree, not private details"], [1, "Member", "can look, and sees private details"],
   [2, "Contributor", "can also add people"], [3, "Editor", "can also change and remove"]];
 
 export const myPerson = () => (P[ME.settings?.person] ? ME.settings.person : null);
@@ -264,7 +264,7 @@ function openInvite(p) {
     catch { box.select(); say.textContent = "Select the text and copy it."; }
   } }, "Copy");
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
-    h("p", { class: "muted" }, isOwner() ? "Send them this message. When they've signed in, let them in with a role in Full Gramps (user management), or use ✉ Email to do it for you."
+    h("p", { class: "muted" }, isOwner() ? "Send them this message. When they've signed in, let them in from ☰ Menu → Waiting to join, or use ✉ Email to do it for you."
       : "Send them this message. The owner lets them in once they've signed in."),
     box, say, h("div", { class: "btnrow end" }, wa, mail, share || "", copy, h("button", { onclick: hideDlg }, "Done")));
   showDlg(false);
