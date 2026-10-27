@@ -20,6 +20,7 @@ import main as m
 SCHEMA = """CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY, batch INTEGER NOT NULL, login TEXT NOT NULL,
   at REAL NOT NULL, note TEXT, item TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'waiting', by TEXT, decided REAL,
   error TEXT, made TEXT, undo TEXT)"""
+SENDS = ("auto", "manual")  # site `suggest_send`: each change goes as it's made, or they press "Send to the editors"
 WHO = {"off": None, "members": (m.ROLE_MEMBER, m.ROLE_CONTRIBUTOR), "everyone": (0, m.ROLE_CONTRIBUTOR)}  # roles that suggest
 STAND_IN = re.compile(r"new-[a-z0-9]{8}")
 MAX_ITEMS, MAX_WAITING, MAX_BYTES = 200, 500, 100_000
@@ -46,12 +47,13 @@ def add_to_me(user: dict):
         user["suggestions"] = q("SELECT count(*) n FROM suggestions WHERE status = 'waiting'")[0]["n"]
 
 
-def _check(items) -> set:
-    """The items' shape, and every stand-in used only after an earlier item made it. Returns the real people named."""
+def _check(items, known=()) -> set:
+    """The items' shape, and every stand-in used only after an earlier item (or one of `known`, made by their earlier
+    suggestions) made it. Returns the real people named."""
     bad = HTTPException(400, "Something was missing. Please try again.")
     if not isinstance(items, list) or not 0 < len(items) <= MAX_ITEMS or len(json.dumps(items)) > MAX_BYTES:
         raise bad
-    made, real = set(), set()
+    made, real = set(known), set()
 
     def ref(x, person=True):
         if not isinstance(x, str) or not x:
@@ -98,16 +100,31 @@ async def send(request: Request):
         raise HTTPException(403, "Editors change the tree directly." if user.get("can_edit") else "Suggestions are turned off.")
     body = await m.json_body(request)
     items, note = body.get("items"), " ".join(str(body.get("note") or "").split())[:500]
-    g = gramps.Gramps(m.GRAMPS_URL, m.bearer(request))
-    for h in _check(items):  # only people they can see (a guest can't suggest about a private person)
-        await g.get(f"/people/{h}", keys="handle")
     login = user["name"]
-    if q("SELECT count(*) n FROM suggestions WHERE login = ? AND status = 'waiting'", login)[0]["n"] + len(items) > MAX_WAITING:
+    theirs = [(r["id"], json.loads(r["item"]), r["status"]) for r in q("SELECT id, item, status FROM suggestions WHERE login = ? "
+                                                                          "AND status IN ('waiting', 'approved')", login)]
+    g = gramps.Gramps(m.GRAMPS_URL, m.bearer(request))
+    for h in _check(items, {x for _, it, _ in theirs for x in (it.get("as"), it.get("fam")) if x}):
+        await g.get(f"/people/{h}", keys="handle")  # only people they can see (a guest can't suggest about a private person)
+    # Sent as they go (Site settings: automatic): a newer value for a field replaces the waiting one, and putting back
+    # the value it had takes it off the list.
+    steps, fresh = [], []
+    for it in items:
+        old = next(((k, o) for k, o, st in theirs if st == "waiting" and it["op"] == o["op"] == "set"
+                    and (o["id"], o["field"]) == (it["id"], it["field"])), None)
+        if not old:
+            fresh.append(it)
+        elif _same(it.get("label") if it["field"] in ("birthPlace", "burial") else it["value"], old[1].get("before")):
+            steps.append(("DELETE FROM suggestions WHERE id = ?", old[0]))
+        else:
+            steps.append(("UPDATE suggestions SET item = ?, at = ? WHERE id = ?", json.dumps({**it, "before": old[1].get("before", "")}),
+                          time.time(), old[0]))
+    if q("SELECT count(*) n FROM suggestions WHERE login = ? AND status = 'waiting'", login)[0]["n"] + len(fresh) > MAX_WAITING:
         raise HTTPException(429, "You have many suggestions waiting. Please wait until an editor has looked at them.")
     batch = (q("SELECT max(batch) b FROM suggestions")[0]["b"] or 0) + 1
     now = time.time()
-    m.CHAT.tx(*[("INSERT INTO suggestions (batch, login, at, note, item) VALUES (?, ?, ?, ?, ?)", batch, login, now, note,
-                 json.dumps(it)) for it in items])
+    m.CHAT.tx(*steps, *[("INSERT INTO suggestions (batch, login, at, note, item) VALUES (?, ?, ?, ?, ?)", batch, login, now, note,
+                         json.dumps(it)) for it in fresh])
     return {"batch": batch, "count": len(items)}
 
 
@@ -211,7 +228,7 @@ async def undo(sid: int, request: Request):
         if not r["undo"]:
             raise HTTPException(400, "This one can't be undone here. Please change it in the editor.")
         mine = list(json.loads(r["made"] or "{}"))
-        if mine and any(set(mine) & set(_uses(json.loads(o["item"]))) for o in q("SELECT item FROM suggestions WHERE status = 'approved' AND batch = ?", r["batch"])):
+        if mine and any(set(mine) & set(_uses(json.loads(o["item"]))) for o in q("SELECT item FROM suggestions WHERE status = 'approved'")):
             raise HTTPException(409, "Undo the changes to the people it added first (above it in the list).")
         g = await m.gramps_as(request)
         u = json.loads(r["undo"])
@@ -221,6 +238,10 @@ async def undo(sid: int, request: Request):
             await familytree.undo(g, u, await m.tree_tags(g))
     q("UPDATE suggestions SET status = 'waiting', by = NULL, decided = NULL, error = NULL, made = NULL, undo = NULL WHERE id = ?", sid)
     return {"ok": True}
+
+
+def _same(a, b) -> bool:
+    return json.dumps("" if a is None else a) == json.dumps("" if b is None else b)
 
 
 def _uses(it: dict) -> list:

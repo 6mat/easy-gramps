@@ -335,6 +335,10 @@ async def save_site(request: Request):
         if body["suggest"] not in ("off", "members", "everyone"):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["suggest"] = body["suggest"]
+    if "suggest_send" in body:
+        if body["suggest_send"] not in suggest.SENDS:
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["suggest_send"] = body["suggest_send"]
     if "talk" in body:
         if not isinstance(body["talk"], bool):
             raise HTTPException(400, "Something was missing. Please try again.")

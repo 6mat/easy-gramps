@@ -97,3 +97,26 @@ def test_undo_puts_it_back_on_the_list(fake, client):
     assert undo(ids[3]).status_code == 200 and undo(ids[3]).status_code == 404
     assert [x["id"] for x in client.get(f"{E}/suggestions").json()["items"]] == ids  # all waiting again
     assert client.get(f"{E}/suggestions/history").json()["items"] == []
+
+
+def test_sent_as_they_go(fake, client):  # Site settings: automatic (the default)
+    ravi = fake.person("Ravi", "Kumar", 1)
+    turn_on(fake, client)
+    assert client.get(f"{E}/auth/me").json()["site"]["suggest_send"] == "auto"
+    assert client.put(f"{E}/site", json={"suggest_send": "later"}).status_code == 400
+    as_user(fake, "ann", 1)
+
+    def send(*items):
+        return client.post(f"{E}/suggestions", json={"items": list(items)}).status_code
+
+    def waiting():
+        return [x["item"] for x in client.get(f"{E}/suggestions").json()["items"]]
+    assert send({"op": "set", "id": ravi, "field": "nick", "value": "Ravi ana", "before": ""}) == 200
+    assert send({"op": "set", "id": ravi, "field": "nick", "value": "Ravi anna", "before": "Ravi ana"}) == 200  # a typo fixed
+    assert [(x["value"], x["before"]) for x in waiting()] == [("Ravi anna", "")]  # one, with what Gramps had
+    assert send({"op": "set", "id": ravi, "field": "nick", "value": "", "before": ""}) == 200 and waiting() == []  # changed back
+    # A new father now, his nickname later: the later one may use him.
+    assert send({"op": "add", "person": ravi, "rel": "father", "new": {"first": "Kumar"}, "as": "new-dad00001", "fam": "new-fam00001"}) == 200
+    assert send({"op": "set", "id": "new-dad00001", "field": "nick", "value": "Appa"}) == 200
+    as_user(fake, "bob", 1)  # but not someone else's
+    assert send({"op": "set", "id": "new-dad00001", "field": "nick", "value": "x"}) == 400

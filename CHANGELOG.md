@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.1 — 2026-10-27
+
+### Added
+- **Suggestions are sent automatically** with each change (Site settings → "Suggestions are sent"; the default). "When they
+  press Send to the editors" keeps 1.9.0's way. Fixing a typo replaces the waiting suggestion for that field, and changing it
+  back takes it off the list; a later change can build on a new person sent earlier. Without internet, a change waits on the
+  device and goes with the next one, or when the family tree is opened again (#168).
+- People who suggest see their waiting suggestions on their own tree and in the editor (green and amber), also after a reload.
+
+### Changed
+- The editors' list groups suggestions by who made them. The unsent draft is kept per login on a shared device.
+
 ## 1.9.0 — 2026-10-27
 
 ### Added
