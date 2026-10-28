@@ -374,6 +374,9 @@ class Chat:
         """The ones still waiting for the person to sign in."""
         return [dict(r) for r in self.q("SELECT * FROM invites WHERE joined IS NULL ORDER BY at")]
 
+    def cancel_invite(self, email: str) -> bool:
+        return bool(self.q("DELETE FROM invites WHERE email = ? AND joined IS NULL RETURNING email", email))
+
     def joined(self, email: str, login: str):
         self.q("UPDATE invites SET joined = ? WHERE email = ?", login, email)
 

@@ -435,6 +435,9 @@ def test_invite_gives_the_role_and_person_once_they_sign_in(fake, client):  # #1
     fake.fail[("GET", "/users/")] = 500  # Gramps trouble doesn't stop the page
     client.post("/easy-gramps/invites", json={"email": "b@example.com", "person": p, "role": 0})
     assert client.get("/easy-gramps/auth/me").json()["joined"] == []
+    cancel = lambda e: client.post("/easy-gramps/invites/cancel", json={"email": e}).status_code  # noqa: E731
+    assert cancel("asha@example.com") == 404  # used already: stays
+    assert cancel(" B@example.com") == 200 and client.get("/easy-gramps/invites").json() == [] and cancel("b@example.com") == 404
 
 
 def test_owner_lets_people_in_and_they_get_an_email(fake, client, monkeypatch):

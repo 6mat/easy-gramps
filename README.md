@@ -17,14 +17,14 @@ relatives who find the full Gramps interface too much.
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
   given when they sign in with Google.
-- **Waiting to join** (owner, ☰ Menu): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
+- **Waiting to join** (owner, ☰ Menu → Manage): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
 - **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
 - **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
 - **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.
 - **Book pages:** link a person to a page of a family book (a Gramps citation); it opens in the app's own viewer at that page, with the paragraph marked (editors drag a box over it).
-- **Site settings** (the owner): the app's name and icon, which menu items show and what they're called, and who gets the Full Gramps link.
+- **Manage** (☰ Menu; editors see Suggestions, the owner everything): one page with sections for Suggestions, Waiting to join, Invites, Check dates, and the site settings: the app's name and icon, which menu items show, who can do what (suggestions, Family talk, the Full Gramps link) and what menu items are called.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
@@ -144,7 +144,7 @@ on an iPhone, Safari's **Share → Add to Home Screen**). It then opens from its
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
 
-To use your own icon, the owner can upload one in ☰ Menu → ⚙️ Site settings (it wins over `ICON_FILE`), or point `ICON_FILE` at a square picture (see the commented lines in the deploy
+To use your own icon, the owner can upload one in ☰ Menu → ⚙️ Manage → Name and icon (it wins over `ICON_FILE`), or point `ICON_FILE` at a square picture (see the commented lines in the deploy
 files). After changing it, an installed app shows the new icon once the phone next checks (it can take
 a day); removing and re-installing the app shows it at once.
 

@@ -3,9 +3,10 @@
 // draft on this device until they press "Send to the editors". Their waiting ones show on their tree. Editors open
 // ☰ Menu → Suggestions: the tree shows what it would look like with the checked ones, the list is in the panel.
 import { api } from "./auth.js";
-import { $, FAMS, ME, P, S, closeMenu, dateProblems, fmtDate, h, loadGraph, name, named, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
+import { $, FAMS, ME, P, S, dateProblems, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
 import { seeTree } from "./tree.js";
 import { renderAll } from "./start.js";
+import { applySite } from "./site.js";
 import { closeEditor, flushSaves, hideDlg, showDlg, toast } from "./editor.js";
 
 const PLACES = new Set(["birthPlace", "burial"]);
@@ -183,13 +184,10 @@ export function suggestMenu() {
     try { draft = JSON.parse(localStorage.getItem(KEY())) || { items: [] }; } catch { draft = { items: [] }; }
     loadMine().then(() => { if (base) { rebuild(); renderAll(); } if (auto()) sendNow(); }).catch(() => {});
   }
-  const b = $("#menu-suggest");
-  $("#menu-review").hidden = ME.suggestions == null;
-  b.textContent = `${named("suggest", "📝 Suggestions")}${ME.suggestions ? ` (${ME.suggestions})` : ""}`;
+  applySite();  // the count on ☰ Menu → Manage
 }
-$("#menu-suggest").onclick = () => { closeMenu(); openReview(true); };
 
-async function openReview(fromMenu) {  // fromMenu: also when nothing waits (the panel then shows recent changes)
+export async function openReview(fromMenu) {  // fromMenu: also when nothing waits (the panel then shows recent changes)
   let d;
   try { d = await api("/suggestions"); } catch (err) { return toast(err.message, false); }
   ME.suggestions = d.items.length; suggestMenu();
@@ -413,7 +411,7 @@ async function decide(body) {
 // page at a time, by family. Undo puts a suggestion back on the list (an approved one is taken out of the tree first);
 // a rejected one can be deleted for good; admins can undo an editor's change.
 const H = { items: [], more: false, who: [], login: "", kind: "", closed: new Set() };
-async function openHistory(first) {
+export async function openHistory(first) {
   H.items = []; H.first = first;
   await moreHistory();
 }

@@ -303,7 +303,8 @@ async def me(request: Request):
 # ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
 MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "tips", "keys", "source")  # what the owner may hide
 LABELS = ("chat", "menu", "theme", "display", "dates", "you", "help", "install", "docs", "tips", "keys", "goto", "gramps",
-          "source", "editors", "suggest", "owner", "joining", "checkdates", "site", "logout")  # what the owner may rename (site.js LABELS)
+          "source", "manage", "logout",
+          "editors", "suggest", "owner", "joining", "checkdates", "site")  # what the owner may rename (site.js LABELS); the last six: before Manage
 GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
 
 
@@ -553,6 +554,17 @@ async def invites(request: Request):
     if (await who(request)).get("role", 0) < ROLE_OWNER:
         raise HTTPException(403, "Only the owner can invite people.")
     return CHAT.invites()
+
+
+@easy.post("/invites/cancel")
+async def cancel_invite(request: Request):
+    """☰ Menu → Manage → Invites: take back one that wasn't used yet."""
+    if (await who(request)).get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, "Only the owner can invite people.")
+    email = str((await json_body(request)).get("email") or "").strip().lower()
+    if not CHAT.cancel_invite(email):
+        raise HTTPException(404, "That invite isn't waiting any more.")
+    return {"ok": True}
 
 
 # ---------- each person's own settings, kept with their login (so they follow the person to every device) ----------

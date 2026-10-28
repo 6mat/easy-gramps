@@ -275,12 +275,12 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .centre { width: 600px; max-width: 100%; background: var(--card); border: 2.5px solid var(--accent); border-radius: 16px; padding: 20px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; box-shadow: var(--shadow); }
 .centre .full, .newperson .full { grid-column: 1 / -1; }
-.centre label, .dlg label, .newperson label, .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 700; color: var(--muted); }
-.centre input, .centre textarea, .dlg input, .newperson input, .flabel input { font-weight: 400; color: var(--ink); }
-.centre label.inline, .dlg label.inline, .newperson label.inline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; }
+.centre label, .dlg label, .msec label, .newperson label, .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 700; color: var(--muted); }
+.centre input, .centre textarea, .dlg input, .msec input, .newperson input, .flabel input { font-weight: 400; color: var(--ink); }
+.centre label.inline, .dlg label.inline, .msec label.inline, .newperson label.inline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; }
 .centre .photo-row { display: flex; gap: 16px; align-items: center; }
-.centre fieldset, .dlg fieldset, .newperson fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-.centre fieldset legend, .dlg fieldset legend, .newperson legend { font-size: 14px; font-weight: 700; color: var(--muted); padding: 0; margin-bottom: 4px; float: left; width: 100%; }
+.centre fieldset, .dlg fieldset, .msec fieldset, .newperson fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.centre fieldset legend, .dlg fieldset legend, .msec fieldset legend, .newperson legend { font-size: 14px; font-weight: 700; color: var(--muted); padding: 0; margin-bottom: 4px; float: left; width: 100%; }
 /* Keyboard keys card */
 .dlg table.keys { border-collapse: collapse; width: 100%; }
 .dlg table.keys th { text-align: left; white-space: nowrap; padding: 6px 14px 6px 0; vertical-align: top; }
@@ -572,7 +572,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .calpick { position: relative; display: grid; place-items: center; width: 48px; border: 1.5px solid var(--edge); border-radius: 10px; font-size: 22px; }
 .calpick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; padding: 0; }
 .siteicon { width: 48px; height: 48px; border-radius: 10px; border: 1px solid var(--line); }
-.dlg fieldset label.inline { width: 100%; }
+.dlg fieldset label.inline, .msec fieldset label.inline { width: 100%; }
 
 /* ☰ Menu → Family documents (docs.js) */
 .doclist { display: flex; flex-direction: column; gap: 14px; max-height: 60vh; overflow-y: auto; margin-bottom: 12px; }
@@ -636,3 +636,20 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .btools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
 .btools button.on { background: #f0b429; color: #1d1b18; border-color: #f0b429; }
 .btools button.primary { background: #7ab0e6; border-color: #7ab0e6; color: #0d1b28; }
+/* ☰ Menu → Manage (site.js): sections down the side; on a phone, tabs across the top */
+.mbody { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 0; }
+.mnav { overflow: auto; border-right: 1px solid var(--line); background: var(--card); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.mnav button { text-align: left; border-color: transparent; background: none; font-weight: 700; }
+.mnav button[aria-current=page] { background: var(--accent-soft); border-color: var(--accent); }
+.msec { overflow: auto; padding: 20px 24px 40px; }
+.msec > * { max-width: 680px; }
+.msec h2 { margin: 0 0 12px; outline: none; }
+.msec label, .msec fieldset { margin-top: 14px; }
+.msec [role=status]:not(:empty) { margin-top: 10px; }
+.msec .btnrow { margin-top: 12px; }
+@media (max-width: 620px) {
+  .mbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .mnav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
+  .mnav button { white-space: nowrap; flex: none; }
+  .msec { padding: 16px; }
+}

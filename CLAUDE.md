@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (the owner's Site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage: Suggestions, Waiting to join, Invites, Check dates, the site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
