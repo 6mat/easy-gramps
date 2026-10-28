@@ -29,6 +29,8 @@ def fake(monkeypatch, tmp_path):
     main._login_options.update(until=0, value={"password": True, "providers": []})
     main._icons.clear()
     monkeypatch.setattr(main, "ICON_UPLOAD", tmp_path / "icon.png")
+    import changes
+    monkeypatch.setattr(changes, "BACKGROUND", False)  # the change log is written before the answer: tests can look at it
     return f
 
 

@@ -193,3 +193,47 @@ export const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
 export function postJSON(path, body) {
   return api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
+
+// ---------- checks the page makes before saving (Gramps itself takes anything) ----------
+const parentsOf = id => FAMS.filter(f => f.kids.includes(id)).flatMap(f => [f.f, f.m]).filter(x => P[x]);
+function ancestors(id) {
+  const out = new Set(), todo = [id];
+  while (todo.length) for (const x of parentsOf(todo.pop())) if (!out.has(x)) { out.add(x); todo.push(x); }
+  return out;
+}
+// Adding `oid` as `rel` of `pid`: {stop} (it can't be added), {warn} (it can, after "Add anyway"), or null.
+export function linkProblem(pid, rel, oid, famId) {
+  const me = P[pid], o = oid && P[oid], who = me.first || name(me);
+  if (rel === "father" || rel === "mother") {
+    const pf = parentFam(pid), had = pf?.[rel === "father" ? "f" : "m"];
+    if (had && P[had]) return { stop: `${who} already has a ${rel}: ${name(P[had])}. Remove that link first.` };
+  }
+  if (!o) return null;
+  if (oid === pid) return { stop: "Someone can't be their own relative." };
+  if (rel === "spouse" && FAMS.some(f => (f.f === pid && f.m === oid) || (f.m === pid && f.f === oid)))
+    return { stop: `${o.first || name(o)} is already ${who}'s ${spouseWord(me)}.` };
+  if (rel === "child") {
+    const x = famId && FAMS.find(f => f.id === famId);
+    if (x?.kids.includes(oid)) return { stop: `${o.first || name(o)} is already a child of this family.` };
+    if (ancestors(pid).has(oid)) return { stop: `${name(o)} is one of ${who}'s parents or grandparents, so can't be their child.` };
+    const pf = parentFam(oid);
+    if (pf && (pf.f || pf.m)) return { warn: `${name(o)} already has parents: ${[pf.f, pf.m].filter(x => P[x]).map(x => name(P[x])).join(" and ")}. Adding them here gives a second set of parents.` };
+  }
+  if ((rel === "father" || rel === "mother") && (ancestors(oid).has(pid) || oid === pid))
+    return { stop: `${name(o)} is ${who}'s child or grandchild, so can't be their ${rel}.` };
+  return null;
+}
+// Dates that can't be right, years only (a full date is too easy to get wrong by a day): ["Died before they were born", …]
+export function dateProblems(id) {
+  const p = P[id], b = p?.birth?.y, out = [];
+  if (!p) return out;
+  if (b && p.death?.y && p.death.y < b) out.push(`Died (${p.death.y}) before they were born (${b}).`);
+  const pf = parentFam(id);
+  for (const [x, word] of [[pf?.f, "father"], [pf?.m, "mother"]]) {
+    const q = P[x];
+    if (!q || !b) continue;
+    if (q.birth?.y && b - q.birth.y < 12) out.push(`Born ${b}, when their ${word} ${q.first || name(q)} (born ${q.birth.y}) was ${b - q.birth.y < 0 ? "not born yet" : `only ${b - q.birth.y}`}.`);
+    if (q.death?.y && b > q.death.y + (word === "father" ? 1 : 0)) out.push(`Born ${b}, after their ${word} ${q.first || name(q)} died (${q.death.y}).`);
+  }
+  return out;
+}

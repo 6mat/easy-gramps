@@ -13,6 +13,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Request
 
+import changes as log
 import familytree
 import gramps
 import main as m
@@ -24,6 +25,7 @@ SENDS = ("auto", "manual")  # site `suggest_send`: each change goes as it's made
 WHO = {"off": None, "members": (m.ROLE_MEMBER, m.ROLE_CONTRIBUTOR), "everyone": (0, m.ROLE_CONTRIBUTOR)}  # roles that suggest
 STAND_IN = re.compile(r"new-[a-z0-9]{8}")
 MAX_ITEMS, MAX_WAITING, MAX_BYTES = 200, 500, 100_000
+NEW_FIELDS = {"first", "last", "nick", "gender", "birth"}  # what adding someone new takes: later changes to these go into the add
 router = APIRouter()
 
 
@@ -32,8 +34,39 @@ def q(sql, *args):
     if not getattr(c, "_suggestions", False):
         c.q(SCHEMA)
         c.q("CREATE INDEX IF NOT EXISTS suggestions_decided ON suggestions (status, decided, id)")
+        c.q("UPDATE suggestions SET status = 'waiting' WHERE status = 'working'")  # an approval cut short by a restart
         c._suggestions = True
+        _tidy()
     return c.q(sql, *args)
+
+
+def _tidy():
+    """Once at start: waiting rows that say the same thing twice (sent before 1.9.4) become one."""
+    rows = [(r["id"], r["login"], json.loads(r["item"])) for r in m.CHAT.q("SELECT id, login, item FROM suggestions WHERE status = 'waiting' ORDER BY id")]
+    seen, steps = set(), []
+    for k, login, it in rows:
+        key = (login, json.dumps(it, sort_keys=True))
+        if key in seen:
+            steps.append(("DELETE FROM suggestions WHERE id = ?", k))
+            continue
+        seen.add(key)
+        add = it["op"] == "set" and it["field"] in NEW_FIELDS and next(
+            (a for a in rows if a[1] == login and a[2]["op"] == "add" and a[2].get("as") == it["id"] and a[2].get("new")), None)
+        if add:
+            _fold(add[2], it)
+            steps += [("UPDATE suggestions SET item = ? WHERE id = ?", json.dumps(add[2]), add[0]), ("DELETE FROM suggestions WHERE id = ?", k)]
+    if steps:
+        m.CHAT.tx(*steps)
+
+
+def _fold(add: dict, it: dict):
+    """A change to someone who is still waiting to be added goes into adding them ("Add Phili, born 1970")."""
+    new = add["new"]
+    if it["value"] in (None, ""):
+        new.pop(it["field"], None)
+    else:
+        new[it["field"]] = it["value"]
+    add["label"] = " ".join(str(new.get(k) or "") for k in ("first", "last")).strip() or add.get("label", "")
 
 
 def can_suggest(user: dict) -> bool:
@@ -103,17 +136,34 @@ async def send(request: Request):
     items, note = body.get("items"), " ".join(str(body.get("note") or "").split())[:500]
     login = user["name"]
     theirs = [(r["id"], json.loads(r["item"]), r["status"]) for r in q("SELECT id, item, status FROM suggestions WHERE login = ? "
-                                                                          "AND status IN ('waiting', 'approved')", login)]
+                                                                          "AND status IN ('waiting', 'approved', 'working')", login)]
+    # Sent again (the answer was lost on the way back, so the page kept it): the server has it already.
+    had = {it.get("fam") for _, it, _ in theirs if it["op"] == "add"} | {r["f"] for r in q(
+        "SELECT json_extract(item, '$.fam') f FROM suggestions WHERE login = ? AND status = 'rejected'", login)}
+    if isinstance(items, list) and items:
+        items = [it for it in items if not (isinstance(it, dict) and it.get("op") == "add" and it.get("fam") in had)]
+        if not items:
+            return {"batch": None, "count": 0}
     g = gramps.Gramps(m.GRAMPS_URL, m.bearer(request))
     for h in _check(items, {x for _, it, _ in theirs for x in (it.get("as"), it.get("fam")) if x}):
         await g.get(f"/people/{h}", keys="handle")  # only people they can see (a guest can't suggest about a private person)
+    for it in items:
+        if it["op"] == "add":
+            await _can_link(g, it, [o for _, o, st in theirs if st != "approved"])
     # Sent as they go (Site settings: automatic): a newer value for a field replaces the waiting one, and putting back
     # the value it had takes it off the list.
     steps, fresh = [], []
     for it in items:
         old = next(((k, o) for k, o, st in theirs if st == "waiting" and it["op"] == o["op"] == "set"
                     and (o["id"], o["field"]) == (it["id"], it["field"])), None)
-        if not old:
+        add = it["op"] == "set" and it["field"] in NEW_FIELDS and next(
+            ((k, o) for k, o, st in theirs if st == "waiting" and o["op"] == "add" and o.get("new") and o.get("as") == it["id"]), None)
+        if add:
+            _fold(add[1], it)
+            steps.append(("UPDATE suggestions SET item = ? WHERE id = ?", json.dumps(add[1]), add[0]))
+            if old:
+                steps.append(("DELETE FROM suggestions WHERE id = ?", old[0]))
+        elif not old:
             fresh.append(it)
         elif _same(it.get("label") if it["field"] in ("birthPlace", "burial") else it["value"], old[1].get("before")):
             steps.append(("DELETE FROM suggestions WHERE id = ?", old[0]))
@@ -129,6 +179,31 @@ async def send(request: Request):
     return {"batch": batch, "count": len(items)}
 
 
+async def _can_link(g, it, waiting):
+    """Refuse a link Gramps would refuse at approval (so they hear it now, not the editor later)."""
+    ph, rel, oh = it["person"], it["rel"], it.get("existing")
+    mine = [o for o in waiting if o["op"] == "add" and o["person"] == ph and o["rel"] == rel and rel in ("father", "mother")]
+    if mine:
+        raise HTTPException(400, f"You already suggested a {rel} for them ({_label(mine[0])}). It's waiting for an editor.")
+    if STAND_IN.fullmatch(ph):
+        return
+    if rel in ("father", "mother"):
+        p = await g.get(f"/people/{ph}", keys="parent_family_list")
+        for fh in (p.get("parent_family_list") or [])[:1]:
+            had = (await g.get(f"/families/{fh}", keys=f"{rel}_handle")).get(f"{rel}_handle")
+            if had:
+                raise HTTPException(400, f"{await log.name_of(g, ph)} already has a {rel}: {await log.name_of(g, had)}. Ask an editor if that's wrong.")
+    if oh and not STAND_IN.fullmatch(oh):
+        if rel == "child":
+            o = await g.get(f"/people/{oh}", keys="parent_family_list")
+            if o.get("parent_family_list"):
+                raise HTTPException(400, f"{await log.name_of(g, oh)} already has parents in the tree. Ask an editor to change them.")
+        if rel == "spouse":
+            a, b = await g.get(f"/people/{ph}", keys="family_list"), await g.get(f"/people/{oh}", keys="family_list")
+            if set(a.get("family_list") or []) & set(b.get("family_list") or []):
+                raise HTTPException(400, "They're already husband and wife.")
+
+
 def _made() -> dict:
     out = {}
     for r in q("SELECT made FROM suggestions WHERE made IS NOT NULL"):
@@ -139,29 +214,60 @@ def _made() -> dict:
 PAGE = 100
 
 
+KINDS = {"": "", "approved": "s", "rejected": "s", "editors": "c"}
+
+
 @router.get("/suggestions/history")
-async def history(request: Request, before: str = "", login: str = ""):
-    """Editors: decided ones, newest first, PAGE at a time (`before`: the last one's "decided:id"; `login`: only theirs).
-    Undo puts one back on the waiting list."""
-    await m.need_edit(request, "Only editors can see this.")
+async def history(request: Request, before: str = "", login: str = "", kind: str = ""):
+    """Editors: decided suggestions and changes made straight in the tree (changes.py), newest first, PAGE at a time.
+    `before`: the last one's "time:s|c:id"; `login`: only theirs (who suggested, or who changed it); `kind`: approved,
+    rejected or editors. Undo puts a suggestion back on the waiting list; admins can undo a change."""
+    user = await m.who(request)
+    if not user.get("can_edit"):
+        raise HTTPException(403, "Only editors can see this.")
+    if kind not in KINDS:
+        raise HTTPException(400, "Something was missing. Please try again.")
+    q("SELECT 1"), log.q("SELECT 1")  # (both tables exist)
     names = m.CHAT.full_names()
-    where, args = ["status != 'waiting'"], []
+    s_where, c_where, args_s, args_c = ["status IN ('approved', 'rejected')"], ["1"], [], []
+    if kind in ("approved", "rejected"):
+        s_where.append("status = ?")
+        args_s.append(kind)
+    if login:
+        s_where.append("login = ?")
+        c_where.append("login = ?")
+        args_s.append(login)
+        args_c.append(login)
+    parts = ([f"SELECT 's' k, id, decided t FROM suggestions WHERE {' AND '.join(s_where)}"] if KINDS[kind] != "c" else []) + \
+            ([f"SELECT 'c' k, id, at t FROM changes WHERE {' AND '.join(c_where)}"] if KINDS[kind] != "s" else [])
+    args = (args_s if KINDS[kind] != "c" else []) + (args_c if KINDS[kind] != "s" else [])
+    cut = ""
     if before:
         try:
-            t, k = before.split(":")
-            args += [float(t), float(t), int(k)]
+            t, k, i = before.split(":")
+            args += [float(t), float(t), k, k, int(i)]
         except ValueError:
             raise HTTPException(400, "Something was missing. Please try again.") from None
-        where.append("(decided < ? OR (decided = ? AND id < ?))")
-    if login:
-        where.append("login = ?")
-        args.append(login)
-    rows = q(f"SELECT * FROM suggestions WHERE {' AND '.join(where)} ORDER BY decided DESC, id DESC LIMIT {PAGE + 1}", *args)
-    who = [r["login"] for r in q("SELECT DISTINCT login FROM suggestions WHERE status != 'waiting' ORDER BY login")]
-    return {"items": [{"id": r["id"], "status": r["status"], "login": r["login"], "name": names.get(r["login"], r["login"]),
-                       "by": names.get(r["by"], r["by"]), "decided": r["decided"], "item": json.loads(r["item"]),
-                       "undo": r["status"] == "rejected" or bool(r["undo"])} for r in rows[:PAGE]],
-            "more": len(rows) > PAGE, "who": [{"login": x, "name": names.get(x, x)} for x in who], "made": _made()}
+        cut = "WHERE t < ? OR (t = ? AND (k > ? OR (k = ? AND id < ?)))"
+    keys = m.CHAT.q(f"SELECT * FROM ({' UNION ALL '.join(parts)}) {cut} ORDER BY t DESC, k, id DESC LIMIT {PAGE + 1}", *args)
+    sug = {r["id"]: r for r in q(f"SELECT * FROM suggestions WHERE id IN ({','.join(str(x['id']) for x in keys if x['k'] == 's') or 0})")}
+    chg = {r["id"]: r for r in log.q(f"SELECT * FROM changes WHERE id IN ({','.join(str(x['id']) for x in keys if x['k'] == 'c') or 0})")}
+    admin = user.get("role", 0) >= m.ROLE_ADMIN
+    items = []
+    for x in keys[:PAGE]:
+        if x["k"] == "s":
+            r = sug[x["id"]]
+            items.append({"type": "s", "id": r["id"], "status": r["status"], "login": r["login"], "name": names.get(r["login"], r["login"]),
+                          "by": names.get(r["by"], r["by"]), "decided": r["decided"], "item": json.loads(r["item"]),
+                          "undo": r["status"] == "rejected" or bool(r["undo"])})
+        else:
+            r = chg[x["id"]]
+            items.append({"type": "c", "id": r["id"], "status": "undone" if r["undone"] else "changed", "login": r["login"],
+                          "by": names.get(r["login"], r["login"]), "decided": r["at"], "item": json.loads(r["item"]),
+                          "undone_by": names.get(r["undone_by"], r["undone_by"]), "undo": admin and bool(r["undo"]) and not r["undone"]})
+    who = {r["login"] for r in q("SELECT DISTINCT login FROM suggestions WHERE status != 'waiting'")} | \
+          {r["login"] for r in log.q("SELECT DISTINCT login FROM changes")}
+    return {"items": items, "more": len(keys) > PAGE, "who": [{"login": x, "name": names.get(x, x)} for x in sorted(who)], "made": _made()}
 
 
 @router.post("/suggestions/delete")
@@ -199,8 +305,10 @@ async def waiting(request: Request):
 
 @router.post("/suggestions/decide")
 async def decide(request: Request):
-    """{approve: [ids], reject: [ids]}: editors. Approved ones are saved oldest first; one that fails (or needs a
-    person that isn't approved) stays waiting with the reason, and the rest still go through."""
+    """{approve: [ids], reject: [ids], quiet?}: editors. Approved ones are saved oldest first; one that fails (or needs a
+    person that isn't approved) stays waiting with the reason, and the rest still go through. Each row is claimed
+    first ('working'), so a second Approve (another tab, a click while it's slow) can't add it twice. The page sends
+    big lists one at a time with `quiet` (to show progress), then POST /suggestions/tell once."""
     await m.need_edit(request, "Only editors can approve suggestions.")
     editor, _ = await m.chat_user(request)
     body = await m.json_body(request)
@@ -213,7 +321,7 @@ async def decide(request: Request):
                    "RETURNING login", editor, now, k):
             done.setdefault(r["login"], [[], []])[1].append(k)
     for k in sorted(ids["approve"]):
-        row = q("SELECT * FROM suggestions WHERE id = ? AND status = 'waiting'", k)
+        row = q("UPDATE suggestions SET status = 'working' WHERE id = ? AND status = 'waiting' RETURNING *", k)
         if not row:
             continue
         it = json.loads(row[0]["item"])
@@ -238,16 +346,36 @@ async def decide(request: Request):
                 back = res.get("undo")
         except (gramps.GrampsError, HTTPException) as e:
             msg = getattr(e, "detail", None) or str(e)
-            q("UPDATE suggestions SET error = ? WHERE id = ?", msg, k)
+            q("UPDATE suggestions SET status = 'waiting', error = ? WHERE id = ?", msg, k)
             failed.append({"id": k, "error": msg})
             continue
         q("UPDATE suggestions SET status = 'approved', by = ?, decided = ?, error = NULL, made = ?, undo = ? WHERE id = ?",
           editor, now, json.dumps(new) if new else None, json.dumps(back) if back else None, k)
         done.setdefault(row[0]["login"], [[], []])[0].append(k)
+    if not body.get("quiet"):
+        await _thank(g, editor, done)
+    return {"approved": sum(len(v[0]) for v in done.values()), "rejected": sum(len(v[1]) for v in done.values()), "failed": failed,
+            "ids": [k for v in done.values() for k in v[0]]}
+
+
+async def _thank(g, editor, done):
     for login, (yes, no) in done.items():  # tell them what, in a private message from the editor
         lines = [f"✓ Added: {x}" for x in await _say(g, yes)] + [f"✗ Not added: {x}" for x in await _say(g, no)]
         _tell(editor, login, "I looked at your suggestions. Thank you!\n" + "\n".join(lines))
-    return {"approved": sum(len(v[0]) for v in done.values()), "rejected": sum(len(v[1]) for v in done.values()), "failed": failed}
+
+
+@router.post("/suggestions/tell")
+async def tell(request: Request):
+    """{approved: [ids]}: after approving one at a time (decide with `quiet`), one message to each person."""
+    await m.need_edit(request, "Only editors can approve suggestions.")
+    editor, _ = await m.chat_user(request)
+    ids = [x for x in (await m.json_body(request)).get("approved") or [] if type(x) is int][:MAX_WAITING]
+    done = {}
+    for k in ids:
+        for r in q("SELECT login FROM suggestions WHERE id = ? AND status = 'approved' AND by = ?", k, editor):
+            done.setdefault(r["login"], [[], []])[0].append(k)
+    await _thank(await m.gramps_as(request), editor, done)
+    return {"ok": True}
 
 
 WORDS = {"first": "first name", "last": "last name", "nick": "nickname", "gender": "gender", "birth": "date of birth", "birthPlace": "place of birth",

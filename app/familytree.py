@@ -83,9 +83,9 @@ async def graph(g: Gramps) -> dict:
     return {"people": out, "families": fams, "media": pictures}  # media: each picture's Gramps ID
 
 
-async def details(g: Gramps, handle: str) -> dict:
+async def details(g: Gramps, handle: str, p=None) -> dict:
     """Where they live, phone, email, work, education and notes: loaded only when someone opens "More details"."""
-    p = await g.get(f"/people/{handle}", extend="note_list,event_ref_list")
+    p = p or await g.get(f"/people/{handle}", extend="note_list,event_ref_list")
     addr = next(iter(p.get("address_list") or []), {})
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
     # The editor changes only the first note (the one it shows); any others are shown read-only.
@@ -104,7 +104,7 @@ async def details(g: Gramps, handle: str) -> dict:
 
 async def fields_now(g: Gramps, handle: str) -> dict:
     """One person's fields as PATCH /tree/person takes them (places as {id}): what to put back to undo a change."""
-    p = await g.get(f"/people/{handle}", extend="event_ref_list")
+    p = await g.get(f"/people/{handle}", extend="note_list,event_ref_list")
     events = {e["handle"]: e for e in (p.get("extended") or {}).get("events", [])}
     refs = p.get("event_ref_list") or []
 
@@ -113,7 +113,7 @@ async def fields_now(g: Gramps, handle: str) -> dict:
     birth, death = at(p.get("birth_ref_index", -1)), at(p.get("death_ref_index", -1))
     burial = next((e for e in events.values() if e.get("type") == "Burial"), None)
     name = p["primary_name"]
-    return {**await details(g, handle), "first": (name.get("first_name") or "").strip(), "last": surname_of(name),
+    return {**await details(g, handle, p), "first": (name.get("first_name") or "").strip(), "last": surname_of(name),
             "nick": name.get("nick") or "", "gender": GENDER_CODE.get(p.get("gender"), ""), "birth": ymd((birth or {}).get("date")),
             "birthPlace": {"id": birth["place"]} if (birth or {}).get("place") else "", "deceased": death is not None,
             "death": ymd((death or {}).get("date")), "burial": {"id": burial["place"]} if (burial or {}).get("place") else ""}
@@ -430,7 +430,9 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
     # Check before creating anyone, so a refused add leaves nothing behind.
     parent_fam = await _family_parent_of(g, person) if rel in ("father", "mother") else None
     if parent_fam and parent_fam.get(f"{rel}_handle"):
-        raise GrampsError(f"They already have a {rel}. Remove that link first.")
+        had = await g.get(f"/people/{parent_fam[f'{rel}_handle']}", keys="primary_name")
+        who = " ".join(x for x in ((had["primary_name"].get("first_name") or "").strip(), surname_of(had["primary_name"])) if x)
+        raise GrampsError(f"They already have a {rel}{f': {who}' if who else ''}. Remove that link first.")
     if rel == "child" and fam_id and fam_id not in (person.get("family_list") or []):
         raise GrampsError("That family isn't theirs. Please reload and try again.")
     created = None
@@ -446,14 +448,19 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
         if rel == "spouse":
             implied = {1: "female", 0: "male"}.get(person.get("gender"))
         oh, objs = new_person(body.get("new") or {}, tags, implied)
-        await g.add_objects(objs)
-        created = oh
-        other = await g.get(f"/people/{oh}")
+        created, other = oh, objs[0]
+    pending = objs if created else []  # the new person goes to Gramps with their new family, in one write
+
+    async def write(fam=None):
+        if pending or fam:
+            await g.add_objects(pending + ([fam] if fam else []))
+            pending.clear()
 
     if rel in ("father", "mother"):
         side = f"{rel}_handle"
         fam = parent_fam
         if fam:
+            await write()
             # They may already be a couple in another family (A and B married; the children were added
             # with A only): the children then join that family instead of making the couple twice.
             couple = await _couple_family(g, fam, side, oh)
@@ -469,24 +476,25 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
                 return {"added": oh, "famId": couple, "undo": undo, "joined": True}
         else:
             fam = _family(oh if rel == "father" else None, oh if rel == "mother" else None, [ph], tags)
-            await g.add_objects([fam])
+            await write(fam)
             fam_id = fam["handle"]
     elif rel == "spouse":
         person_is_father = person.get("gender") == 1 or (person.get("gender") != 0 and other.get("gender") != 1)
         fam = _family(ph if person_is_father else oh, oh if person_is_father else ph, [], tags)
-        await g.add_objects([fam])
+        await write(fam)
         fam_id = fam["handle"]
     else:  # child
         fam = await g.get(f"/families/{fam_id}") if fam_id else None
         if fam:
             if any(c["ref"] == oh for c in fam.get("child_ref_list", [])):
                 raise GrampsError("They're already a child of this family")
+            await write()
             fam["child_ref_list"].append(child_ref(oh))
             await g.put(f"/families/{fam_id}", fam)
         else:
             is_mother = person.get("gender") == 0
             fam = _family(None if is_mother else ph, ph if is_mother else None, [oh], tags)
-            await g.add_objects([fam])
+            await write(fam)
             fam_id = fam["handle"]
 
     undo = {"op": "unlink", "person": ph, "rel": rel, "other": oh, "famId": fam_id}
@@ -644,3 +652,68 @@ async def recent_changes(g: Gramps, limit: int = 8) -> list:
     except GrampsError:
         pass
     return [{"id": p["handle"], "changed": p.get("change"), "by": who.get(p["handle"])} for p in people]
+
+
+# ---------- a page of a book (a document in Gramps' Media) on a person: a Gramps citation ----------
+# The book is a Source with the document attached; each person gets a Citation of it with the page ("42"). Full Gramps
+# shows the same thing (the person's Source Citations).
+
+async def books(g: Gramps, handle: str) -> list:
+    """The person's citations whose source has a document (not a picture): [{id, page, title, media, mime}]."""
+    p = await g.get(f"/people/{handle}", keys="citation_list")
+    out, sources = [], {}
+    for ch in p.get("citation_list") or []:
+        try:
+            c = await g.get(f"/citations/{ch}", keys="handle,page,source_handle")
+            sh = c.get("source_handle")
+            if sh not in sources:
+                src = await g.get(f"/sources/{sh}", keys="title,media_list")
+                ref = next(iter(src.get("media_list") or []), {}).get("ref")
+                med = await g.get(f"/media/{ref}", keys="mime,desc") if ref else {}
+                sources[sh] = (src.get("title") or med.get("desc") or "", ref, med.get("mime") or "")
+            title, ref, mime = sources[sh]
+        except GrampsError:
+            continue
+        if ref and not mime.startswith("image/"):
+            out.append({"id": ch, "page": (c.get("page") or "").strip(), "title": title, "media": ref, "mime": mime})
+    return out
+
+
+async def add_book_page(g: Gramps, handle: str, body: dict, tags: list) -> dict:
+    """{media, page}: cite that document (its Source, made the first time) on the person."""
+    media, page = body.get("media"), str(body.get("page") or "").strip()[:50]
+    if not isinstance(media, str) or not media.isalnum() or not page:
+        raise GrampsError("Pick the book and type the page.")
+    med = await g.get(f"/media/{media}", keys="handle,mime,desc,path")
+    if (med.get("mime") or "").startswith("image/"):
+        raise GrampsError("That's a picture, not a book.")
+    src = next((s["handle"] for s in await g.get("/sources/", keys="handle,media_list")
+                if any(r.get("ref") == media for r in s.get("media_list") or [])), None)
+    objs = []
+    if not src:
+        src = new_handle()
+        title = (med.get("desc") or "").strip() or (med.get("path") or "").rsplit("/", 1)[-1]
+        objs.append({"_class": "Source", "handle": src, "title": title, "tag_list": list(tags),
+                     "media_list": [{"_class": "MediaRef", "ref": media}]})
+    cid = new_handle()
+    objs.append({"_class": "Citation", "handle": cid, "source_handle": src, "page": page, "confidence": 2, "tag_list": list(tags)})
+    await g.add_objects(objs)
+    p = await g.get(f"/people/{handle}")
+    p["citation_list"] = (p.get("citation_list") or []) + [cid]
+    await g.put(f"/people/{handle}", p)
+    return {"id": cid}
+
+
+async def remove_book_page(g: Gramps, handle: str, body: dict) -> dict:
+    """{id}: take that citation off the person; it's deleted when nothing else uses it (the book stays)."""
+    cid = body.get("id")
+    if not isinstance(cid, str) or not cid.isalnum():
+        raise GrampsError("Something was missing. Please try again.")
+    p = await g.get(f"/people/{handle}")
+    if cid not in (p.get("citation_list") or []):
+        raise GrampsError("That page isn't on this person any more.", 404)
+    p["citation_list"] = [c for c in p["citation_list"] if c != cid]
+    await g.put(f"/people/{handle}", p)
+    if not await g.in_use("citations", cid):
+        await g.delete(f"/citations/{cid}")
+    return {"ok": True}

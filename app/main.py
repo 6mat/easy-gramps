@@ -41,7 +41,7 @@ SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6ma
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
-ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR, ROLE_OWNER = 1, 2, 3, 4  # Gramps Web roles: see private / add / change / users
+ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR, ROLE_OWNER, ROLE_ADMIN = 1, 2, 3, 4, 5  # Gramps Web roles: see private / add / change / users / the server
 DATA = pathlib.Path(os.environ.get("DATA_DIR", "/data"))
 # The chat's daily email (unread messages that waited a day). The same names as Gramps Web's own email settings,
 # with or without its GRAMPSWEB_ prefix, so one env file can serve both; no host: no emails.
@@ -653,7 +653,9 @@ async def tree_places(request: Request):
 
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
-    d = await familytree.details(await gramps_as(request), handle)
+    g = await gramps_as(request)
+    d, books = await asyncio.gather(familytree.details(g, handle), familytree.books(g, handle))
+    d["books"] = [{**b, "ticket": file_ticket(b["media"], bearer(request))} for b in books]  # (a link to the page: docs.js)
     if not (await who(request)).get("can_edit"):  # contacts are for editors (chat lets the rest reach each other)
         d["contactHidden"] = bool(d["phone"] or d["email"])
         d["phone"] = d["email"] = ""
@@ -683,7 +685,10 @@ async def tree_update_person(handle: str, request: Request):
     await need_edit(request, "Only editors can change details.")
     g = await gramps_as(request)
     changes = await json_body(request)
-    return await familytree.update_person(g, handle, changes, await tree_tags(g))
+    before = await familytree.fields_now(g, handle)  # for History (and an admin's Undo)
+    res = await familytree.update_person(g, handle, changes, await tree_tags(g))
+    await log.later(log.fields(g, (await who(request))["name"], handle, before, [f for f in changes if f in familytree.FIELDS]))
+    return res
 
 
 PHOTO_MAX_MB = 20
@@ -706,24 +711,67 @@ async def tree_set_photo(handle: str, request: Request):
     if (f.size or 0) > PHOTO_MAX_MB * 1024 * 1024:
         raise too_big
     g = await gramps_as(request)
-    return await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g), main)
+    res = await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g), main)
+    log.add((await who(request))["name"], {"op": "other", "id": handle, "what": "added a photo"})
+    return res
 
 
 @easy.post("/tree/person/{handle}/photos")
 async def tree_photo_change(handle: str, request: Request):
     await need_edit(request, "Only editors can change photos.")
-    return await familytree.photo_change(await gramps_as(request), handle, await json_body(request))
+    body = await json_body(request)
+    res = await familytree.photo_change(await gramps_as(request), handle, body)
+    log.add((await who(request))["name"], {"op": "other", "id": handle,
+                                           "what": "took a photo off" if body.get("do") == "remove" else "changed the profile photo"})
+    return res
 
 
-async def _tree_call(request, fn, with_tags=True):
+@easy.post("/tree/person/{handle}/books")
+async def tree_add_book_page(handle: str, request: Request):
+    await need_edit(request, "Only editors can add a book page.")
     g = await gramps_as(request)
     body = await json_body(request)
-    return await (fn(g, body, await tree_tags(g)) if with_tags else fn(g, body))
+    res = await familytree.add_book_page(g, handle, body, await tree_tags(g))
+    log.add((await who(request))["name"], {"op": "other", "id": handle, "what": f"added a book page ({body.get('page')})"})
+    return res
+
+
+@easy.post("/tree/person/{handle}/books/remove")
+async def tree_remove_book_page(handle: str, request: Request):
+    await need_edit(request, "Only editors can remove a book page.")
+    res = await familytree.remove_book_page(await gramps_as(request), handle, await json_body(request))
+    log.add((await who(request))["name"], {"op": "other", "id": handle, "what": "took a book page off"})
+    return res
+
+
+async def _tree_call(request, fn, with_tags=True, say=None):
+    """say(g, body, result) → History's row for it (log.py), or None."""
+    g = await gramps_as(request)
+    body = await json_body(request)
+    res = await (fn(g, body, await tree_tags(g)) if with_tags else fn(g, body))
+    row = say and await say(g, body, res)
+    if row:
+        log.add((await who(request))["name"], *row)
+    return res
+
+
+async def _said_create(g, body, res):
+    return {"op": "create", "id": res["added"], "label": " ".join(str(body.get(k) or "").strip() for k in ("first", "last")).strip()},
+
+
+async def _said_add(g, body, res):
+    return ({"op": "add", "person": body.get("person"), "rel": body.get("rel"), "existing": res["added"],
+             "label": await log.name_of(g, res["added"]), **({"new": True} if body.get("new") else {})}, res.get("undo"))
+
+
+async def _said_unlink(g, body, res):
+    return ({"op": "unlink", "person": body.get("person"), "rel": body.get("rel"), "other": body.get("other"),
+             "label": await log.name_of(g, body.get("other"))}, res.get("undo"))
 
 
 @easy.post("/tree/person")
 async def tree_create_person(request: Request):
-    return await _tree_call(request, familytree.create_person)
+    return await _tree_call(request, familytree.create_person, say=_said_create)
 
 
 LINK_REFUSED = "Only editors can link family members. Ask an editor to add them."
@@ -739,32 +787,42 @@ async def need_edit(request: Request, message: str):
 @easy.post("/tree/relative")
 async def tree_add_relative(request: Request):
     await need_edit(request, LINK_REFUSED)
-    return await _tree_call(request, familytree.add_relative)
+    return await _tree_call(request, familytree.add_relative, say=_said_add)
 
 
 @easy.post("/tree/unlink")
 async def tree_unlink(request: Request):
     await need_edit(request, LINK_REFUSED)
-    return await _tree_call(request, familytree.unlink, with_tags=False)
+    return await _tree_call(request, familytree.unlink, with_tags=False, say=_said_unlink)
 
 
 @easy.post("/tree/undo")
 async def tree_undo(request: Request):
     await need_edit(request, "Only editors can undo changes to family links.")
-    return await _tree_call(request, familytree.undo)
+    token = await json_body(request)
+    res = await _tree_call(request, familytree.undo)
+    log.undone_by_toast(token)
+    return res
 
 
 @easy.post("/tree/families/merge")
 async def tree_merge_families(request: Request):
     await need_edit(request, "Only editors can combine families.")
-    return await _tree_call(request, familytree.merge_families, with_tags=False)
+    return await _tree_call(request, familytree.merge_families, with_tags=False,
+                            say=lambda g, body, res: _said(g, "combine", body.get("keep"), "combined the same couple listed twice"))
+
+
+async def _said(g, op, h, what, label=""):
+    fam = await g.get(f"/families/{h}") if op == "combine" else {}
+    return {"op": op, "id": fam.get("father_handle") or fam.get("mother_handle") or h, "what": what, "label": label},
 
 
 @easy.post("/tree/merge")
 async def tree_merge(request: Request):
     await need_edit(request, "Only people with edit rights can merge")
     body = await json_body(request)
-    res = await _tree_call(request, familytree.merge)
+    gone = await log.name_of(await gramps_as(request), body.get("absorb")) if isinstance(body.get("absorb"), str) else ""
+    res = await _tree_call(request, familytree.merge, say=lambda g, b, r: _said(g, "merge", body.get("keep"), "merged", gone))
     if isinstance(body.get("keep"), str) and isinstance(body.get("absorb"), str):
         CHAT.move_person(body["absorb"], body["keep"])  # their login link and the talk about them
     return res
@@ -1195,9 +1253,11 @@ async def index():
     return page("tree.html")
 
 
+import changes as log  # noqa: E402  (History: what was changed straight in the tree)
 import suggest  # noqa: E402  (suggestions from people who can't change the tree)
 
 easy.include_router(suggest.router)
+easy.include_router(log.router)
 
 easy.mount("/static", StaticFiles(directory=STATIC), name="static")
 

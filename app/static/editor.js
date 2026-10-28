@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canChange, canEdit, canLink, dateHint, desc, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -8,6 +8,7 @@ import { openViewer } from "./photos.js";
 import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
 import { draftAdd, draftBar, draftSet, suggesting } from "./suggest.js";
+import { bookEditor } from "./docs.js";
 
 // ---------- undo + toast ----------
 let toastTimer, undoToken = null;
@@ -20,6 +21,7 @@ export function toast(msg, undo = null) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { $("#toast").hidden = true; undoToken = null; }, 10000);
 }
+$("#toast-x").onclick = () => { clearTimeout(toastTimer); $("#toast").hidden = true; undoToken = null; };
 $("#toast-undo").onclick = async () => {
   const token = undoToken;
   if (!token) return;
@@ -374,7 +376,7 @@ function centreCard(p) {
   const passed = h("input", { id: "ed-passed", type: "checkbox", disabled: !canChange() });
   passed.checked = !!p.deceased;
   const deathBox = h("div", { class: "box full" },
-    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); })),
+    h("div", { class: "flabel" }, "Date of death", dateInputs("ed-death", "Date of death", () => p.death, v => { p.death = v; autosave(p.id, { death: v }); dateWarn(p.id); })),
     placeField("Place of burial", p, "burial", "ed-burial"));
   deathBox.hidden = !p.deceased;
   passed.addEventListener("change", () => {
@@ -396,6 +398,7 @@ function centreCard(p) {
     field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
     field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
     field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
+    canEdit() && p._details ? bookEditor(p, async () => { P[p.id]._details = false; await ensureDetails(p.id); setStatus("Saved ✓"); renderEditor(); }) : "",
     p.otherNotes.length ? h("div", { class: "small muted full" },
       `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
@@ -408,13 +411,24 @@ function centreCard(p) {
     field("Last name", bindText(p, "last", "ed-last")),
     field("Nickname", bindText(p, "nick", "ed-nick")),
     gender,
-    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); })),
+    h("div", { class: "flabel" }, "Birthday", dateInputs("ed-birth", "Birthday", () => p.birth, v => { p.birth = v; autosave(p.id, { birth: v }); dateWarn(p.id); })),
+    dateWarn(p.id, h("div", { id: "ed-datewarn", class: "warn full", role: "status", hidden: true })),
     placeField("Place of birth", p, "birthPlace", "ed-bplace"),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
     h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
-      "More details ▸ (residing at, work, education, phone, email, notes)"),
+      `More details ▸ (residing at, work, education, phone, email, notes${canEdit() ? ", book pages" : ""})`),
     moreBox);
+}
+
+// Dates that can't be right (theirs, and their children's against them): an amber note, saving still goes ahead.
+function dateWarn(id, box = $("#ed-datewarn")) {
+  if (!box) return box;
+  const kids = FAMS.filter(f => f.f === id || f.m === id).flatMap(f => f.kids).filter(k => P[k]);
+  const said = [...dateProblems(id), ...kids.flatMap(k => dateProblems(k).filter(t => t.includes(P[id].first || name(P[id]))).map(t => `${P[k].first || name(P[k])}: ${t}`))];
+  box.replaceChildren(h("strong", {}, "Please check the dates: "), ...said.map(t => h("div", {}, t)));
+  box.hidden = !said.length;
+  return box;
 }
 
 // The same couple recorded twice: say so, and let editors combine them (in the editor and the details panel).
@@ -596,8 +610,26 @@ function renderAdd() {
   dlg.querySelector("#add-first")?.focus();
 }
 
+// Checked before anything is saved or suggested: Gramps would refuse some of these only later (or not at all).
+function addProblem(A, choice) {
+  const base = P[A.pid], p = linkProblem(A.pid, A.rel, choice.existing, A.famId);
+  if (p?.warn && suggesting()) return { stop: `${p.warn} Ask an editor to do this one.` };
+  if (p) return p;
+  const y = (choice.existing ? P[choice.existing]?.birth : choice.new?.birth)?.y, b = base.birth?.y;
+  if (!y || !b) return null;
+  const gap = A.rel === "child" ? y - b : A.rel === "spouse" ? 99 : b - y;  // years the parent is older
+  return gap < 12 ? { warn: `The dates don't fit: a ${A.rel === "child" ? "child" : A.rel} born ${y} for ${base.first || name(base)}, born ${b}. Please check them.` } : null;
+}
+
 async function doAdd(choice) {
   const A = S.add, base = P[A.pid];
+  const problem = addProblem(A, choice);
+  if (problem && !(problem.warn && A.anyway)) {
+    $("#add-warn")?.replaceChildren(h("div", { class: "warn" }, problem.stop || problem.warn,
+      problem.warn ? h("div", { class: "btnrow" }, h("button", { onclick: () => { A.anyway = true; doAdd(choice); } }, "Add anyway")) : ""));
+    return;
+  }
+  A.anyway = false;
   const buttons = [...$("#dlg").querySelectorAll("button")];
   buttons.forEach(b => { b.disabled = true; });
   setStatus("Saving…", "saving");

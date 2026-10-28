@@ -144,7 +144,7 @@ def test_history_pages_and_delete(fake, client):
         page = client.get(f"{E}/suggestions/history").json()
         assert page["more"] and len(page["items"]) == 2 and {w["login"] for w in page["who"]} == {"ann", "bob"}
         last = page["items"][-1]
-        rest = client.get(f"{E}/suggestions/history", params={"before": f"{last['decided']}:{last['id']}"}).json()
+        rest = client.get(f"{E}/suggestions/history", params={"before": f"{last['decided']}:{last['type']}:{last['id']}"}).json()
         assert not rest["more"] and {x["id"] for x in page["items"] + rest["items"]} == set(ids)
     finally:
         suggest.PAGE = 100

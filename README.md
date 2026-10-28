@@ -21,6 +21,9 @@ relatives who find the full Gramps interface too much.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
 - **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
+- **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
+- **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.
+- **Book pages:** link a person to a page of a family book (a Gramps citation); it opens at that page.
 - **Site settings** (the owner): the app's name and icon, which menu items show and what they're called, and who gets the Full Gramps link.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,

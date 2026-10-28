@@ -1,7 +1,8 @@
 // Easy Gramps — the owner's Site settings (☰ Menu → Owner): which menu items everyone sees, who gets the Full Gramps
 // link, the app's name and its icon. Kept on the server (main.py /site), the same for everyone.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, ME, closeMenu, h, postJSON } from "./common.js";
+import { $, APP_NAME, ME, P, closeMenu, dateProblems, h, name, postJSON } from "./common.js";
+import { seeTree } from "./tree.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { ROLES } from "./me.js";
 
@@ -22,6 +23,8 @@ export function applySite() {
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   $("#menu-owner").hidden = (ME.role ?? 0) < 4;
   $("#menu-joining").textContent = `👋 Waiting to join${ME.joining ? ` (${ME.joining})` : ""}`;
+  const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
+  $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
   const names = ME.site?.labels || {};
   for (const [k, sel] of LABELS) {
     const el = $(sel);
@@ -30,6 +33,21 @@ export function applySite() {
 }
 
 $("#menu-site").onclick = () => { closeMenu(); openSite(); };
+
+// Check dates: everyone whose dates can't be right (common.js dateProblems), from the tree already in the page.
+$("#menu-dates").onclick = () => {
+  closeMenu();
+  const bad = Object.values(P).map(p => [p, dateProblems(p.id)]).filter(([, x]) => x.length).sort(([a], [b]) => name(a).localeCompare(name(b)));
+  $("#dlg").replaceChildren(h("button", { class: "dlgx", "aria-label": "Close", onclick: hideDlg }, "✕"),
+    h("h3", { id: "dlg-title" }, `Check dates${bad.length ? ` (${bad.length})` : ""}`),
+    h("p", { class: "small muted" }, "People whose dates can't be right: died before they were born, born when a parent was under 12, or after a parent died. Years only."),
+    bad.length ? h("div", { class: "datelist" }, ...bad.map(([p, x]) => h("div", { class: "sugdone" },
+      h("div", {}, h("strong", {}, name(p)), ...x.map(t => h("div", { class: "small" }, t))),
+      h("button", { onclick: () => { hideDlg(); seeTree(p.id); } }, "See their tree"))))
+      : h("p", {}, h("strong", {}, "Nothing wrong found ✓")),
+    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
+  showDlg(false);
+};
 
 // Waiting to join: accounts Gramps Web keeps disabled until the owner lets them in (main.py /joining). Letting them
 // in here also emails them that they're in (Gramps Web itself doesn't).
