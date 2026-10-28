@@ -83,8 +83,47 @@ async def graph(g: Gramps) -> dict:
     return {"people": out, "families": fams, "media": pictures}  # media: each picture's Gramps ID
 
 
-async def details(g: Gramps, handle: str, p=None) -> dict:
-    """Where they live, phone, email, work, education and notes: loaded only when someone opens "More details"."""
+# The admin's own fields (☰ Menu → Manage → Layout): "e:<event type>" is the person's first event of that type where they
+# are the main person (role Primary), edited as "e:<type>.date" / ".place" / ".desc"; "a:<attribute type>" the first
+# attribute of that type. Events where they're a witness, godparent… (shared with the main person) are read-only.
+PARTS = ("date", "place", "desc")
+
+
+def extra_field(k) -> bool:
+    if not isinstance(k, str) or len(k) > 70 or k[:2] not in ("e:", "a:"):
+        return False
+    t, _, part = k[2:].rpartition(".") if k[0] == "e" else (k[2:], "", "")
+    return bool(t.strip()) and (k[0] == "a" or part in PARTS)
+
+
+def is_place(f) -> bool:
+    return f in ("birthPlace", "burial") or f.endswith(".place")
+
+
+def word(f) -> str:
+    """An admin's field in words: "e:Baptism.place" -> "Baptism place", "a:Caste" -> "Caste"."""
+    return f[2:].replace(".desc", " description").replace(".", " ") if extra_field(f) else f
+
+
+def extras(p) -> dict:
+    """Every event type and attribute this person has, as PATCH takes them (places as {id}); `_ev`: which event."""
+    events = {e["handle"]: e for e in (p.get("extended") or {}).get("events", [])}
+    out, ev = {}, {}
+    for r in p.get("event_ref_list") or []:
+        e = events.get(r["ref"])
+        if e and r.get("role", "Primary") == "Primary" and f"e:{e.get('type')}" not in ev:
+            k = f"e:{e.get('type')}"
+            ev[k] = e["handle"]
+            out |= {f"{k}.date": ymd(e.get("date")), f"{k}.place": {"id": e["place"]} if e.get("place") else "",
+                    f"{k}.desc": (e.get("description") or "").strip()}
+    for a in p.get("attribute_list") or []:
+        out.setdefault(f"a:{a.get('type')}", a.get("value") or "")
+    return {**out, "_ev": ev}
+
+
+async def details(g: Gramps, handle: str, p=None, want=()) -> dict:
+    """Where they live, phone, email, work, education and notes: loaded only when someone opens "More details".
+    want: the admin's fields to add ("e:Baptism", "a:Caste"), places by name, the others of each type in `also`."""
     p = p or await g.get(f"/people/{handle}", extend="note_list,event_ref_list")
     addr = next(iter(p.get("address_list") or []), {})
     email = next((u["path"].removeprefix("mailto:") for u in p.get("urls") or [] if u.get("type") == "E-mail"), "")
@@ -96,7 +135,28 @@ async def details(g: Gramps, handle: str, p=None) -> dict:
     # The editor changes the first of each; any others are shown read-only.
     events = (p.get("extended") or {}).get("events", [])
     said = {t: [(e.get("description") or "").strip() for e in events if e.get("type") == t] for t in ("Occupation", "Education")}
-    return {"work": (said["Occupation"] or [""])[0], "otherWork": [x for x in said["Occupation"][1:] if x],
+    more, also = extras(p), {}
+    roles = {r["ref"]: r.get("role", "Primary") for r in p.get("event_ref_list") or []}
+    for k in want:
+        if k.startswith("a:"):
+            also[k] = [a.get("value") or "" for a in p.get("attribute_list") or [] if f"a:{a.get('type')}" == k][1:]
+        else:
+            also[k] = [{"date": ymd(e.get("date")), "place": e.get("place") or "", "desc": (e.get("description") or "").strip(),
+                        "role": "" if roles.get(e["handle"]) == "Primary" else roles.get(e["handle"], "")}
+                       for e in events if f"e:{e.get('type')}" == k and e["handle"] != more["_ev"].get(k)]
+    wanted = {f: v for f, v in more.items() if f.split(".")[0] in want}
+    ids = list({v["id"] for f, v in wanted.items() if f.endswith(".place") and v}
+               | {x["place"] for k in also for x in also[k] if isinstance(x, dict) and x["place"]})
+    named = {i: n["name"]["value"] for i, n in zip(ids, await asyncio.gather(*(g.get(f"/places/{i}", keys="name") for i in ids)), strict=True)}
+    for f, v in wanted.items():
+        if f.endswith(".place"):
+            wanted[f] = named.get(v["id"], "") if v else ""
+    for k in also:
+        for x in also[k]:
+            if isinstance(x, dict):
+                x["place"] = named.get(x["place"], "")
+    return {**wanted, "also": also,
+            "work": (said["Occupation"] or [""])[0], "otherWork": [x for x in said["Occupation"][1:] if x],
             "education": (said["Education"] or [""])[0], "otherEducation": [x for x in said["Education"][1:] if x],
             "residence": addr.get("city", ""), "residenceRest": rest, "phone": addr.get("phone", ""), "email": email,
             "notes": notes[0] if notes else "", "otherNotes": [t for t in notes[1:] if t]}
@@ -113,7 +173,7 @@ async def fields_now(g: Gramps, handle: str) -> dict:
     birth, death = at(p.get("birth_ref_index", -1)), at(p.get("death_ref_index", -1))
     burial = next((e for e in events.values() if e.get("type") == "Burial"), None)
     name = p["primary_name"]
-    return {**await details(g, handle, p), "first": (name.get("first_name") or "").strip(), "last": surname_of(name),
+    return {**await details(g, handle, p), **extras(p), "first": (name.get("first_name") or "").strip(), "last": surname_of(name),
             "nick": name.get("nick") or "", "gender": GENDER_CODE.get(p.get("gender"), ""), "birth": ymd((birth or {}).get("date")),
             "birthPlace": {"id": birth["place"]} if (birth or {}).get("place") else "", "deceased": death is not None,
             "death": ymd((death or {}).get("date")), "burial": {"id": burial["place"]} if (burial or {}).get("place") else ""}
@@ -156,7 +216,7 @@ async def places(g: Gramps) -> list:
 
 
 async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> dict:
-    unknown = set(changes) - FIELDS
+    unknown = {k for k in changes if k not in FIELDS and not extra_field(k)}
     if unknown:
         raise GrampsError(f"Can't change: {', '.join(sorted(unknown))}")
     p = await g.get(f"/people/{handle}")
@@ -205,8 +265,9 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
             ev = await load_event(refs[idx]["ref"])
             dirty_events[ev["handle"]] = ev
             return ev
-        if not create:
-            return None
+        return new_event(etype, index_key) if create else None
+
+    def new_event(etype, index_key=None):
         ev = {"_class": "Event", "handle": new_handle(), "type": etype, "place": "", "description": "",
               "tag_list": list(tags), "private": False}
         new_objs.append(ev)
@@ -230,6 +291,40 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
             new_objs.remove(ev)
         else:
             dropped.append(ev["handle"])
+
+    async def own_event(etype, create):
+        """Their first event of this type where they're the main person: the admin's fields edit that one."""
+        for r in refs:
+            if r.get("role", "Primary") == "Primary" and (await load_event(r["ref"])).get("type") == etype:
+                dirty_events[r["ref"]] = loaded[r["ref"]]
+                return loaded[r["ref"]]
+        return new_event(etype) if create else None  # (not event(): that could find one they're only a witness at)
+
+    for key, v in changes.items():
+        if key.startswith("a:"):
+            attrs, text = p.setdefault("attribute_list", []), (v or "").strip() if isinstance(v, str) else ""
+            i = next((i for i, a in enumerate(attrs) if a.get("type") == key[2:]), None)
+            if text and i is None:
+                attrs.append({"_class": "Attribute", "private": False, "type": key[2:], "value": text})
+            elif text:
+                attrs[i]["value"] = text
+            elif i is not None:
+                attrs.pop(i)
+        elif key.startswith("e:"):
+            etype, part = key[2:].rsplit(".", 1)
+            given = to_gramps_date(v) if part == "date" else place_given(v) if part == "place" else v.strip() if isinstance(v, str) else ""
+            ev = await own_event(etype, bool(given))
+            if not ev:
+                continue
+            if part == "date":
+                ev["date"] = given or dict(EMPTY_DATE)
+            elif part == "place":
+                ev["place"] = await place_handle(v)
+            else:
+                ev["description"] = given
+            if not (ev.get("place") or ev.get("description") or ev.get("note_list") or ev.get("citation_list")
+                    or any((ev.get("date") or {}).get(k) for k in ("sortval", "text"))):
+                drop_event(ev)  # emptied: gone, like work and education
 
     name = p["primary_name"]
     if "first" in changes:

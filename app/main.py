@@ -285,7 +285,7 @@ async def me(request: Request):
     except (OSError, ValueError) as e:
         gramps.log.error("No key for notifications in %s: %s", DATA, e)
         user["push_key"] = None
-    user["site"] = site()
+    user["site"] = {**site(), "layout": layout(user.get("role", 0))}
     if user.get("role", 0) < GRAMPS_FOR[user["site"]["gramps"]]:
         user.pop("gramps_link", None)  # (also the editors' "Open in Full Gramps ↗" links)
     if user.get("role", 0) >= ROLE_OWNER:
@@ -314,6 +314,31 @@ def site() -> dict:
     except sqlite3.Error as e:  # the page still opens, as it comes
         gramps.log.error("Can't read site settings in %s: %s", DATA, e)
         return dict(chat.SITE)
+
+
+# ---------- the admin's layout (☰ Menu → Manage → Layout): the panel's fields, where they go and who sees them ----------
+BUILT_IN = ("burial", "residence", "work", "education", "phone", "email", "notes")  # More details, as before 1.9.5
+KIN = tuple(f"r:{x}" for x in ("siblings", "grandparents", "grandchildren", "uncles", "cousins", "inlaws"))  # worked out in the page
+DEFAULT_LAYOUT = [{"k": k, "where": "more", "see": ROLE_EDITOR if k in ("phone", "email") else 0} for k in BUILT_IN]
+BOX_LINES = ("years", "birthPlace", "nick", "burial", "gid", "")  # the person box's 2nd and 3rd lines
+
+
+def layout(role: int) -> list:
+    """The rows this role may see. Gramps' own privacy still applies on top (private records stay out)."""
+    return [r for r in site()["layout"] or DEFAULT_LAYOUT if r["see"] <= role]
+
+
+def layout_key(k) -> bool:
+    return isinstance(k, str) and (k in BUILT_IN or k in KIN or familytree.extra_field(f"{k}.date" if k.startswith("e:") else k))
+
+
+def may_change(role: int, field) -> bool:
+    """A field PATCH (or a suggestion) may set: the fixed ones, and the layout's fields this role sees."""
+    if field in familytree.FIELDS and field not in BUILT_IN[1:]:
+        return True
+    if not (field in familytree.FIELDS or familytree.extra_field(field)):
+        return False
+    return field.split(".")[0] in {r["k"] for r in layout(role)}
 
 
 async def need_owner(request: Request):
@@ -350,6 +375,21 @@ async def save_site(request: Request):
         if not isinstance(body["talk"], bool):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["talk"] = body["talk"]
+    if ("layout" in body or "box" in body) and (await who(request)).get("role", 0) < ROLE_ADMIN:
+        raise HTTPException(403, "Only admins can change the layout.")
+    if "layout" in body:
+        rows = body["layout"]
+        if not isinstance(rows, list) or len(rows) > 80 or not all(
+                isinstance(r, dict) and layout_key(r.get("k")) and r.get("where") in ("top", "more")
+                and type(r.get("see")) is int and 0 <= r["see"] <= ROLE_ADMIN for r in rows):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        if len({r["k"] for r in rows}) < len(rows):
+            raise HTTPException(400, "A field is in the list twice.")
+        changes["layout"] = [{"k": r["k"], "where": r["where"], "see": r["see"]} for r in rows]
+    if "box" in body:
+        if not isinstance(body["box"], list) or len(body["box"]) != 2 or not set(body["box"]) <= set(BOX_LINES):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["box"] = body["box"]
     if "labels" in body:
         given = body["labels"]
         if not isinstance(given, dict) or not set(given) <= set(LABELS) or not all(isinstance(v, str) for v in given.values()):
@@ -666,11 +706,20 @@ async def tree_places(request: Request):
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
     g = await gramps_as(request)
-    d, books = await asyncio.gather(familytree.details(g, handle), familytree.books(g, handle))
+    keys = {r["k"] for r in layout((await who(request)).get("role", 0))}
+    d, books = await asyncio.gather(familytree.details(g, handle, want=[k for k in keys if k[:2] in ("e:", "a:")]),
+                                    familytree.books(g, handle))
     d["books"] = [{**b, "ticket": file_ticket(b["media"], bearer(request))} for b in books]  # (a link to the page: docs.js)
-    if not (await who(request)).get("can_edit"):  # contacts are for editors (chat lets the rest reach each other)
-        d["contactHidden"] = bool(d["phone"] or d["email"])
-        d["phone"] = d["email"] = ""
+    # What the layout doesn't show this login isn't sent (contacts: editors, by default; chat lets the rest reach each other).
+    shown = {k: k in keys for k in BUILT_IN}
+    if any(d[k] and not shown[k] for k in ("phone", "email")):
+        d["contactHidden"] = True
+    for k, more in (("residence", "residenceRest"), ("work", "otherWork"), ("education", "otherEducation"),
+                    ("phone", None), ("email", None), ("notes", "otherNotes")):
+        if not shown[k]:
+            d[k] = ""
+            if more:
+                d[more] = [] if isinstance(d[more], list) else ""
     return d
 
 
@@ -697,9 +746,12 @@ async def tree_update_person(handle: str, request: Request):
     await need_edit(request, "Only editors can change details.")
     g = await gramps_as(request)
     changes = await json_body(request)
+    role = (await who(request)).get("role", 0)
+    if isinstance(changes, dict) and not all(may_change(role, f) for f in changes):
+        raise HTTPException(403, "That field isn't in the layout any more. Reload the page.")
     before = await familytree.fields_now(g, handle)  # for History (and an admin's Undo)
     res = await familytree.update_person(g, handle, changes, await tree_tags(g))
-    await log.later(log.fields(g, (await who(request))["name"], handle, before, [f for f in changes if f in familytree.FIELDS]))
+    await log.later(log.fields(g, (await who(request))["name"], handle, before, [f for f in changes if may_change(role, f)]))
     return res
 
 

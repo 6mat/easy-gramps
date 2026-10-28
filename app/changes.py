@@ -50,7 +50,7 @@ async def name_of(g, h) -> str:
 
 async def _shown(g, field, v):
     """A field's value as History shows it: places by name (Gramps keeps them as {id})."""
-    if isinstance(v, dict) and v.get("id") and field in ("birthPlace", "burial"):
+    if isinstance(v, dict) and v.get("id") and (field in ("birthPlace", "burial") or field.endswith(".place")):
         try:
             return (await g.get(f"/places/{v['id']}", keys="name"))["name"]["value"]
         except (gramps.GrampsError, HTTPException, KeyError, TypeError):
@@ -77,8 +77,11 @@ async def fields(g, login: str, handle: str, before: dict, names):
                     q("UPDATE changes SET item = ?, after = ?, at = ? WHERE id = ?", json.dumps({**it, "value": label, "label": label}),
                       json.dumps(now.get(f)), time.time(), old[0]["id"])
                 continue
+            back = {"op": "set", "id": handle, "field": f, "value": before.get(f)}
+            if f.startswith("e:"):  # the event itself (Gramps ID'd), not "their first Baptism", which may be another one later
+                back["ev"] = now["_ev"].get(f.rsplit(".", 1)[0])
             add(login, {"op": "set", "id": handle, "field": f, "value": label, "label": label, "before": await _shown(g, f, before.get(f))},
-                {"op": "set", "id": handle, "field": f, "value": before.get(f)}, now.get(f))
+                back, now.get(f))
     except (gramps.GrampsError, HTTPException) as e:
         gramps.log.error("Couldn't log the change to %s: %s", handle, e)
 
@@ -124,7 +127,9 @@ async def undo(cid: int, request: Request):
     g = await m.gramps_as(request)
     again = "It was changed again since, so it can't be undone here. Change it back in the editor."
     if u.get("op") == "set":
-        if not same((await familytree.fields_now(g, u["id"])).get(u["field"]), json.loads(r["after"] or "null")):
+        now = await familytree.fields_now(g, u["id"])
+        if not same(now.get(u["field"]), json.loads(r["after"] or "null")) or (
+                u.get("ev") and now["_ev"].get(u["field"].rsplit(".", 1)[0]) not in (u["ev"], None)):
             raise HTTPException(409, again)
         await familytree.update_person(g, u["id"], {u["field"]: u["value"]}, await m.tree_tags(g))
     else:
