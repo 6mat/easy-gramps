@@ -2,8 +2,8 @@
 // Full Gramps (Media). Read opens a PDF in the browser's own viewer in a new tab; Download saves any of them. Each link
 // carries a ticket for that file (main.py file_ticket): an installed app's new tab may not have the login cookie.
 import { api, BASE, refreshLogin } from "./auth.js";
-import { $, closeMenu, h, thumbUrl } from "./common.js";
-import { hideDlg, showDlg } from "./editor.js";
+import { $, closeMenu, h, postJSON, thumbUrl } from "./common.js";
+import { hideDlg, showDlg, toast } from "./editor.js";
 
 const KIND = { "application/pdf": "PDF", "application/msword": "Word", "text/plain": "Text",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word" };
@@ -31,4 +31,48 @@ function row(d) {
       h("div", { class: "btnrow" },
         d.mime === "application/pdf" ? h("a", { class: "btn primary", href: fileUrl(d), target: "_blank", rel: "noopener" }, "Read") : "",
         h("a", { class: "btn", href: fileUrl(d, true), download: "" }, "Download"))));
+}
+
+// ---------- a page of a book on a person (a Gramps citation; familytree.py books) ----------
+// The link opens the PDF at that page. A fresh ticket each time: the one that came with the details lasts 10 minutes.
+async function openBook(pid, b) {
+  const w = window.open("", "_blank");
+  try {
+    const d = await api(`/tree/details/${pid}`);
+    const x = d.books.find(y => y.id === b.id) || b, page = parseInt(x.page, 10);
+    w.location = `${fileUrl({ id: x.media, ticket: x.ticket, title: x.title })}${x.mime === "application/pdf" && page > 0 ? `#page=${page}` : ""}`;
+  } catch (err) { w?.close(); toast(err.message, false); }
+}
+const bookText = b => `📖 ${b.title || "Book"}${b.page ? `, page ${b.page}` : ""}`;
+export function bookLinks(p) {
+  return (p.books || []).map(b => h("button", { class: "linkish bookline", onclick: () => openBook(p.id, b) }, bookText(b)));
+}
+// The editor's list (editors): each page with Remove, and "+ Add a book page" (pick the document, type the page).
+export function bookEditor(p, saved) {
+  const box = h("div", { class: "full books" }, h("div", { class: "flabel" }, "Book pages about them"));
+  const call = async (path, body, btn) => {
+    btn.disabled = true;
+    try { await postJSON(`/tree/person/${p.id}/books${path}`, body); await saved(); }
+    catch (err) { btn.disabled = false; box.append(h("div", { class: "warn" }, err.message)); }
+  };
+  for (const b of p.books || []) {
+    const rm = h("button", {}, "Remove");
+    rm.onclick = () => { if (rm.dataset.sure !== "1") { rm.dataset.sure = "1"; rm.textContent = "Confirm remove"; } else call("/remove", { id: b.id }, rm); };
+    box.append(h("div", { class: "bookrow" }, h("button", { class: "linkish", onclick: () => openBook(p.id, b) }, bookText(b)), rm));
+  }
+  const open = h("button", {}, "+ Add a book page");
+  open.onclick = async () => {
+    open.disabled = true;
+    let docs;
+    try { docs = await api("/tree/documents"); } catch (err) { open.disabled = false; return box.append(h("div", { class: "warn" }, err.message)); }
+    if (!docs.length) return open.replaceWith(h("div", { class: "small muted" }, "No books yet. The owner adds them in Full Gramps (Media)."));
+    const pick = h("select", { id: "book-doc" }, ...docs.map(d => h("option", { value: d.id }, d.title)));
+    const page = h("input", { id: "book-page", inputmode: "numeric", maxlength: 50, autocomplete: "off", placeholder: "42" });
+    const add = h("button", { class: "primary" }, "Add");
+    add.onclick = () => page.value.trim() ? call("", { media: pick.value, page: page.value.trim() }, add) : page.focus();
+    open.replaceWith(h("div", { class: "bookform" }, h("label", { for: "book-doc" }, "Book", pick), h("label", { for: "book-page" }, "Page", page), add));
+    pick.focus();
+  };
+  box.append(open);
+  return box;
 }

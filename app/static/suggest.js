@@ -3,13 +3,14 @@
 // draft on this device until they press "Send to the editors". Their waiting ones show on their tree. Editors open
 // ☰ Menu → Suggestions: the tree shows what it would look like with the checked ones, the list is in the panel.
 import { api } from "./auth.js";
-import { $, FAMS, ME, P, S, closeMenu, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord } from "./common.js";
+import { $, FAMS, ME, P, S, closeMenu, dateProblems, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
 import { seeTree } from "./tree.js";
 import { renderAll } from "./start.js";
 import { closeEditor, flushSaves, hideDlg, showDlg, toast } from "./editor.js";
 
 const PLACES = new Set(["birthPlace", "burial"]);
 const GRAPH = new Set(["first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial"]);  // in the tree's data
+const NEW = new Set(["first", "last", "nick", "gender", "birth"]);  // what adding someone new takes (suggest.py NEW_FIELDS)
 const WORD = { first: "First name", last: "Last name", nick: "Nickname", gender: "Gender", birth: "Born", birthPlace: "Place of birth",
   deceased: "Passed away", death: "Died", burial: "Buried at", residence: "Lives in", phone: "Phone", email: "Email", notes: "Notes",
   work: "Work", education: "Education" };
@@ -35,6 +36,7 @@ const shown = () => S.review ? S.review.rows.filter(r => up(S.review.ticked).has
 let made = {};  // stand-ins already approved → their real ids
 const real = id => made[id] || id;
 function rebuild() {  // again from `base` with what's checked now (no trip to the server)
+  if (!base) return;  // (the tree isn't loaded yet)
   const b = structuredClone(base);
   for (const k of Object.keys(P)) delete P[k];
   Object.assign(P, b.P);
@@ -90,6 +92,13 @@ function link(it, mark) {
 // ---------- suggesting: the editor's saves go into the draft ----------
 export function draftSet(id, patch) {
   for (const [field, value] of Object.entries(patch)) {
+    // Someone still waiting to be added in this draft: the change goes into adding them (sent ones: the server does it)
+    const add = NEW.has(field) && draft.items.find(x => x.op === "add" && x.as === id && x.new);
+    if (add) {
+      if (value == null || value === "") delete add.new[field]; else add.new[field] = value;
+      add.label = name(add.new);
+      continue;
+    }
     const like = x => x.op === "set" && x.id === id && x.field === field;
     const was = draft.items.find(like), sent = mine.find(like);
     const before = (was || sent) ? (was || sent).before : GRAPH.has(field) ? base?.P[id]?.[field] : P[id]?._orig?.[field];
@@ -126,6 +135,7 @@ function sendNow() {  // one at a time, in order: a later change may use a new p
       if (err.status >= 400 && err.status < 500 && ![401, 429].includes(err.status)) {  // refused: trying again won't help
         draft.items = draft.items.filter(x => !items.includes(x)); keep(); unsent = false;
         toast(`Not sent: ${err.message}`, false);
+        if (base && !S.review) { rebuild(); renderAll(); }  // (off their tree again)
       }
     }
     redrawBar();
@@ -179,21 +189,21 @@ export function suggestMenu() {
 }
 $("#menu-suggest").onclick = () => { closeMenu(); openReview(true); };
 
-async function openReview(fromMenu) {  // fromMenu: nothing waiting opens the History
+async function openReview(fromMenu) {  // fromMenu: also when nothing waits (the panel then shows recent changes)
   let d;
   try { d = await api("/suggestions"); } catch (err) { return toast(err.message, false); }
   ME.suggestions = d.items.length; suggestMenu();
   made = d.made;
-  if (!d.items.length) {
-    if (S.review) await closeReview();
-    return fromMenu && openHistory("No suggestions waiting ✓");
-  }
-  const was = S.review;  // after approving: what they left unchecked stays unchecked
+  const was = S.review;
+  if (!d.items.length && !was && !(fromMenu && S.focus)) return fromMenu && openHistory("No suggestions waiting ✓");
+  // after approving: what they left unchecked stays unchecked
   const ticked = d.items.filter(r => !was?.rows.some(o => o.id === r.id) || was.ticked.has(r.id)).map(r => r.id);
-  S.review = { rows: d.items, ticked: new Set(ticked), render: renderReview, sure: false, closed: was?.closed || new Set() };
+  S.review = { rows: d.items, ticked: new Set(ticked), render: renderReview, sure: false, closed: was?.closed || new Set(),
+    recentOpen: !d.items.length || !!was?.recentOpen, recent: was?.recent || null };  // (open once nothing waits)
   await loadGraph();
+  loadRecent();
   S.panel = true;
-  if (was && P[S.focus]) { if (!P[S.sel]) S.sel = S.focus; renderAll(); }  // after a decision: stay where they were
+  if (P[S.focus] && (was || !d.items.length)) { if (!P[S.sel]) S.sel = S.focus; renderAll(); }  // after a decision: stay where they were
   else seeTree(whose(d.items[0].item));
 }
 async function closeReview() {
@@ -203,10 +213,11 @@ async function closeReview() {
   if (!P[S.sel]) S.sel = S.focus;
   renderAll();
 }
-const anchor = it => [it.op === "set" ? it.id : it.as || it.existing, it.person].map(real).find(x => x && P[x]);
+const anchor = it => [it.op === "add" ? it.as || it.existing : it.id, it.person].map(real).find(x => x && P[x]);
 const whose = it => anchor(it) || S.focus;
 const needs = it => [it.id, it.person, it.famId, it.existing].filter(x => isStandIn(x) && !made[x]);
 const gives = it => [it.as, it.fam].filter(Boolean);
+const key = r => r.type ? r.type + r.id : r.id;  // History has suggestions and editors' changes, numbered apart
 const giver = (r, rows) => {  // the row that adds the new person (or family) this one builds on (approved ones too: History)
   const x = [r.item.id, r.item.person, r.item.famId, r.item.existing].find(isStandIn);
   return x && rows.find(o => gives(o.item).includes(x));
@@ -233,18 +244,26 @@ function down(ids) {  // these, and what builds on the new people in them (rejec
 function retick(change) {
   change(); S.review.sure = false;
   rebuild();
-  if (!P[S.focus]) S.focus = whose(S.review.rows[0].item);
+  if (!P[S.focus] && S.review.rows.length) S.focus = whose(S.review.rows[0].item);
   if (!P[S.sel]) S.sel = S.focus;
   renderAll();
 }
 const show = (f, v) => v == null || v === "" ? "(none)" : typeof v === "boolean" ? (v ? "Yes" : "No")
   : f === "gender" ? { m: "Male", f: "Female" }[v] || v : typeof v === "object" ? (v.y ? fmtDate(v) : v.new || "(none)") : String(v);
+const nameOf = (id, fallback) => P[real(id)] ? name(P[real(id)]) : fallback || "Someone";
 function says(r, decided) {
   const it = r.item;
   if (it.op === "add") {
-    const p = P[real(it.person)];
-    return [h("strong", {}, it.new ? `New: ${it.label}` : it.label), ` as ${p ? `${p.first || name(p)}'s ${relWord(it.rel, p)}` : it.rel}`];
+    const p = P[real(it.person)], label = it.label || nameOf(it.existing);
+    return [h("strong", {}, it.new ? `New: ${label}` : label), ` as ${p ? `${p.first || name(p)}'s ${relWord(it.rel, p)}` : it.rel}`];
   }
+  if (it.op === "unlink") {
+    const p = P[real(it.person)];
+    return [h("strong", {}, `Removed ${it.label}`), ` as ${p ? `${p.first || name(p)}'s ${relWord(it.rel, p)}` : it.rel}`];
+  }
+  if (it.op === "create") return [h("strong", {}, `New: ${nameOf(it.id, it.label)}`), " (on their own)"];
+  if (it.op === "merge") return [h("strong", {}, nameOf(it.id)), ` · merged with ${it.label || "a duplicate"}`];
+  if (it.op !== "set") return [h("strong", {}, nameOf(it.id)), ` · ${it.what}`];
   const p = P[real(it.id)];
   const now = GRAPH.has(it.field) && !isStandIn(it.id) && base?.P[real(it.id)]?.[it.field];
   const moved = !decided && GRAPH.has(it.field) && !isStandIn(it.id) && JSON.stringify(now ?? "") !== JSON.stringify(it.before ?? "");
@@ -262,17 +281,17 @@ function families(rows) {
     for (let i = 0; i < 100; i++) { const o = giver(top, rows); if (!o) break; top = o; }
     const id = anchor(top.item), p = P[id];
     const f = p && (FAMS.find(x => x.id === p.fams?.[0]) || parentFam(id));
-    const key = f ? f.id : id || "?";
+    const k = f ? f.id : id || "?";
     const label = f ? `${[f.f, f.m].filter(x => P[x]).map(x => P[x].first || name(P[x])).join(" & ")}'s family` : p ? name(p) : "Others";
-    if (!groups.has(key)) groups.set(key, { key, label, id, rows: [] });
-    groups.get(key).rows.push(r);
+    if (!groups.has(k)) groups.set(k, { key: k, label, id, rows: [] });
+    groups.get(k).rows.push(r);
   }
   return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 function nested(rows, row) {  // row(r) → its element; the ones that build on it, indented under it
-  const kids = new Map(rows.map(r => [r.id, []])), tops = [];
-  for (const r of rows) { const o = giver(r, rows); (o ? kids.get(o.id) : tops).push(r); }
-  const one = r => kids.get(r.id).length ? h("div", {}, row(r), h("div", { class: "sugkids" }, ...kids.get(r.id).map(one))) : row(r);
+  const kids = new Map(rows.map(r => [key(r), []])), tops = [];
+  for (const r of rows) { const o = giver(r, rows); (o ? kids.get(key(o)) : tops).push(r); }
+  const one = r => kids.get(key(r)).length ? h("div", {}, row(r), h("div", { class: "sugkids" }, ...kids.get(key(r)).map(one))) : row(r);
   return tops.map(one);
 }
 function famBox(g, open, onToggle, go, rows) {
@@ -283,14 +302,43 @@ function famBox(g, open, onToggle, go, rows) {
   return box;
 }
 
+// The people the tree shows for `id` (tree.js draws: grandparents, parents, siblings, spouses, children, their spouses).
+function treeIds(id) {
+  const out = new Set([id]), add = x => x && P[x] && out.add(x);
+  const parents = x => { const f = parentFam(x); return f ? [f.f, f.m] : []; };
+  for (const x of parents(id)) { add(x); parents(x).forEach(add); }
+  parentFam(id)?.kids.forEach(add);
+  for (const f of spouseFams(id)) {
+    const o = other(f, id); add(o); parents(o).forEach(add);
+    for (const k of f.kids) { add(k); spouseFams(k).forEach(x => add(other(x, k))); }
+  }
+  return out;
+}
+async function loadRecent() {
+  const R = S.review;
+  try {
+    const d = await api("/suggestions/history");
+    if (S.review !== R) return;
+    R.recent = d.items; made = { ...made, ...d.made };
+    if (S.panel && R.render === renderReview && !$("#panel").hidden) renderReview();
+  } catch { /* the waiting list works without it */ }
+}
+const touches = it => [it.id, it.person, it.existing, it.as, it.other].filter(Boolean).map(real);
+const when = t => new Date(t * 1000).toLocaleDateString();
+const meta = r => r.type === "c" ? `${r.status === "undone" ? "Undone · " : ""}Changed by ${r.by} · ${when(r.decided)}`
+  : `${r.status === "approved" ? "Approved" : "Rejected"} by ${r.by} · ${when(r.decided)} · from ${r.name}`;
+const mark = r => r.type === "c" ? (r.status === "undone" ? "↩" : "✎") : r.status === "approved" ? "✓" : "✗";
+
 function renderReview() {
   const R = S.review, panel = $("#panel");
   const row = r => {
     const box = h("input", { type: "checkbox", checked: R.ticked.has(r.id), "aria-label": "Check this one" });
     box.onchange = () => retick(() => tick(r, box.checked));
     const note = r.note && r.note !== giver(r, R.rows)?.note ? h("div", { class: "small muted" }, `“${r.note}”`) : "";
+    const dated = R.ticked.has(r.id) && (r.item.op === "add" || ["birth", "death"].includes(r.item.field)) ? dateProblems(whose(r.item)) : [];
     return h("div", { class: `sugrow${whose(r.item) === S.sel ? " here" : ""}` }, box,
       h("button", { class: "linkish", onclick: () => { const id = whose(r.item); P[id] && seeTree(id); } }, ...says(r)), note,
+      dated.length ? h("div", { class: "warn small" }, `⚠ Please check the dates: ${dated.join(" ")}`) : "",
       r.error ? h("div", { class: "warn small" }, `Couldn't add it: ${r.error}`) : "");
   };
   const groups = families(R.rows).map(g => famBox(g, !R.closed.has(g.key), o => R.closed[o ? "delete" : "add"](g.key),
@@ -308,45 +356,79 @@ function renderReview() {
     if (R.sure !== "reject") { R.sure = "reject"; return renderReview(); }
     decide({ reject: [...no] });
   } }, R.sure === "reject" ? `Yes, reject ${no.size}` : `Reject (${n})`);
+  // What happened lately to the people in this tree: decided suggestions and editors' changes.
+  // shortcut: from the newest page of History only (100), a "See all" away from the rest
+  const here = S.focus ? treeIds(S.focus) : new Set();
+  const recent = (R.recent || []).filter(r => touches(r.item).some(x => here.has(x))).slice(0, 10);
+  const recentBox = h("details", { class: "sugfam sugrecent", open: R.recentOpen },
+    h("summary", {}, h("strong", {}, `Recent changes in this tree${R.recent ? ` (${recent.length}${recent.length === 10 ? "+" : ""})` : ""}`)),
+    ...(!R.recent ? [h("p", { class: "small muted" }, "Loading…")] : recent.length ? recent.map(r => h("div", { class: "sugdone" },
+      h("span", { "aria-hidden": "true" }, mark(r)),
+      h("div", {}, h("button", { class: "linkish", onclick: () => { const id = whose(r.item); P[id] && seeTree(id); } }, ...says(r, true)),
+        h("div", { class: "small muted" }, meta(r))))) : [h("p", { class: "small muted" }, "Nothing lately.")]),
+    h("button", { class: "linkish", onclick: () => openHistory() }, "See all history ↗"));
+  recentBox.ontoggle = () => { R.recentOpen = recentBox.open; };
   panel.replaceChildren(
-    h("div", { class: "ptop" }, h("h2", {}, "Suggestions"), h("button", { class: "pill", onclick: () => openHistory() }, "History"),
+    h("div", { class: "ptop" }, h("h2", {}, "Suggestions"), h("button", { class: "pill", onclick: () => openHistory() }, "History ↗"),
       h("button", { class: "pill", onclick: closeReview }, "Done")),
-    h("p", { class: "small muted" }, "The tree shows the family with the checked ones: new people in green, changed people in amber. Tap a family's name to see it in the tree."),
-    h("div", { class: "btnrow" }, h("button", { onclick: () => retick(() => R.rows.forEach(r => R.ticked.add(r.id))) }, "Check all"),
-      h("button", { onclick: () => retick(() => R.ticked.clear()) }, "Uncheck all")),
-    ...groups,
-    h("div", { class: "dupbar" },
-      R.sure === "approve" ? extra(yes, "Also approves, because the checked ones need them") : "",
-      R.sure === "reject" ? extra(no, "Also rejects, because they build on the checked ones") : "",
-      h("div", { class: "btnrow" }, approve, reject)));
+    ...(R.rows.length ? [
+      h("p", { class: "small muted" }, "The tree shows the family with the checked ones: new people in green, changed people in amber. Tap a family's name to see it in the tree."),
+      h("div", { class: "btnrow" }, h("button", { onclick: () => retick(() => R.rows.forEach(r => R.ticked.add(r.id))) }, "Check all"),
+        h("button", { onclick: () => retick(() => R.ticked.clear()) }, "Uncheck all")),
+      ...groups,
+      h("div", { class: "dupbar", id: "sug-act" },
+        R.sure === "approve" ? extra(yes, "Also approves, because the checked ones need them") : "",
+        R.sure === "reject" ? extra(no, "Also rejects, because they build on the checked ones") : "",
+        h("div", { class: "btnrow" }, approve, reject))]
+      : [h("p", {}, h("strong", {}, "No suggestions waiting ✓"))]),
+    recentBox);
   panel.querySelector(".sugrow.here")?.scrollIntoView({ block: "nearest" });
 }
+// Approved one at a time (each is a few trips to Gramps), with how far it got; one message to each person at the end.
 async function decide(body) {
   const buttons = [...$("#panel").querySelectorAll("button, input")];
   buttons.forEach(b => { b.disabled = true; });  // until the list is back (a second click would act on the old one)
+  const r = { approved: 0, rejected: 0, failed: [] }, ok = [];
+  let stopped = null;
   try {
-    const r = await postJSON("/suggestions/decide", body);
-    await openReview();
-    toast([r.approved && `${r.approved} added to the tree ✓`, r.rejected && `${r.rejected} rejected`,
-      r.failed.length && `${r.failed.length} couldn't be added: see why in the list`, !S.review && "Nothing else is waiting"].filter(Boolean).join(". "));
-  } catch (err) { buttons.forEach(b => { b.disabled = false; }); toast(err.message, false); }
+    if (body.reject) Object.assign(r, await postJSON("/suggestions/decide", body));
+    else {
+      const ids = [...body.approve].sort((a, b) => a - b);
+      const bar = h("progress", { max: ids.length, value: 0 }), say = h("div", { role: "status" });
+      $("#sug-act")?.replaceChildren(say, bar);
+      for (const [i, k] of ids.entries()) {
+        say.textContent = `Approving ${i + 1} of ${ids.length}… Please keep this open.`; bar.value = i;
+        const x = await postJSON("/suggestions/decide", { approve: [k], quiet: true });
+        r.approved += x.approved; r.failed.push(...x.failed); ok.push(...x.ids);
+      }
+    }
+  } catch (err) { stopped = err; }
+  if (ok.length) await postJSON("/suggestions/tell", { approved: ok }).catch(() => {});
+  await openReview();
+  toast([stopped && `Stopped: ${stopped.message}`, r.approved && `${r.approved} added to the tree ✓`, r.rejected && `${r.rejected} rejected`,
+    r.failed.length && `${r.failed.length} couldn't be added: see why in the list`, !S.review?.rows.length && "Nothing else is waiting"].filter(Boolean).join(". "), false);
 }
 
-// What editors decided, newest first, a page at a time, by family. Undo puts one back on the list (an approved one is
-// taken out of the tree first); a rejected one can be deleted for good.
-const H = { items: [], more: false, who: [], login: "", closed: new Set() };
+// History (a pop-up: the list gets long): decided suggestions and changes made straight in the tree, newest first, a
+// page at a time, by family. Undo puts a suggestion back on the list (an approved one is taken out of the tree first);
+// a rejected one can be deleted for good; admins can undo an editor's change.
+const H = { items: [], more: false, who: [], login: "", kind: "", closed: new Set() };
 async function openHistory(first) {
   H.items = []; H.first = first;
   await moreHistory();
 }
 async function moreHistory() {
   const last = H.items.at(-1);
-  const q = new URLSearchParams({ ...(last && { before: `${last.decided}:${last.id}` }), ...(H.login && { login: H.login }) });
+  const q = new URLSearchParams({ ...(last && { before: `${last.decided}:${last.type}:${last.id}` }), ...(H.login && { login: H.login }),
+    ...(H.kind && { kind: H.kind }) });
   let d;
   try { d = await api(`/suggestions/history?${q}`); } catch (err) { return toast(err.message, false); }
-  made = d.made;
+  made = { ...made, ...d.made };
   H.items.push(...d.items); H.more = d.more; H.who = d.who;
   renderHistory();
+}
+async function treeAgain() {  // after an undo: the tree (and the waiting list behind) as it is now
+  if (S.review) await openReview(); else { await loadGraph(); renderAll(); }
 }
 function renderHistory() {
   const say = h("div", { role: "status" });
@@ -356,27 +438,29 @@ function renderHistory() {
     try { await go(); } catch (err) { btn.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
   };
   const row = r => {
-    const yes = r.status === "approved";
+    const yes = r.status === "approved", change = r.type === "c";
     const undo = r.undo && h("button", {}, "Undo");
     if (undo) undo.onclick = sure(undo, "Confirm undo", async () => {  // stays here: there may be more to undo
-      await postJSON(`/suggestions/${r.id}/undo`, {});
-      H.items = H.items.filter(x => x.id !== r.id);
-      await openReview();  // (the list behind, with it waiting again)
+      await postJSON(change ? `/changes/${r.id}/undo` : `/suggestions/${r.id}/undo`, {});
+      if (change) Object.assign(r, { status: "undone", undo: false }); else H.items = H.items.filter(x => x !== r);
+      await treeAgain();
       renderHistory();
-      toast(yes ? "Undone ✓ It's out of the tree and back on the waiting list." : "Undone ✓ It's back on the waiting list.");
+      toast(change ? "Undone ✓ It's back to how it was." : yes ? "Undone ✓ It's out of the tree and back on the waiting list." : "Undone ✓ It's back on the waiting list.");
     });
-    const del = !yes && h("button", { class: "danger" }, "Delete");
+    const del = !change && !yes && h("button", { class: "danger" }, "Delete");
     if (del) del.onclick = sure(del, "Confirm delete", async () => {
       const d = await postJSON("/suggestions/delete", { ids: [r.id] });  // (with the changes that build on it)
       await openHistory(H.first);
       toast(`${d.deleted} deleted`);
     });
-    return h("div", { class: "sugdone" }, h("span", { "aria-hidden": "true" }, yes ? "✓" : "✗"),
-      h("div", {}, h("div", {}, ...says(r, true)),
-        h("div", { class: "small muted" }, `${yes ? "Approved" : "Rejected"} by ${r.by} · ${new Date(r.decided * 1000).toLocaleDateString()} · from ${r.name}`)),
+    return h("div", { class: "sugdone" }, h("span", { "aria-hidden": "true" }, mark(r)),
+      h("div", {}, h("div", {}, ...says(r, true)), h("div", { class: "small muted" }, meta(r))),
       h("div", { class: "btnrow" }, undo || "", del || ""));
   };
-  const who = h("select", { "aria-label": "Suggested by" }, h("option", { value: "" }, "Everyone"),
+  const kind = h("select", { "aria-label": "Show" }, ...[["", "Everything"], ["approved", "Approved suggestions"],
+    ["rejected", "Rejected suggestions"], ["editors", "Changed by editors"]].map(([v, t]) => h("option", { value: v, selected: v === H.kind }, t)));
+  kind.onchange = () => { H.kind = kind.value; openHistory(); };
+  const who = h("select", { "aria-label": "By" }, h("option", { value: "" }, "Everyone"),
     ...H.who.map(w => h("option", { value: w.login, selected: w.login === H.login }, w.name)));
   who.onchange = () => { H.login = who.value; openHistory(); };
   const all = h("button", { class: "danger" }, "Delete all rejected");
@@ -386,11 +470,14 @@ function renderHistory() {
   });
   const groups = families(H.items).map(g => famBox(g, !H.closed.has(g.key), o => H.closed[o ? "delete" : "add"](g.key),
     () => { if (g.id && P[g.id]) { hideDlg(); seeTree(g.id); } }, nested(g.rows, row)));
-  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Decided suggestions"),
+  $("#dlg").replaceChildren(h("button", { class: "dlgx", "aria-label": "Close", onclick: hideDlg }, "✕"),
+    h("h3", { id: "dlg-title" }, "History"),
     H.first ? h("p", {}, h("strong", {}, H.first)) : "",
-    h("p", { class: "small muted" }, "Approved or rejected by mistake? Undo puts it back on the waiting list to decide again; an approved one is taken out of the tree first. Deleting a new person also deletes the changes to them."),
-    h("div", { class: "btnrow" }, h("label", {}, "Suggested by ", who), H.items.some(r => r.status === "rejected") ? all : ""),
-    ...(groups.length ? groups : [h("p", { class: "muted" }, "Nothing decided yet.")]),
+    h("p", { class: "small muted" }, "Suggestions people made, and what editors changed in Easy Gramps. Undo puts a suggestion back on the waiting list to decide again; an approved one is taken out of the tree first. Deleting a new person also deletes the changes to them.",
+      ME.role >= 5 ? " As an admin you can also undo an editor's change, while nothing changed it again since." : ""),
+    h("div", { class: "histbar" }, h("label", {}, "Show ", kind), h("label", {}, "By ", who),
+      H.items.some(r => r.status === "rejected") ? all : ""),
+    ...(groups.length ? groups : [h("p", { class: "muted" }, "Nothing here yet.")]),
     H.more ? h("button", { onclick: moreHistory }, "Show older") : "", say,
     h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
   showDlg(true);

@@ -1,4 +1,5 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
+import { bookLinks } from "./docs.js";
 import { api, LoginNeeded } from "./auth.js";
 import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
@@ -62,13 +63,14 @@ export function renderPanel() {
     const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
     const work = [p.work, ...(p.otherWork || [])].filter(Boolean).join("; ");
     const education = [p.education, ...(p.otherEducation || [])].filter(Boolean).join("; ");
-    const any = p.burial || p.residence || work || education || p.phone || p.email || p.contactHidden || notes;
+    const any = p.burial || p.residence || work || education || p.phone || p.email || p.contactHidden || notes || p.books?.length;
     panel.append(h("div", { class: "details" },
       loginLine(p),
       h("dl", { class: "kv" },
         row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
         row("Work", work), row("Education", education),
         row("Phone", p.phone), row("Email", p.email), row("Notes", notes)),
+      ...bookLinks(p),
       p.phone || p.email ? h("div", { class: "private" }, "🔒 Only editors see phone and email.") : "",
       p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are shown only to editors.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
