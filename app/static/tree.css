@@ -647,6 +647,10 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .msec label, .msec fieldset { margin-top: 14px; }
 .msec [role=status]:not(:empty) { margin-top: 10px; }
 .msec .btnrow { margin-top: 12px; }
+.layrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.msec .layrow .btnrow { margin-top: 0; flex-wrap: nowrap; }
+.laylist + select { margin-top: 12px; }
+@media (max-width: 620px) { .layrow { grid-template-columns: 1fr 1fr; } .layrow > div:first-child { grid-column: 1 / -1; } }
 @media (max-width: 620px) {
   .mbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .mnav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }

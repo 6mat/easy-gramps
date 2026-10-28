@@ -147,6 +147,35 @@ export function years(p) {
   const b = p.birth?.y, d = p.death?.y;
   return b || d ? `${b || "?"} – ${d || (p.deceased ? "?" : "")}` : "";
 }
+// The admin's layout (☰ Menu → Manage → Layout, main.py `layout`): the details' fields in order, with only the ones this
+// login may see; "e:<event type>", "a:<attribute type>", "r:<kin>" or a built-in. And the person box's 2nd and 3rd lines.
+const FIELD_NAMES = { burial: "Buried at", residence: "Lives in", work: "Work", education: "Education", phone: "Phone", email: "Email",
+  notes: "Notes", "r:siblings": "Brothers and sisters", "r:grandparents": "Grandparents", "r:grandchildren": "Grandchildren",
+  "r:uncles": "Uncles and aunts", "r:cousins": "Cousins", "r:inlaws": "In-laws" };
+export const KIN = Object.keys(FIELD_NAMES).filter(k => k.startsWith("r:")), BUILT = Object.keys(FIELD_NAMES).filter(k => !k.includes(":"));
+export const fieldName = k => FIELD_NAMES[k] || k.slice(2);
+export const layout = () => ME.site?.layout || [];
+export const BOX_LINES = [["years", "Years (1950 – 2010)"], ["birthPlace", "Place of birth"], ["nick", "Nickname"],
+  ["burial", "Place of burial"], ["gid", "Gramps ID"], ["", "Nothing"]];
+export function boxLine(p, k) {
+  return { years: years(p) || "No dates yet", birthPlace: p.birthPlace, nick: p.nick && `“${p.nick}”`, burial: p.burial && `Buried: ${p.burial}`,
+    gid: p.gid }[k] || "";
+}
+// Relatives worked out from the graph (no request): r:<kin> in the layout. (parentsOf: below, with the checks)
+const sibsOf = id => { const f = parentFam(id); return f ? f.kids.filter(x => x !== id) : []; };
+const kidsOf = id => spouseFams(id).flatMap(f => f.kids);
+const spousesOf = id => spouseFams(id).map(f => other(f, id)).filter(Boolean);
+export function kin(id, k) {
+  const ids = {
+    "r:siblings": () => sibsOf(id),
+    "r:grandparents": () => parentsOf(id).flatMap(parentsOf),
+    "r:grandchildren": () => kidsOf(id).flatMap(kidsOf),
+    "r:uncles": () => parentsOf(id).flatMap(sibsOf),
+    "r:cousins": () => parentsOf(id).flatMap(sibsOf).flatMap(kidsOf),
+    "r:inlaws": () => [...spousesOf(id).flatMap(s => [...parentsOf(s), ...sibsOf(s)]), ...sibsOf(id).flatMap(spousesOf)],
+  }[k]?.() || [];
+  return byBirth([...new Set(ids)].filter(x => x !== id && P[x]));
+}
 export function desc(p) {
   const pf = parentFam(p.id);
   const par = pf && (P[pf.f] || P[pf.m]);

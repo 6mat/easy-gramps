@@ -9,6 +9,13 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
   "Mark the paragraph": go to it, press ✏️ Draw a box, and drag over it. It's saved in Gramps on the citation
   ("Page area" attribute), next to the page number. The viewer has page turning, bigger and smaller, and "Whole book ↗".
 - Manage → **Invites**: everyone invited who hasn't signed in yet, with Cancel invite.
+- Manage → **Layout** (admins): choose what each person's details show, in what order, at the top or under More details,
+  and who sees each one (Everyone … Admins only; new fields start as Owner and up). Add any Gramps event (date, place and
+  description), any attribute, or relatives worked out from the tree (brothers and sisters, grandparents, grandchildren,
+  uncles and aunts, cousins, in-laws). Also the person boxes' second and third lines (years, place of birth, nickname,
+  place of burial, Gramps ID). The server sends each login only what its role may see. What's shown can be changed in the
+  editor; an event is changed only from its main person (where someone is a witness or godparent it's shown, not changed).
+  History and Undo cover the new fields; Undo checks it's still that same event.
 
 ### Changed
 - The editor's "Book pages about them" is above "More details", not inside it.

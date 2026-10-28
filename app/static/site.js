@@ -3,7 +3,7 @@
 // items, who can do what, rename. The settings are kept on the server (main.py /site), the same for everyone. It's a
 // browser-history step, like the chat: Back closes it.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, ME, P, closeMenu, dateProblems, h, name, named, postJSON, trapTab } from "./common.js";
+import { $, APP_NAME, BOX_LINES, BUILT, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab } from "./common.js";
 import { seeTree } from "./tree.js";
 import { toast } from "./editor.js";
 import { ROLES } from "./me.js";
@@ -21,7 +21,9 @@ const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Me
   ["manage", "", "⚙️ Manage"], ["logout", "#logout", "Log out"]];  // "": shown with a count (named)
 const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
-const isOwner = () => (ME.role ?? 0) >= 4;
+const isOwner = () => (ME.role ?? 0) >= 4, isAdmin = () => (ME.role ?? 0) >= 5;
+const SEE = [[0, "Everyone"], [1, "Members and up"], [2, "Contributors and up"], [3, "Editors and up"], [4, "Owner and up"], [5, "Admins only"]];
+const WHERE = [["top", "At the top"], ["more", "In More details"]];
 
 export function applySite() {
   const hide = new Set(ME.site?.hide || []);
@@ -50,6 +52,7 @@ const SECTIONS = [
   ["menu", () => "Menu items", isOwner, menuItems],
   ["rights", () => "Who can do what", isOwner, rights],
   ["rename", () => "Rename", isOwner, rename],
+  ["layout", () => "Layout", isAdmin, layoutPage],
 ];
 let M = null;  // the open page: { at (the section shown), back }
 const mine = () => SECTIONS.filter(([, , may]) => may());
@@ -234,4 +237,57 @@ function rename() {
   return [h("p", { class: "muted small" }, "What the menu items and buttons are called. Leave a box empty to keep the name in grey. Emoji are fine."),
     h("div", { class: "renames" }, ...renames),
     ...saver(() => ({ labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }), "reload")];
+}
+
+// ---------- Layout (admins): the details' fields, where they show and who sees them; the person box's lines ----------
+// Kept on the server (main.py `layout`, `box`); /tree/details sends each login only the fields its role may see, and
+// what's shown can be changed in the editor. Gramps' own privacy still applies on top.
+async function layoutPage() {
+  const types = await api("/layout/types");
+  const rows = layout().map(r => ({ ...r }));  // (an admin gets every row)
+  const box = [...(ME.site?.box || ["years", "birthPlace"])];
+  const pick = (list, v, set, label) => {
+    const s = h("select", { "aria-label": label }, ...list.map(([k, t]) => h("option", { value: k }, t)));
+    s.value = String(v); s.onchange = () => set(s.value);
+    return s;
+  };
+  const kind = k => k.startsWith("e:") ? "event" : k.startsWith("a:") ? "attribute" : k.startsWith("r:") ? "relatives" : "";
+  const list = h("div", { class: "laylist" });
+  const add = h("select", { "aria-label": "Add a field" });
+  const draw = (focus, at) => {
+    list.replaceChildren(...rows.map((r, i) => {
+      const n = fieldName(r.k);
+      const move = by => { rows.splice(i + by, 0, ...rows.splice(i, 1)); draw(by < 0 ? ".up" : ".down", i + by); };
+      return h("div", { class: "layrow" },
+        h("div", {}, h("strong", {}, n), kind(r.k) && h("span", { class: "muted small" }, ` ${kind(r.k)}`)),
+        pick(WHERE, r.where, v => { r.where = v; }, `Where ${n} shows`),
+        pick(SEE, r.see, v => { r.see = Number(v); }, `Who sees ${n}`),
+        h("div", { class: "btnrow" },
+          h("button", { class: "up", "aria-label": `Move ${n} up`, disabled: !i, onclick: () => move(-1) }, "▲"),
+          h("button", { class: "down", "aria-label": `Move ${n} down`, disabled: i === rows.length - 1, onclick: () => move(1) }, "▼"),
+          h("button", { class: "drop", "aria-label": `Take ${n} off`, onclick: () => { rows.splice(i, 1); draw(".drop", i); } }, "✕")));
+    }));
+    const have = new Set(rows.map(r => r.k));
+    const group = (label, keys) => { const left = keys.filter(k => !have.has(k)); return left.length ? h("optgroup", { label }, ...left.map(k => h("option", { value: k }, fieldName(k)))) : ""; };
+    add.replaceChildren(h("option", { value: "" }, "+ Add a field…"), group("Built in", BUILT), group("Relatives", KIN),
+      group("Events: date, place and description", types.events.map(t => `e:${t}`)), group("Attributes: one word or number", types.attributes.map(t => `a:${t}`)));
+    const row = list.children[Math.min(at ?? 0, rows.length - 1)];
+    if (focus) (row?.querySelector(`${focus}:not(:disabled)`) || row?.querySelector("button:not(:disabled)") || add).focus();
+  };
+  add.onchange = () => { if (!add.value) return; rows.push({ k: add.value, where: "more", see: 4 }); draw(); list.lastChild.querySelector("select").focus(); };
+  draw();
+  const line = i => pick(BOX_LINES, box[i], v => { box[i] = v; }, `The box's ${i ? "third" : "second"} line`);
+  const reset = h("button", {}, "Back to the default");
+  const say = h("div", { role: "status" });
+  reset.onclick = async () => {
+    if (reset.dataset.sure !== "1") { reset.dataset.sure = "1"; reset.textContent = "Confirm: back to the default"; return; }
+    reset.disabled = true;
+    try { await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ layout: [], box: ["years", "birthPlace"] }) }); location.reload(); }
+    catch (err) { reset.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
+  };
+  return [h("p", { class: "muted small" }, "What each person's details show, in this order. “At the top” is under Born; the rest is under More details. What's shown can be changed in the editor. New fields start as “Owner and up”: choose who else may see them. Gramps still hides private records from logins that can't see private details."),
+    list, add,
+    h("fieldset", {}, h("legend", {}, "The person boxes on the tree, under the name"),
+      h("label", {}, "Second line", line(0)), h("label", {}, "Third line", line(1))),
+    ...saver(() => ({ layout: rows, box }), "reload"), say, h("div", { class: "btnrow" }, reset)];
 }

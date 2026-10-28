@@ -348,14 +348,15 @@ async def layout_types(request: Request):
         raise HTTPException(403, "Only admins can change the layout.")
     g = await gramps_as(request)
 
-    async def types(kind):
-        got = await asyncio.gather(*(g.get(f"/types/{w}/{kind}") for w in ("default", "custom")), return_exceptions=True)
-        return sorted({t for x in got if isinstance(x, list) for t in x if isinstance(t, str) and t not in SKIP_TYPES})
-    events, attributes = await asyncio.gather(types("event_types"), types("attribute_types"))
+    async def types(default, custom):
+        got = await asyncio.gather(g.get(f"/types/default/{default}"), g.get(f"/types/custom/{custom}"), return_exceptions=True)
+        return sorted({t for x in got if isinstance(x, list) for t in x
+                       if isinstance(t, str) and t.strip() and t not in SKIP_TYPES and not t.startswith("_")})  # (_UID…: Gramps' own)
+    events, attributes = await asyncio.gather(types("event_types", "event_types"), types("attribute_types", "person_attribute_types"))
     return {"events": events, "attributes": attributes}
 
 
-SKIP_TYPES = {"Unknown", "Birth", "Death", "_UPD"}  # (birth and death are fixed fields; _UPD is Gramps' own)
+SKIP_TYPES = {"Unknown", "Birth", "Death"}  # (birth and death are fixed fields)
 
 
 async def need_owner(request: Request):
@@ -415,7 +416,8 @@ async def save_site(request: Request):
         if any(len(v) > 40 for v in labels.values()):
             raise HTTPException(400, "Each name can have up to 40 letters.")
         changes["labels"] = {k: v for k, v in labels.items() if v}  # empty: the default
-    return CHAT.save_site(changes)
+    CHAT.save_site(changes)
+    return {**site(), "layout": layout((await who(request)).get("role", 0))}  # as /auth/me has it
 
 
 @easy.put("/site/icon")

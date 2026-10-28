@@ -10,6 +10,7 @@ import { applySite } from "./site.js";
 import { closeEditor, flushSaves, hideDlg, showDlg, toast } from "./editor.js";
 
 const PLACES = new Set(["birthPlace", "burial"]);
+const isPlace = f => PLACES.has(f) || f.endsWith(".place");  // (and the admin's events' places: "e:Baptism.place")
 const GRAPH = new Set(["first", "last", "nick", "gender", "birth", "birthPlace", "deceased", "death", "burial"]);  // in the tree's data
 const NEW = new Set(["first", "last", "nick", "gender", "birth"]);  // what adding someone new takes (suggest.py NEW_FIELDS)
 const WORD = { first: "First name", last: "Last name", nick: "Nickname", gender: "Gender", birth: "Born", birthPlace: "Place of birth",
@@ -50,7 +51,7 @@ function apply(items) {
     if (it.op === "set") {
       const p = P[real(it.id)];
       if (!p) continue;
-      p[it.field] = PLACES.has(it.field) ? it.label || "" : it.value;
+      p[it.field] = isPlace(it.field) ? it.label || "" : it.value;
       if (it.field === "deceased" && !it.value) { p.death = null; p.burial = ""; }
       if (it.field === "death" && it.value) p.deceased = true;
       mark(p.id, "changed");
@@ -104,8 +105,8 @@ export function draftSet(id, patch) {
     const was = draft.items.find(like), sent = mine.find(like);
     const before = (was || sent) ? (was || sent).before : GRAPH.has(field) ? base?.P[id]?.[field] : P[id]?._orig?.[field];
     draft.items = draft.items.filter(x => x !== was);
-    const label = PLACES.has(field) ? P[id]?.[field] || "" : undefined;
-    const same = JSON.stringify(PLACES.has(field) ? label : value ?? "") === JSON.stringify(before ?? "");
+    const label = isPlace(field) ? P[id]?.[field] || "" : undefined;
+    const same = JSON.stringify(isPlace(field) ? label : value ?? "") === JSON.stringify(before ?? "");
     // (back to what Gramps has: nothing to send, unless one was sent already, which the server then takes off the list)
     if (!same || sent || isStandIn(id)) draft.items.push({ op: "set", id, field, value, before: before ?? "", label });
   }
@@ -265,8 +266,8 @@ function says(r, decided) {
   const p = P[real(it.id)];
   const now = GRAPH.has(it.field) && !isStandIn(it.id) && base?.P[real(it.id)]?.[it.field];
   const moved = !decided && GRAPH.has(it.field) && !isStandIn(it.id) && JSON.stringify(now ?? "") !== JSON.stringify(it.before ?? "");
-  return [h("strong", {}, p ? name(p) : "Someone new"), ` · ${WORD[it.field]}: ${show(it.field, it.before)} → `,
-    h("strong", {}, PLACES.has(it.field) ? it.label || "(none)" : show(it.field, it.value)),
+  return [h("strong", {}, p ? name(p) : "Someone new"), ` · ${WORD[it.field] || it.field.slice(2).replace(".desc", " description").replace(".", " ")}: ${show(it.field, it.before)} → `,
+    h("strong", {}, isPlace(it.field) ? it.label || "(none)" : show(it.field, it.value)),
     moved ? h("div", { class: "warn small" }, `⚠ Changed since: now ${show(it.field, now)}`) : ""];
 }
 

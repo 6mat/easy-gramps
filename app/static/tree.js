@@ -1,6 +1,6 @@
 // Easy Gramps — The tree: layout, lines, zoom and touch, overview map, quick card, full screen, menu, keys, search.
 import { api, store } from "./auth.js";
-import { $, DATE_CHOICES, closeMenu, P, S, byBirth, canAdd, canLink, cap, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
+import { $, DATE_CHOICES, ME, boxLine, closeMenu, P, S, byBirth, canAdd, canLink, cap, dateFormat, h, name, other, parentFam, photoEl, saveView, setDateFormat, spouseFams, spouseWord, years } from "./common.js";
 import { drawSelink, renderPanel } from "./panel.js";
 import { closeEditor, hideDlg, openEditor, showDlg, toast } from "./editor.js";
 import { renderAll, renderStart, startAdd } from "./start.js";
@@ -257,8 +257,8 @@ function nodeEl(id, focus) {
       else if (e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); }
     } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
-    photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, years(p) || "No dates yet"),
-    h("span", { class: "pl" }, p.birthPlace || " "),
+    photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, boxLine(p, ME.site?.box?.[0] ?? "years") || " "),
+    h("span", { class: "pl" }, boxLine(p, ME.site?.box?.[1] ?? "birthPlace") || " "),
     p.sug && h("span", { class: "sugn" }, p.sug === "new" ? "New" : `${p.sugN} ${p.sugN === 1 ? "change" : "changes"}`));  // suggest.js
   return el;
 }
