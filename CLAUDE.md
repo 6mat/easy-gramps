@@ -36,7 +36,9 @@ app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /au
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
 app/suggest.py      Suggestions (APIRouter, included by main.py): table `suggestions` in chat.sqlite3; /suggestions, /suggestions/decide,
-                    /suggestions/history, /suggestions/delete, /suggestions/{id}/undo
+                    /suggestions/tell, /suggestions/history (with the change log), /suggestions/delete, /suggestions/{id}/undo
+app/changes.py      The change log (`import changes as log` in main.py): table `changes`; each direct tree change in words;
+                    POST /changes/{id}/undo (admins, role 5)
 app/push.py         Web Push for the chat: the server's VAPID key (DATA_DIR/push-key.pem, made on first use), http-ece encryption, send
 app/familytree.py   graph, details, per-field update, photo, create, add relative, unlink, undo, recent, merge
 app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, new person objects, photo upload)
@@ -151,9 +153,26 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   messages the suggester; decide's message lists each item in words (`_say`). Review (#171): Approve sends `up(checked)`,
   Reject `down(checked)` (what builds on them); checking/unchecking cascades down only. Rows are grouped by family
   (`families()`: the anchor person's own family, else the one they grew up in) and nested under the row whose stand-in they
-  use (`giver`). History: `GET /suggestions/history?before=<decided>:<id>&login=` (PAGE = 100, `more`, `who`), same grouping;
+  use (`giver`). History: `GET /suggestions/history?before=<time>:<s|c>:<id>&login=&kind=` (PAGE = 100, `more`, `who`), same grouping;
   `POST /suggestions/delete {ids}` or `{rejected: "all"}` removes rejected rows only, with the rejected rows that use the
-  stand-ins they made.
+  stand-ins they made. 1.9.4: a resent add (its `fam` stand-in is known) is skipped, not refused; a set on a waiting new
+  person's stand-in for `NEW_FIELDS` folds into the add row's `new` (`_fold`; `_tidy` once at start for old rows); `_can_link`
+  refuses at send what Gramps would refuse at approval (second father/mother, own waiting one, child with parents, couple
+  twice). decide claims each row (`status = 'working'`, reset at start) so a second Approve can't add it twice; the page
+  approves one at a time with `quiet` (progress bar) and then `POST /suggestions/tell {approved}` sends one message.
+- **Change log / History** (changes.py): main.py routes call `log.add(login, item, undo)` (`_tree_call(say=…)`); PATCH logs
+  per field in the background (`log.later(log.fields…)`: `fields_now` before and after; the same login+person+field within
+  `JOIN` = 10 min updates the row, back to the start deletes it). Items are shaped like suggestions (`op` set/add/unlink/
+  create/merge/combine/other) so suggest.js `says()` shows both. `/tree/undo` marks the row undone. History merges both
+  tables (UNION, cursor `time:s|c:id`, `kind` approved|rejected|editors). Admin undo: a set only if the field still has
+  `after`; a link only if no later row touches those people. Review panel: "Recent changes in this tree" (newest page,
+  filtered to `treeIds(focus)`), "History ↗" pop-up (`.dlgx` ✕).
+- **Checks in the page** (common.js): `linkProblem(pid, rel, oid, famId)` → `{stop}` / `{warn}` (editor.js `addProblem`, "Add
+  anyway"; suggesters: a warn is a stop) and `dateProblems(id)` (years only; editor `#ed-datewarn`, review rows, owner's
+  ☰ Menu → Check dates in site.js).
+- **Book pages** (familytree.py `books`/`add_book_page`/`remove_book_page`, docs.js `bookLinks`/`bookEditor`): a Source per
+  document (made the first time, the media attached) and a Citation per page on the person's `citation_list`.
+  `/tree/details` → `books` with a ticket; the link re-fetches details for a fresh ticket and opens `…/file?…#page=N`.
 - **Invites** (editors, role ≥ 3; the role part is the owner's): `POST /invites {email, person, role 0–3}` (owner) /
   `GET /invites` (owner, waiting ones), kept in chat.sqlite3 `invites`. A first Google sign-in makes a *disabled* Gramps
   Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs

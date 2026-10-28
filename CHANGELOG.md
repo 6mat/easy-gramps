@@ -2,6 +2,43 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.4 — 2026-10-27
+
+### Added
+- **History of editors' changes:** everything changed straight in the tree in Easy Gramps (by editors, the owner, admins, and
+  contributors' new people) is kept in words, field by field ("Ravi Kumar · Born: 1960 → 1970 · Changed by Editor"). A field
+  changed again within 10 minutes is one entry. Admins can Undo one, unless it was changed again since. Changes made in
+  Full Gramps don't show; the list starts with this version.
+- The Suggestions panel shows **Recent changes in this tree** (decided suggestions and editors' changes to the people on
+  screen), and **History ↗** opens the whole list in a pop-up with a ✕, "Show" (everything, approved, rejected, changed by
+  editors) and "By" filters.
+- **Date checks:** the editor, the Add box and the review list warn about dates that can't be right (died before born, born
+  when a parent was under 12, born after a parent died). It warns; it doesn't stop the save. Owners get ☰ Menu → **Check
+  dates**, everyone in the tree with such dates.
+- **Book pages** (editors, More details): "+ Add a book page" links a person to a page of a document from Family documents
+  (a Gramps citation, so Full Gramps shows it too). The person's details show "📖 Family book, page 42", which opens the PDF
+  at that page.
+- ☰ Menu says who is logged in and their role.
+
+### Changed
+- Members are told at once when an Add can't work: they already have a father or mother (or suggested one), they're already
+  husband and wife, already a child of the family, already have parents elsewhere, or it would make someone their own
+  ancestor. The server checks the same when the suggestion arrives. Editors get a warning and "Add anyway" for a child who
+  already has parents.
+- Changes to someone who is still waiting to be added go into adding them ("New: Phili, born 1970"), not a second row.
+  Waiting duplicates from before are merged once at start.
+- Approving shows "Approving 3 of 10…" with a progress bar (one at a time; one message to each person at the end), and is
+  quicker: a new person and their family go to Gramps in one write.
+- The Undo message has Undo on the left and a ✕ to close it straight away.
+- The approval error names who is already there ("They already have a father: Phili").
+
+### Fixed
+- A second Approve while the first was still running (another tab, a reload, a tap while it was slow) could add a person
+  again and then fail with "They already have a father". Each suggestion is now claimed before it's saved.
+- A suggestion sent again after its answer was lost (a phone switching apps) was refused, and the changes sent with it were
+  lost. It's now taken as already there.
+- "Delete all rejected" was as tall as the filter beside it.
+
 ## 1.9.3 — 2026-10-27
 
 ### Added
