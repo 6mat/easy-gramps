@@ -657,14 +657,43 @@ async def recent_changes(g: Gramps, limit: int = 8) -> list:
 # ---------- a page of a book (a document in Gramps' Media) on a person: a Gramps citation ----------
 # The book is a Source with the document attached; each person gets a Citation of it with the page ("42"). Full Gramps
 # shows the same thing (the person's Source Citations).
+# The paragraph marked on that page (docs.js) is the citation's "Page area" attribute: "x1,y1,x2,y2", percent of the page.
+AREA = "Page area"
+
+
+def area_of(c: dict) -> list | None:
+    v = next((a.get("value") for a in c.get("attribute_list") or [] if a.get("type") == AREA), None)
+    try:
+        return clean_area([float(x) for x in v.split(",")]) if v else None
+    except (ValueError, GrampsError):
+        return None
+
+
+def clean_area(box) -> list | None:
+    """[x1, y1, x2, y2] in percent of the page, or None for no box."""
+    if box is None:
+        return None
+    if not (isinstance(box, list) and len(box) == 4 and all(isinstance(x, (int, float)) for x in box)):
+        raise GrampsError("That marked area didn't come through. Please mark it again.")
+    x1, y1, x2, y2 = (round(min(max(float(x), 0), 100), 1) for x in box)
+    if x2 - x1 < 1 or y2 - y1 < 1:
+        raise GrampsError("That marked area is too small. Drag over the whole paragraph.")
+    return [x1, y1, x2, y2]
+
+
+def set_area(c: dict, box: list | None) -> None:
+    attrs = [a for a in c.get("attribute_list") or [] if a.get("type") != AREA]
+    if box:
+        attrs.append({"_class": "SrcAttribute", "private": False, "type": AREA, "value": ",".join(f"{x:g}" for x in box)})
+    c["attribute_list"] = attrs
 
 async def books(g: Gramps, handle: str) -> list:
-    """The person's citations whose source has a document (not a picture): [{id, page, title, media, mime}]."""
+    """The person's citations whose source has a document (not a picture): [{id, page, area, title, media, mime}]."""
     p = await g.get(f"/people/{handle}", keys="citation_list")
     out, sources = [], {}
     for ch in p.get("citation_list") or []:
         try:
-            c = await g.get(f"/citations/{ch}", keys="handle,page,source_handle")
+            c = await g.get(f"/citations/{ch}", keys="handle,page,source_handle,attribute_list")
             sh = c.get("source_handle")
             if sh not in sources:
                 src = await g.get(f"/sources/{sh}", keys="title,media_list")
@@ -675,15 +704,16 @@ async def books(g: Gramps, handle: str) -> list:
         except GrampsError:
             continue
         if ref and not mime.startswith("image/"):
-            out.append({"id": ch, "page": (c.get("page") or "").strip(), "title": title, "media": ref, "mime": mime})
+            out.append({"id": ch, "page": (c.get("page") or "").strip(), "area": area_of(c), "title": title, "media": ref, "mime": mime})
     return out
 
 
 async def add_book_page(g: Gramps, handle: str, body: dict, tags: list) -> dict:
-    """{media, page}: cite that document (its Source, made the first time) on the person."""
+    """{media, page, area?}: cite that document (its Source, made the first time) on the person."""
     media, page = body.get("media"), str(body.get("page") or "").strip()[:50]
     if not isinstance(media, str) or not media.isalnum() or not page:
         raise GrampsError("Pick the book and type the page.")
+    area = clean_area(body.get("area"))
     med = await g.get(f"/media/{media}", keys="handle,mime,desc,path")
     if (med.get("mime") or "").startswith("image/"):
         raise GrampsError("That's a picture, not a book.")
@@ -696,7 +726,9 @@ async def add_book_page(g: Gramps, handle: str, body: dict, tags: list) -> dict:
         objs.append({"_class": "Source", "handle": src, "title": title, "tag_list": list(tags),
                      "media_list": [{"_class": "MediaRef", "ref": media}]})
     cid = new_handle()
-    objs.append({"_class": "Citation", "handle": cid, "source_handle": src, "page": page, "confidence": 2, "tag_list": list(tags)})
+    cit = {"_class": "Citation", "handle": cid, "source_handle": src, "page": page, "confidence": 2, "tag_list": list(tags)}
+    set_area(cit, area)
+    objs.append(cit)
     await g.add_objects(objs)
     p = await g.get(f"/people/{handle}")
     p["citation_list"] = (p.get("citation_list") or []) + [cid]
@@ -716,4 +748,19 @@ async def remove_book_page(g: Gramps, handle: str, body: dict) -> dict:
     await g.put(f"/people/{handle}", p)
     if not await g.in_use("citations", cid):
         await g.delete(f"/citations/{cid}")
+    return {"ok": True}
+
+
+async def mark_book_page(g: Gramps, handle: str, body: dict) -> dict:
+    """{id, page, area}: the page and the paragraph marked on it (area None: no box, just the page)."""
+    cid, page = body.get("id"), str(body.get("page") or "").strip()[:50]
+    if not isinstance(cid, str) or not cid.isalnum() or not page:
+        raise GrampsError("Something was missing. Please try again.")
+    area = clean_area(body.get("area"))
+    if cid not in ((await g.get(f"/people/{handle}", keys="citation_list")).get("citation_list") or []):
+        raise GrampsError("That page isn't on this person any more.", 404)
+    c = await g.get(f"/citations/{cid}")
+    c["page"] = page
+    set_area(c, area)
+    await g.put(f"/citations/{cid}", c)
     return {"ok": True}

@@ -736,6 +736,16 @@ async def tree_add_book_page(handle: str, request: Request):
     return res
 
 
+@easy.post("/tree/person/{handle}/books/mark")
+async def tree_mark_book_page(handle: str, request: Request):
+    await need_edit(request, "Only editors can mark a book page.")
+    body = await json_body(request)
+    res = await familytree.mark_book_page(await gramps_as(request), handle, body)
+    log.add((await who(request))["name"], {"op": "other", "id": handle,
+                                           "what": f"marked a paragraph on a book page ({body.get('page')})" if body.get("area") else f"set a book page ({body.get('page')})"})
+    return res
+
+
 @easy.post("/tree/person/{handle}/books/remove")
 async def tree_remove_book_page(handle: str, request: Request):
     await need_edit(request, "Only editors can remove a book page.")

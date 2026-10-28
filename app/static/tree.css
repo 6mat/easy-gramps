@@ -613,8 +613,26 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .bookline { display: block; text-align: left; margin: 2px 0; }
 .books { display: flex; flex-direction: column; gap: 6px; }
 .books .linkish { border: 0; background: none; padding: 0; min-height: 0; color: var(--accent); text-decoration: underline; font-weight: 400; text-align: left; }
-.bookrow { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.bookrow { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
 .bookform { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .bookform label { display: flex; flex-direction: column; gap: 4px; }
 .bookform #book-page { width: 90px; }
 .datelist .sugdone { grid-template-columns: 1fr auto; }
+/* a page of a book (book.js): the page on dark, the marked paragraph in amber; marking: drag (a mouse) or Draw a box first */
+.book { touch-action: auto; gap: 8px; background: #0c0b0a; }
+.book .vclose { flex: none; }
+.btitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bnav button { min-width: 44px; font-size: 18px; padding: 6px 10px; }
+.bnum { min-width: 8.5em; text-align: center; }
+.bstage { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+.bsay { text-align: center; padding: 8px; }
+.bsay:empty { display: none; }
+.bpage { position: relative; margin: 0 auto; background: #fff; }
+.bpage canvas { display: block; width: 100%; height: 100%; }
+.bpage.marking { cursor: crosshair; }
+.bpage.drawing { touch-action: none; outline: 3px dashed #f0b429; }
+.bmark { position: absolute; border: 3px solid #e09a00; background: rgba(240, 180, 41, .28); border-radius: 4px; pointer-events: none; }
+.btools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.btools button.on { background: #f0b429; color: #1d1b18; border-color: #f0b429; }
+.btools button.primary { background: #7ab0e6; border-color: #7ab0e6; color: #0d1b28; }

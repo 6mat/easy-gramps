@@ -23,7 +23,7 @@ relatives who find the full Gramps interface too much.
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
 - **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
 - **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.
-- **Book pages:** link a person to a page of a family book (a Gramps citation); it opens at that page.
+- **Book pages:** link a person to a page of a family book (a Gramps citation); it opens in the app's own viewer at that page, with the paragraph marked (editors drag a box over it).
 - **Site settings** (the owner): the app's name and icon, which menu items show and what they're called, and who gets the Full Gramps link.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
@@ -186,3 +186,4 @@ the name-and-password form, as before.
 If you run a modified version for others over a network, you must offer them its source: the
 menu's "Source code" link does that once `SOURCE_URL` points at your copy.
 The bundled Atkinson Hyperlegible font (`app/static/fonts/`) is under the SIL Open Font License (`OFL.txt` there).
+PDF.js (`app/static/pdfjs/`, for the book viewer) is by Mozilla under the Apache License 2.0 (`LICENSE` there).

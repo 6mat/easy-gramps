@@ -4,6 +4,11 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 
 ## Unreleased
 
+### Added
+- Book pages open in the app's own viewer at that page, with the paragraph marked. Editors mark it with
+  "Mark the paragraph": go to it, press ✏️ Draw a box, and drag over it. It's saved in Gramps on the citation
+  ("Page area" attribute), next to the page number. The viewer has page turning, bigger and smaller, and "Whole book ↗".
+
 ### Changed
 - The editor's "Book pages about them" is above "More details", not inside it.
 - Site settings → Rename menu items also covers Editors, Suggestions, Owner, Waiting to join, Check dates, Site settings and Log out.
