@@ -18,7 +18,9 @@ def test_layout_fields(fake, client):
 
     as_user(fake, "own", 4)
     assert client.put(f"{E}/site", json={"layout": LAYOUT}).status_code == 403  # admins only
+    assert client.get(f"{E}/layout/types").status_code == 403
     as_user(fake, "root", 5)
+    assert client.get(f"{E}/layout/types").json() == {"events": [], "attributes": []}  # (the fake has no type lists)
     for bad in ([{"k": "x:1", "where": "top", "see": 0}], [{"k": "e:Baptism", "where": "side", "see": 0}],
                 [{"k": "notes", "where": "top", "see": 9}], LAYOUT + LAYOUT[:1]):
         assert client.put(f"{E}/site", json={"layout": bad}).status_code == 400, bad

@@ -341,6 +341,23 @@ def may_change(role: int, field) -> bool:
     return field.split(".")[0] in {r["k"] for r in layout(role)}
 
 
+@easy.get("/layout/types")
+async def layout_types(request: Request):
+    """The event and attribute types Gramps knows (its own and the tree's custom ones), for "+ Add a field"."""
+    if (await who(request)).get("role", 0) < ROLE_ADMIN:
+        raise HTTPException(403, "Only admins can change the layout.")
+    g = await gramps_as(request)
+
+    async def types(kind):
+        got = await asyncio.gather(*(g.get(f"/types/{w}/{kind}") for w in ("default", "custom")), return_exceptions=True)
+        return sorted({t for x in got if isinstance(x, list) for t in x if isinstance(t, str) and t not in SKIP_TYPES})
+    events, attributes = await asyncio.gather(types("event_types"), types("attribute_types"))
+    return {"events": events, "attributes": attributes}
+
+
+SKIP_TYPES = {"Unknown", "Birth", "Death", "_UPD"}  # (birth and death are fixed fields; _UPD is Gramps' own)
+
+
 async def need_owner(request: Request):
     if (await who(request)).get("role", 0) < ROLE_OWNER:
         raise HTTPException(403, "Only the owner can change this.")
