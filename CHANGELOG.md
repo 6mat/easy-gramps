@@ -2,6 +2,11 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Changed
+- The editor's "Book pages about them" is above "More details", not inside it.
+
 ## 1.9.4 — 2026-10-27
 
 ### Added

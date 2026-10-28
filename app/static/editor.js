@@ -398,7 +398,6 @@ function centreCard(p) {
     field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
     field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
     field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
-    canEdit() && p._details ? bookEditor(p, async () => { P[p.id]._details = false; await ensureDetails(p.id); setStatus("Saved ✓"); renderEditor(); }) : "",
     p.otherNotes.length ? h("div", { class: "small muted full" },
       `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
   moreBox.hidden = !S.edMore;
@@ -416,8 +415,9 @@ function centreCard(p) {
     placeField("Place of birth", p, "birthPlace", "ed-bplace"),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
+    canEdit() && p._details ? bookEditor(p, async () => { P[p.id]._details = false; await ensureDetails(p.id); setStatus("Saved ✓"); renderEditor(); }) : "",
     h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
-      `More details ▸ (residing at, work, education, phone, email, notes${canEdit() ? ", book pages" : ""})`),
+      "More details ▸ (residing at, work, education, phone, email, notes)"),
     moreBox);
 }
 
