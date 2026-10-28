@@ -5,6 +5,7 @@ import { api, BASE, photoSession } from "./auth.js";
 export const P = {}, FAMS = [], MEDIA = {};  // MEDIA: each picture's Gramps ID, for links to Gramps Web
 export const APP_NAME = document.documentElement.dataset.name || "Family Tree";  // the owner's name for the app (Site settings)
 export const ME = {};  // the logged-in user (from /auth/me), filled in by start()
+export const named = (k, def) => ME.site?.labels?.[k] || def;  // a menu item's text: the owner's name for it (Site settings), or ours
 export async function loadGraph() {
   const g = await api("/tree/graph");
   for (const k of Object.keys(P)) delete P[k];

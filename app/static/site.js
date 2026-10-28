@@ -1,7 +1,7 @@
 // Easy Gramps — the owner's Site settings (☰ Menu → Owner): which menu items everyone sees, who gets the Full Gramps
 // link, the app's name and its icon. Kept on the server (main.py /site), the same for everyone.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, ME, P, closeMenu, dateProblems, h, name, postJSON } from "./common.js";
+import { $, APP_NAME, ME, P, closeMenu, dateProblems, h, name, named, postJSON } from "./common.js";
 import { seeTree } from "./tree.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { ROLES } from "./me.js";
@@ -14,7 +14,9 @@ const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Me
   ["display", "[data-item=display] h3", "Display"], ["dates", "[data-item=dates] h3", "Dates"], ["you", "[data-item=you] h3", "You"],
   ["help", "#h-help", "Help"], ["install", "#menu-install", "📲 Install as an app"], ["docs", "#menu-docs", "📚 Family documents"],
   ["tips", "#tips-again", "Show tips"], ["keys", "#menu-keys", "Keyboard keys"], ["goto", "#h-goto", "Go to"],
-  ["gramps", "#menu-gramps", "Full Gramps ↗"], ["source", "#menu-source", "Source code ↗"]];
+  ["gramps", "#menu-gramps", "Full Gramps ↗"], ["source", "#menu-source", "Source code ↗"], ["editors", "#menu-review h3", "Editors"],
+  ["suggest", "", "📝 Suggestions"], ["owner", "#menu-owner h3", "Owner"], ["joining", "", "👋 Waiting to join"],
+  ["checkdates", "#menu-dates", "🗓 Check dates"], ["site", "#menu-site", "⚙️ Site settings"], ["logout", "#logout", "Log out"]];  // "": shown with a count (named)
 const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
 
@@ -22,12 +24,12 @@ export function applySite() {
   const hide = new Set(ME.site?.hide || []);
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   $("#menu-owner").hidden = (ME.role ?? 0) < 4;
-  $("#menu-joining").textContent = `👋 Waiting to join${ME.joining ? ` (${ME.joining})` : ""}`;
+  $("#menu-joining").textContent = `${named("joining", "👋 Waiting to join")}${ME.joining ? ` (${ME.joining})` : ""}`;
   const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
   $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
   const names = ME.site?.labels || {};
   for (const [k, sel] of LABELS) {
-    const el = $(sel);
+    const el = sel && $(sel);
     if (el && names[k]) el.textContent = el.classList.contains("lbl") ? ` ${names[k]}` : names[k];  // .lbl: after the icon
   }
 }

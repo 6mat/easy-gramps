@@ -3,7 +3,7 @@
 // draft on this device until they press "Send to the editors". Their waiting ones show on their tree. Editors open
 // ☰ Menu → Suggestions: the tree shows what it would look like with the checked ones, the list is in the panel.
 import { api } from "./auth.js";
-import { $, FAMS, ME, P, S, closeMenu, dateProblems, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
+import { $, FAMS, ME, P, S, closeMenu, dateProblems, fmtDate, h, loadGraph, name, named, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
 import { seeTree } from "./tree.js";
 import { renderAll } from "./start.js";
 import { closeEditor, flushSaves, hideDlg, showDlg, toast } from "./editor.js";
@@ -185,7 +185,7 @@ export function suggestMenu() {
   }
   const b = $("#menu-suggest");
   $("#menu-review").hidden = ME.suggestions == null;
-  b.textContent = `📝 Suggestions${ME.suggestions ? ` (${ME.suggestions})` : ""}`;
+  b.textContent = `${named("suggest", "📝 Suggestions")}${ME.suggestions ? ` (${ME.suggestions})` : ""}`;
 }
 $("#menu-suggest").onclick = () => { closeMenu(); openReview(true); };
 

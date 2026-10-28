@@ -6,6 +6,7 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 
 ### Changed
 - The editor's "Book pages about them" is above "More details", not inside it.
+- Site settings → Rename menu items also covers Editors, Suggestions, Owner, Waiting to join, Check dates, Site settings and Log out.
 
 ## 1.9.4 — 2026-10-27
 

@@ -574,6 +574,7 @@ def test_site_labels(fake, client):  # #159
         return client.put("/easy-gramps/site", json={"labels": labels})
     assert put({"docs": "  📖 Family   history ", "chat": ""}).json()["labels"] == {"docs": "📖 Family history"}  # empty: the default
     assert client.get("/easy-gramps/auth/me").json()["site"]["labels"] == {"docs": "📖 Family history"}
+    assert put({"logout": "Sign out", "site": "Settings"}).json()["labels"] == {"logout": "Sign out", "site": "Settings"}
     assert put({"nope": "x"}).status_code == 400 and put({"docs": 3}).status_code == 400 and put({"docs": "x" * 41}).status_code == 400
     fake.role = 3
     main._who_cache.clear()
