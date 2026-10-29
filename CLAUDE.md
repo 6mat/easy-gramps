@@ -134,7 +134,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
 - **Layout** (admins, role 5; Manage → Layout in site.js): site `layout` = rows `{k, where: top|more, see: 0–5}`, `[]` = main.py
-  `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (the person box's 2nd/3rd line, `BOX_LINES`).
+  `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (the person box's 2nd/3rd line, then a backup for each when it's empty, `BOX_LINES`).
   `k`: a built-in (`BUILT_IN`), `e:<event type>`, `a:<attribute type>`, `r:<kin>` (`KIN`; common.js `kin()` from the graph).
   `layout(role)` = the rows that role sees; `/auth/me` and `PUT /site` send only those. `/tree/details` adds the visible
   `e:`/`a:` fields (familytree `details(want=…)`, places by name, others of the type in `also` with the role) and blanks hidden

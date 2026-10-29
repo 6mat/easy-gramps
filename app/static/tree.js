@@ -257,8 +257,7 @@ function nodeEl(id, focus) {
       else if (e.key === " ") { e.preventDefault(); e.stopPropagation(); select(id); showPanel(); }
     } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
-    photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, boxLine(p, ME.site?.box?.[0] ?? "years") || " "),
-    h("span", { class: "pl" }, boxLine(p, ME.site?.box?.[1] ?? "birthPlace") || " "),
+    photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, boxText(p, 0, "years")), h("span", { class: "pl" }, boxText(p, 1, "birthPlace")),
     p.sug && h("span", { class: "sugn" }, p.sug === "new" ? "New" : `${p.sugN} ${p.sugN === 1 ? "change" : "changes"}`));  // suggest.js
   return el;
 }
@@ -721,3 +720,9 @@ $("#q").addEventListener("input", () => {
 });
 searchKeys($("#q"), $("#results"), () => { $("#results").hidden = true; });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) $("#results").hidden = true; });
+
+// The person box's 2nd/3rd line (the admin's Layout): its field, else its backup (box[i + 2]).
+function boxText(p, i, k) {
+  const [a = k, b = ""] = [ME.site?.box?.[i], ME.site?.box?.[i + 2]];
+  return boxLine(p, a) || boxLine(p, b) || ([a, b].includes("years") ? "No dates yet" : " ");
+}
