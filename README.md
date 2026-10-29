@@ -37,6 +37,27 @@ Easy Gramps is an independent project. It is not affiliated with or endorsed by 
 > Status: **0.9 preview.** Tested with Gramps Web API 3.22.x. Built for landscape screens
 > (laptop, tablet sideways); phones are not supported yet.
 
+## Screenshots
+
+From the public [Gramps Web demo](https://demo.grampsweb.org) tree (never a real family). They follow your
+light or dark theme.
+
+**The tree**, with the selected person's details beside it:
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/tree-dark.png"><img src="docs/screenshots/tree-light.png" alt="George V's family tree: parents, wife and her parents above, a son and his wife below, and his details panel on the right"></picture>
+
+**Editing a person:** every field saves as you type; the family around them is one tap away.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/editor-dark.png"><img src="docs/screenshots/editor-light.png" alt="The editor for George V: photos, name, gender and birthday, with his parents and wife around him"></picture>
+
+**Merging duplicates:** pick a value from either side, or type your own.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/merge-dark.png"><img src="docs/screenshots/merge-light.png" alt="Combine two people into one: George V and George VI side by side, with the values that will be kept"></picture>
+
+**The details panel** on its own:
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/panel-dark.png"><img src="docs/screenshots/panel-light.png" alt="George V's details: born, passed away, parents and wife"></picture>
+
 ## Install (same machine as Gramps Web, behind Traefik)
 
 Easy Gramps runs next to Gramps Web on the **same domain**, under a path:
