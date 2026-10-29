@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.9.5 — 2026-10-28
 
 ### Added
 - Book pages open in the app's own viewer at that page, with the paragraph marked. Editors mark it with
