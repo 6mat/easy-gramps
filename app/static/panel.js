@@ -1,7 +1,7 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { bookLinks } from "./docs.js";
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fmtDate, h, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openMerge } from "./merge.js";
@@ -11,14 +11,29 @@ import { loginLine, meTag } from "./me.js";
 import { messageButton, talkSection } from "./chat.js";
 
 // ---------- right panel ----------
-async function toggleMore(id) {
-  S.more = !S.more;
-  renderPanel();
-  if (S.more && !P[id]._details) {
-    try { Object.assign(P[id], await api(`/tree/details/${id}`), { _details: true }); }
-    catch (err) { if (err instanceof LoginNeeded) return showLogin(); toast(`Couldn't load details: ${err.message}`, false); }
-    if (S.sel === id) renderPanel();
+async function loadDetails(id) {
+  if (P[id]._details || P[id]._loading) return;
+  P[id]._loading = true;
+  try { Object.assign(P[id], await api(`/tree/details/${id}`), { _details: true }); }
+  catch (err) { if (err instanceof LoginNeeded) return showLogin(); return toast(`Couldn't load details: ${err.message}`, false); }
+  finally { if (P[id]) P[id]._loading = false; }
+  if (S.sel === id) renderPanel();
+}
+function toggleMore(id) { S.more = !S.more; renderPanel(); if (S.more) loadDetails(id); }
+const fromGraph = k => k.startsWith("r:") || k === "burial";  // the rest come with /tree/details
+
+// One field of the layout for p: words, the relatives' buttons, or "" (nothing to show).
+function shown(p, k, chips) {
+  if (k.startsWith("r:")) { const ids = kin(p.id, k); return ids.length ? chips(ids) : ""; }
+  if (k.startsWith("a:")) return [p[k], ...(p.also?.[k] || [])].filter(Boolean).join("; ");
+  if (k.startsWith("e:")) {  // theirs first, then the others of that type (as a witness, godparent…: their part in brackets)
+    const one = (date, place, what, role) => { const t = [fmtDate(date), place, what].filter(Boolean).join(", "); return t && role ? `${t} (${role})` : t; };
+    return [one(p[`${k}.date`], p[`${k}.place`], p[`${k}.desc`]), ...(p.also?.[k] || []).map(x => one(x.date, x.place, x.desc, x.role))]
+      .filter(Boolean).join("; ");
   }
+  const all = (one, more) => [one, ...(more || [])].filter(Boolean);
+  return { burial: p.burial, residence: all(p.residence, [p.residenceRest]).join(", "), work: all(p.work, p.otherWork).join("; "),
+    education: all(p.education, p.otherEducation).join("; "), phone: p.phone, email: p.email, notes: all(p.notes, p.otherNotes).join("\n\n") }[k] || "";
 }
 
 export function renderPanel() {
@@ -36,7 +51,8 @@ export function renderPanel() {
   const spouses = spouseFams(p.id).map(x => other(x, p.id)).filter(Boolean);
   const kids = byBirth(spouseFams(p.id).flatMap(x => x.kids));
   const rel = S.sel !== S.focus && REL[p.id]?.phrase;
-  const panel = $("#panel");
+  const panel = $("#panel"), rows = where => layout().filter(r => r.where === where).flatMap(r => row(fieldName(r.k), shown(p, r.k, chips)));
+  if (layout().some(r => r.where === "top" && !fromGraph(r.k))) loadDetails(p.id);
   panel.replaceChildren(
     h("div", { class: "ptop" },
       h("button", { class: "pill hide", onclick: hidePanel, title: "Hide this panel to give the tree more room" }, "Hide panel »"),
@@ -51,7 +67,7 @@ export function renderPanel() {
         h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
     h("dl", { class: "kv" },
       row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
-      row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : "")),
+      row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : ""), ...rows("top")),
     famRow("Parents", parents),
     famRow(spouseHeading(p, spouses.length), spouses),
     ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
@@ -60,19 +76,14 @@ export function renderPanel() {
     h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
       S.more ? "Fewer details ▴" : "More details ▾"));
   if (S.more) {
-    const notes = [p.notes, ...p.otherNotes].filter(Boolean).join("\n\n");
-    const work = [p.work, ...(p.otherWork || [])].filter(Boolean).join("; ");
-    const education = [p.education, ...(p.otherEducation || [])].filter(Boolean).join("; ");
-    const any = p.burial || p.residence || work || education || p.phone || p.email || p.contactHidden || notes || p.books?.length;
+    const more = rows("more"), locked = layout().some(r => r.see > 0 && (r.k === "phone" && p.phone || r.k === "email" && p.email));
+    const any = more.length || p.contactHidden || p.books?.length;
     panel.append(h("div", { class: "details" },
       loginLine(p),
-      h("dl", { class: "kv" },
-        row("Buried at", p.burial), row("Lives in", [p.residence, p.residenceRest].filter(Boolean).join(", ")),
-        row("Work", work), row("Education", education),
-        row("Phone", p.phone), row("Email", p.email), row("Notes", notes)),
+      h("dl", { class: "kv" }, ...more),
       ...bookLinks(p),
-      p.phone || p.email ? h("div", { class: "private" }, "🔒 Only editors see phone and email.") : "",
-      p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are shown only to editors.") : "",
+      locked ? h("div", { class: "private" }, "🔒 Not everyone sees phone and email.") : "",
+      p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are kept private.") : "",
       !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
       canEdit() ? h("div", { class: "glinks small" }, h("span", { class: "muted" }, "Open in Full Gramps:"),
         ...[["person", p.gid, "this person"], ["event", p.gids.birth, "birth"], ["place", p.gids.birthPlace, "place of birth"],

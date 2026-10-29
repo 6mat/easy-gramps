@@ -81,7 +81,7 @@ def add_to_me(user: dict):
         user["suggestions"] = q("SELECT count(*) n FROM suggestions WHERE status = 'waiting'")[0]["n"]
 
 
-def _check(items, known=()) -> set:
+def _check(items, known=(), role=0) -> set:
     """The items' shape, and every stand-in used only after an earlier item (or one of `known`, made by their earlier
     suggestions) made it. Returns the real people named."""
     bad = HTTPException(400, "Something was missing. Please try again.")
@@ -104,7 +104,8 @@ def _check(items, known=()) -> set:
         if not isinstance(it, dict) or not isinstance(it.get("label", ""), str):
             raise bad
         if it.get("op") == "set":
-            if it.get("field") not in familytree.FIELDS or "value" not in it:
+            # (the fixed fields as before 1.9.5: a member may suggest a phone number they can't see)
+            if not (it.get("field") in familytree.FIELDS or m.may_change(role, it.get("field"))) or "value" not in it:
                 raise bad
             ref(it.get("id"))
         elif it.get("op") == "add":
@@ -145,7 +146,7 @@ async def send(request: Request):
         if not items:
             return {"batch": None, "count": 0}
     g = gramps.Gramps(m.GRAMPS_URL, m.bearer(request))
-    for h in _check(items, {x for _, it, _ in theirs for x in (it.get("as"), it.get("fam")) if x}):
+    for h in _check(items, {x for _, it, _ in theirs for x in (it.get("as"), it.get("fam")) if x}, user.get("role", 0)):
         await g.get(f"/people/{h}", keys="handle")  # only people they can see (a guest can't suggest about a private person)
     for it in items:
         if it["op"] == "add":
@@ -165,7 +166,7 @@ async def send(request: Request):
                 steps.append(("DELETE FROM suggestions WHERE id = ?", old[0]))
         elif not old:
             fresh.append(it)
-        elif _same(it.get("label") if it["field"] in ("birthPlace", "burial") else it["value"], old[1].get("before")):
+        elif _same(it.get("label") if familytree.is_place(it["field"]) else it["value"], old[1].get("before")):
             steps.append(("DELETE FROM suggestions WHERE id = ?", old[0]))
         else:
             steps.append(("UPDATE suggestions SET item = ?, at = ? WHERE id = ?", json.dumps({**it, "before": old[1].get("before", "")}),
@@ -421,8 +422,8 @@ async def _say(g, ids, most=15) -> list:
     for r in rows[:most]:
         it = json.loads(r["item"])
         if it["op"] == "set":
-            v = it.get("label") if it["field"] in ("birthPlace", "burial") else value(it["field"], it.get("value"))
-            out.append(f"{await who(it['id'])}'s {WORDS.get(it['field'], it['field'])}: {v or '(none)'}")
+            v = it.get("label") if familytree.is_place(it["field"]) else value(it["field"], it.get("value"))
+            out.append(f"{await who(it['id'])}'s {WORDS.get(it['field']) or familytree.word(it['field'])}: {v or '(none)'}")
         else:
             whose = await who(it["person"])
             rel = {1: "wife", 0: "husband"}.get(genders.get(it["person"]), "husband or wife") if it["rel"] == "spouse" else it["rel"]

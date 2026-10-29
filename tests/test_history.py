@@ -121,5 +121,12 @@ def test_book_pages(fake, client):
     assert [(b["title"], b["page"], b["media"]) for b in books] == [("Family book", "42", book), ("Family book", "7", book)] and books[0]["ticket"]
     assert client.post(f"{E}/tree/person/{ravi}/books/remove", json={"id": c1}).status_code == 200
     assert c1 not in fake.db["citations"] and fake.get("people", ravi)["citation_list"] == [c2]
+    mark = lambda **b: client.post(f"{E}/tree/person/{ravi}/books/mark", json=b)  # noqa: E731
+    assert mark(id=c2, page="8", area=[10, 20, 10.5, 30]).status_code == 400  # too small to be a paragraph
+    assert mark(id=c2, page="8", area=[10, 20, 90, 35.25]).status_code == 200
+    c3 = add(media=book, page="9", area=[-5, 0, 50, 10]).json()["id"]
+    got = {b["id"]: (b["page"], b["area"]) for b in client.get(f"{E}/tree/details/{ravi}").json()["books"]}
+    assert got == {c2: ("8", [10, 20, 90, 35.2]), c3: ("9", [0, 0, 50, 10])}
+    assert mark(id=c2, page="8", area=None).status_code == 200 and not fake.get("citations", c2)["attribute_list"]
     as_user(fake, "ann", 1)
-    assert add(media=book, page="1").status_code == 403
+    assert add(media=book, page="1").status_code == 403 and mark(id=c3, page="9", area=None).status_code == 403

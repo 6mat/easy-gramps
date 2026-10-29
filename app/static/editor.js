@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, fieldName, fmtDate, layout, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge } from "./merge.js";
@@ -389,19 +389,9 @@ function centreCard(p) {
   const moreBox = h("div", { class: "box full" },
     !p._details && h("div", { class: "warn full" }, "Couldn't load these details.",
       h("button", { onclick: async () => { try { await ensureDetails(p.id); } catch (err) { if (err instanceof LoginNeeded) return showLogin(); } renderEditor(); } }, "Try again")),
-    field("Residing at", bindText(p, "residence", "ed-res", off), "full"),
-    p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : "",
-    field("Work", bindText(p, "work", "ed-work", off), "full"),
-    p.otherWork?.length ? h("div", { class: "small muted full" }, `Also: ${p.otherWork.join("; ")} (change in Full Gramps)`) : "",
-    field("Education", bindText(p, "education", "ed-edu", off), "full"),
-    p.otherEducation?.length ? h("div", { class: "small muted full" }, `Also: ${p.otherEducation.join("; ")} (change in Full Gramps)`) : "",
-    field("Phone (private)", bindText(p, "phone", "ed-phone", { type: "tel", ...off })),
-    field("Email (private)", bindText(p, "email", "ed-email", { type: "email", ...off })),
-    field("Notes", bindText(p, "notes", "ed-notes", { area: true, ...off }), "full"),
-    canEdit() && p._details ? bookEditor(p, async () => { P[p.id]._details = false; await ensureDetails(p.id); setStatus("Saved ✓"); renderEditor(); }) : "",
-    p.otherNotes.length ? h("div", { class: "small muted full" },
-      `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : "");
+    ...layoutFields(p, "more", off));
   moreBox.hidden = !S.edMore;
+  const moreWords = layout().filter(r => r.where === "more" && !r.k.startsWith("r:") && r.k !== "burial").map(r => fieldName(r.k).toLowerCase()).join(", ");
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, mainPhoto,
       canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
@@ -416,9 +406,40 @@ function centreCard(p) {
     placeField("Place of birth", p, "birthPlace", "ed-bplace"),
     h("label", { class: "inline full", for: "ed-passed" }, passed, "Passed away?"),
     deathBox,
-    h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
-      `More details ▸ (residing at, work, education, phone, email, notes${canEdit() ? ", book pages" : ""})`),
+    canEdit() && p._details ? bookEditor(p, async () => { P[p.id]._details = false; await ensureDetails(p.id); setStatus("Saved ✓"); renderEditor(); }) : "",
+    ...layoutFields(p, "top", off),
+    moreWords && h("button", { class: "full", "aria-expanded": String(S.edMore), onclick: () => { S.edMore = !S.edMore; moreBox.hidden = !S.edMore; } },
+      `More details ▸ (${moreWords})`),
     moreBox);
+}
+
+// The fields the admin's layout shows this login (☰ Menu → Manage → Layout), in its order: what's shown can be changed here.
+// Relatives are changed on the tree, burial with "Passed away?". The others of a type (or an event they're only a witness
+// at, godparent…, shared with its main person) are shown, to change in Full Gramps.
+function layoutFields(p, where, off) {
+  const also = list => list?.length ? h("div", { class: "small muted full" }, `Also: ${list.join("; ")} (change in Full Gramps)`) : "";
+  return layout().filter(r => r.where === where).flatMap(({ k }, i) => {
+    const id = `ed-${where}${i}`, say = fieldName(k);
+    const builtIn = {
+      residence: () => [field("Residing at", bindText(p, "residence", id, off), "full"),
+        p.residenceRest ? h("div", { class: "small muted full" }, `…, ${p.residenceRest} (change that part in Full Gramps)`) : ""],
+      work: () => [field("Work", bindText(p, "work", id, off), "full"), also(p.otherWork)],
+      education: () => [field("Education", bindText(p, "education", id, off), "full"), also(p.otherEducation)],
+      phone: () => [field("Phone (private)", bindText(p, "phone", id, { type: "tel", ...off }))],
+      email: () => [field("Email (private)", bindText(p, "email", id, { type: "email", ...off }))],
+      notes: () => [field("Notes", bindText(p, "notes", id, { area: true, ...off }), "full"), p.otherNotes?.length ? h("div", { class: "small muted full" },
+        `+ ${p.otherNotes.length} more ${p.otherNotes.length === 1 ? "note" : "notes"}. Open Full Gramps to change ${p.otherNotes.length === 1 ? "it" : "them"}.`) : ""],
+    }[k];
+    if (builtIn) return builtIn();
+    if (k.startsWith("a:")) return [field(say, bindText(p, k, id, off), "full"), also(p.also?.[k])];
+    if (!k.startsWith("e:")) return [];
+    const others = (p.also?.[k] || []).map(x => [fmtDate(x.date), x.place, x.desc].filter(Boolean).join(", ") + (x.role ? ` (as ${x.role})` : ""));
+    return [h("div", { class: "box full" },
+      h("div", { class: "flabel" }, `${say}: date`, dateInputs(id, `${say}: date`, () => p[`${k}.date`], v => { p[`${k}.date`] = v; autosave(p.id, { [`${k}.date`]: v }); })),
+      placeField(`${say}: place`, p, `${k}.place`, `${id}-place`),
+      field(`${say}: description`, bindText(p, `${k}.desc`, `${id}-desc`, off), "full"),
+      also(others.filter(Boolean)))];
+  });
 }
 
 // Dates that can't be right (theirs, and their children's against them): an amber note, saving still goes ahead.

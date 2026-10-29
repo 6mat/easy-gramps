@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · site.js (the owner's Site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage: Suggestions, Waiting to join, Invites, Check dates, the site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -76,7 +76,7 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   description of the first Occupation / Education event, `otherWork`/`otherEducation` the rest).
 - `GET /tree/places` — every place `{id, name, area}` for the editor's place boxes.
 - `PATCH /tree/person/{h}` — fields `first last nick gender birth birthPlace deceased death burial
-  residence phone email notes work education`. `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
+  residence phone email notes work education`, plus the layout's `e:<type>.date|place|desc` and `a:<type>` (see Layout). `birthPlace`/`burial` take `{id}` (picked), `{new}` (confirmed) or a
   name (merge: reuses an exact match, else makes it). Unticking deceased removes Death and Burial. Residence/phone go in a
   **private** Address, email in a **private** Url. `work`/`education` set the first
   Occupation/Education event's description (made if none; emptied: deleted unless it has a date, place, note or citation).
@@ -133,6 +133,16 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
+- **Layout** (admins, role 5; Manage → Layout in site.js): site `layout` = rows `{k, where: top|more, see: 0–5}`, `[]` = main.py
+  `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (the person box's 2nd/3rd line, `BOX_LINES`).
+  `k`: a built-in (`BUILT_IN`), `e:<event type>`, `a:<attribute type>`, `r:<kin>` (`KIN`; common.js `kin()` from the graph).
+  `layout(role)` = the rows that role sees; `/auth/me` and `PUT /site` send only those. `/tree/details` adds the visible
+  `e:`/`a:` fields (familytree `details(want=…)`, places by name, others of the type in `also` with the role) and blanks hidden
+  built-ins. `may_change(role, field)`: PATCH takes only those (suggestions: the fixed fields always, as before). An event field
+  edits the person's first event of that type with role Primary (`extras()`; one is made if none, never a shared one); emptied
+  events and attributes are removed. `GET /layout/types` (admins): Gramps' default + custom event and person-attribute types.
+  History: `changes.fields` stores `ev` (the event handle) in an `e:` undo; Undo refuses if their first one is now another.
+  Panel (`shown()`) and editor (`layoutFields()`) follow the layout; a top row needing details loads them with the panel.
 - **Suggestions** (#166, #168; site `suggest`: off | members (roles 1–2) | everyone (0–2), `suggest_send`: auto | manual; `/auth/me` → `can_suggest`, and editors get
   `suggestions` = waiting count while on). The page's role is then `"suggest"`: `canChange()`/`canLink()` are true (fields, Add
   slots, pick existing), photos/unlink/merge stay editors-only, and `canAddNew()` (lone new person) is editors and contributors.

@@ -435,6 +435,9 @@ def test_invite_gives_the_role_and_person_once_they_sign_in(fake, client):  # #1
     fake.fail[("GET", "/users/")] = 500  # Gramps trouble doesn't stop the page
     client.post("/easy-gramps/invites", json={"email": "b@example.com", "person": p, "role": 0})
     assert client.get("/easy-gramps/auth/me").json()["joined"] == []
+    cancel = lambda e: client.post("/easy-gramps/invites/cancel", json={"email": e}).status_code  # noqa: E731
+    assert cancel("asha@example.com") == 404  # used already: stays
+    assert cancel(" B@example.com") == 200 and client.get("/easy-gramps/invites").json() == [] and cancel("b@example.com") == 404
 
 
 def test_owner_lets_people_in_and_they_get_an_email(fake, client, monkeypatch):
@@ -465,13 +468,15 @@ def test_site_settings_owner_only(fake, client):  # #145
     from PIL import Image
     assert client.put("/easy-gramps/site", json={"name": "Ours"}).status_code == 403  # an editor
     me = client.get("/easy-gramps/auth/me").json()
-    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto"} and me["gramps_link"]
+    assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
+                          "layout": main.DEFAULT_LAYOUT, "box": ["years", "birthPlace"]} and me["gramps_link"]
     fake.role = 4
     main._who_cache.clear()
     for bad in ({"name": "  "}, {"name": "x" * 41}, {"hide": ["logout"]}, {"hide": "theme"}, {"gramps": "admins"}):
         assert client.put("/easy-gramps/site", json=bad).status_code == 400, bad
     s = client.put("/easy-gramps/site", json={"name": " The  <Kumar> Family ", "hide": ["source", "theme"], "gramps": "owner"}).json()
-    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto"}
+    assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
+                 "layout": main.DEFAULT_LAYOUT, "box": ["years", "birthPlace"]}
     page = client.get("/easy-gramps/").text
     assert "<title>The &lt;Kumar&gt; Family</title>" in page and "__NAME__" not in page
     assert client.get("/easy-gramps/manifest.webmanifest").json()["name"] == "The <Kumar> Family"
@@ -574,6 +579,7 @@ def test_site_labels(fake, client):  # #159
         return client.put("/easy-gramps/site", json={"labels": labels})
     assert put({"docs": "  📖 Family   history ", "chat": ""}).json()["labels"] == {"docs": "📖 Family history"}  # empty: the default
     assert client.get("/easy-gramps/auth/me").json()["site"]["labels"] == {"docs": "📖 Family history"}
+    assert put({"logout": "Sign out", "site": "Settings"}).json()["labels"] == {"logout": "Sign out", "site": "Settings"}
     assert put({"nope": "x"}).status_code == 400 and put({"docs": 3}).status_code == 400 and put({"docs": "x" * 41}).status_code == 400
     fake.role = 3
     main._who_cache.clear()

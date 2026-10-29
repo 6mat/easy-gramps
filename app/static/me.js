@@ -264,7 +264,7 @@ function openInvite(p) {
     catch { box.select(); say.textContent = "Select the text and copy it."; }
   } }, "Copy");
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Invite ${name(p)}`),
-    h("p", { class: "muted" }, isOwner() ? "Send them this message. When they've signed in, let them in from ☰ Menu → Waiting to join, or use ✉ Email to do it for you."
+    h("p", { class: "muted" }, isOwner() ? "Send them this message. When they've signed in, let them in from ☰ Menu → Manage → Waiting to join, or use ✉ Email to do it for you."
       : "Send them this message. The owner lets them in once they've signed in."),
     box, say, h("div", { class: "btnrow end" }, wa, mail, share || "", copy, h("button", { onclick: hideDlg }, "Done")));
   showDlg(false);

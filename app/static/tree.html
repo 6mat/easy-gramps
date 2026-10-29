@@ -47,12 +47,7 @@
         <div class="mgroup"><h3 id="h-goto">Go to</h3>
           <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
           <a class="menulink" id="menu-source" href="__SOURCE__" data-item="source" target="_blank" rel="noopener">Source code ↗</a></div>
-        <div class="mgroup" id="menu-review" hidden><h3>Editors</h3>
-          <button id="menu-suggest">📝 Suggestions</button></div>
-        <div class="mgroup" id="menu-owner" hidden><h3>Owner</h3>
-          <button id="menu-joining">👋 Waiting to join</button>
-          <button id="menu-dates">🗓 Check dates</button>
-          <button id="menu-site">⚙️ Site settings</button></div>
+        <button id="menu-manage" hidden>⚙️ Manage</button>
         <button id="logout">Log out</button>
         <div class="small muted" id="menu-role"></div>
         <div class="small muted" id="menu-version">Easy Gramps __VERSION__</div>
@@ -122,9 +117,18 @@
   <div class="cbody"><div class="clist"></div><div class="cconv"></div></div>
 </div>
 
+<div class="chat manage" id="manage" role="dialog" aria-label="Manage" hidden>
+  <div class="ed-head">
+    <button id="manage-back" class="pill">← Back</button>
+    <div class="titles"><h2>Manage</h2></div>
+  </div>
+  <div class="mbody"><nav class="mnav" aria-label="Sections"></nav><section class="msec"></section></div>
+</div>
+
 <div class="dlg-wrap" id="dlg-wrap" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-title"></div></div>
 
 <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Photo" hidden></div>
+<div class="viewer book" id="book" role="dialog" aria-modal="true" aria-label="Book" hidden></div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden><button id="toast-undo">Undo</button><span id="toast-msg"></span><button id="toast-x" class="toastx" aria-label="Close">✕</button></div>
 

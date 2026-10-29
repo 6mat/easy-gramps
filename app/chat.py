@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, login TEXT NOT NULL,
 CREATE TABLE IF NOT EXISTS site (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
 """
-SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto"}  # the owner's site settings, and their defaults
+SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
+        "layout": [], "box": ["years", "birthPlace"]}  # the owner's site settings, and their defaults
 ADDED = (("convs", "private"), ("users", "private"))  # columns newer than 1.8.0's tables
 
 
@@ -373,6 +374,9 @@ class Chat:
     def invites(self) -> list[dict]:
         """The ones still waiting for the person to sign in."""
         return [dict(r) for r in self.q("SELECT * FROM invites WHERE joined IS NULL ORDER BY at")]
+
+    def cancel_invite(self, email: str) -> bool:
+        return bool(self.q("DELETE FROM invites WHERE email = ? AND joined IS NULL RETURNING email", email))
 
     def joined(self, email: str, login: str):
         self.q("UPDATE invites SET joined = ? WHERE email = ?", login, email)
