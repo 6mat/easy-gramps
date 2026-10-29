@@ -910,6 +910,18 @@ async def _said(g, op, h, what, label=""):
     return {"op": op, "id": fam.get("father_handle") or fam.get("mother_handle") or h, "what": what, "label": label},
 
 
+@easy.delete("/tree/person/{handle}")
+async def tree_delete_person(handle: str, request: Request):
+    """Editors: a person made by mistake (or in the wrong place) goes from the tree and from Gramps. No undo."""
+    await need_edit(request, "Only editors can delete a person.")
+    g = await gramps_as(request)
+    label = await log.name_of(g, handle)
+    await familytree.delete_person(g, handle)
+    CHAT.unlink_person(handle)  # a login linked to them is free to find themselves again
+    log.add((await who(request))["name"], {"op": "delete", "id": handle, "label": label})
+    return {"ok": True}
+
+
 @easy.post("/tree/merge")
 async def tree_merge(request: Request):
     await need_edit(request, "Only people with edit rights can merge")

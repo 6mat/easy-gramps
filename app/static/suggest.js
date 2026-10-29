@@ -261,6 +261,7 @@ function says(r, decided) {
     return [h("strong", {}, `Removed ${it.label}`), ` as ${p ? `${p.first || name(p)}'s ${relWord(it.rel, p)}` : it.rel}`];
   }
   if (it.op === "create") return [h("strong", {}, `New: ${nameOf(it.id, it.label)}`), " (on their own)"];
+  if (it.op === "delete") return [h("strong", {}, `Deleted ${it.label}`), " from the tree"];
   if (it.op === "merge") return [h("strong", {}, nameOf(it.id)), ` · merged with ${it.label || "a duplicate"}`];
   if (it.op !== "set") return [h("strong", {}, nameOf(it.id)), ` · ${it.what}`];
   const p = P[real(it.id)];

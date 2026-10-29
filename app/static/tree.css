@@ -410,6 +410,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   color: var(--accent); font-weight: 700; font-size: 15px; }
 .panel .dupbtn::before { content: "⧉  " / ""; }
 .panel .dupbtn:hover { background: var(--accent-soft); }
+.panel .delbtn { width: 100%; margin-top: 8px; }
 .note { padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
 .spouses .twice { max-width: 320px; }
 .btnrow.end { justify-content: flex-end; }

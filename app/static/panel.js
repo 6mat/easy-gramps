@@ -4,7 +4,7 @@ import { api, LoginNeeded } from "./auth.js";
 import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
-import { openMerge } from "./merge.js";
+import { openDelete, openMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 import { loginLine, meTag } from "./me.js";
@@ -92,7 +92,7 @@ export function renderPanel() {
   }
   if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
   if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
-    "Duplicate profile? Merge.")));
+    "Duplicate profile? Merge."), h("button", { class: "danger delbtn", onclick: () => openDelete(p.id) }, "Delete this person")));
   drawSelink();
 }
 

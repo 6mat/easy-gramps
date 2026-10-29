@@ -1,6 +1,6 @@
 // Easy Gramps — "Duplicate profile? Merge.": find the other profile, compare, combine.
-import { LoginNeeded } from "./auth.js";
-import { $, P, S, fmtDate, h, matches, name, photoEl, postJSON, searchWords } from "./common.js";
+import { api, LoginNeeded } from "./auth.js";
+import { $, P, S, fmtDate, h, matches, name, other, parentFam, photoEl, postJSON, searchWords, spouseFams } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { seeTree } from "./tree.js";
 import { flushSaves, hideDlg, refresh, showDlg, toast } from "./editor.js";
@@ -144,3 +144,36 @@ async function doMerge() {
   }
 }
 export function closeMerge() { hideDlg(); $("#dlg").classList.remove("wide"); S.merge = null; }
+
+// ---------- "Delete this person" (editors): one made by mistake or in the wrong place, from the tree and Gramps ----------
+export function openDelete(id) {
+  const p = P[id], pf = parentFam(id);
+  const kin = [pf?.f, pf?.m, ...spouseFams(id).flatMap(f => [other(f, id), ...f.kids])].filter(x => x && P[x]);
+  const dlg = $("#dlg"), go = h("button", { class: "danger" }, `Delete ${p.first || name(p)}`);
+  go.onclick = async () => {
+    go.disabled = true; go.textContent = "Deleting…";
+    try {
+      await flushSaves();
+      await api(`/tree/person/${id}`, { method: "DELETE" });
+      if (S.focus === id) S.focus = kin[0] || null;  // stay with the family (or the start screen when there's none)
+      if (S.sel === id) S.sel = S.focus;
+      await refresh();  // (the dialog stays up till then: the old panel still has their buttons)
+      hideDlg();
+      if (S.focus) seeTree(S.focus);
+      toast(`Deleted ${name(p)}.`);
+    } catch (err) {
+      if (err instanceof LoginNeeded) return showLogin();
+      go.disabled = false; go.textContent = `Delete ${p.first || name(p)}`;
+      toast(`Couldn't delete: ${err.message}`);
+    }
+  };
+  dlg.replaceChildren(
+    h("h2", { id: "dlg-title" }, `Delete ${name(p)}?`),
+    h("p", {}, "They go from the tree and from Gramps, with their own events (birth, death and so on). ",
+      "Photos and documents stay in Gramps."),
+    kin.length ? h("p", {}, "Their links to ", h("strong", {}, kin.map(k => name(P[k])).join(", ")), " go too; those people stay.") : "",
+    h("p", { class: "warn" }, "This can't be undone. A duplicate? Use Merge instead: it keeps what both have."),
+    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
+  showDlg(false);
+  dlg.querySelector("button").focus();
+}

@@ -476,7 +476,8 @@ async def _delete_family(g, fam):
     await g.delete(f"/families/{fam['handle']}")
 
 
-async def _delete_person(g, handle):
+async def delete_person(g, handle):
+    """Off every family (a family left with no one in it goes), then the person, then their events no one else uses."""
     p = await g.get(f"/people/{handle}")
     for fh in (p.get("family_list") or []) + (p.get("parent_family_list") or []):
         fam = await g.get(f"/families/{fh}")
@@ -635,7 +636,7 @@ async def unlink(g: Gramps, body: dict) -> dict:
         fam = None
     if fam is None:  # the family is already gone (e.g. undoing an add after its other links went)
         if body.get("delete"):
-            await _delete_person(g, body["delete"])
+            await delete_person(g, body["delete"])
         return {"ok": True}
     was_side = None
     if rel == "child":
@@ -651,7 +652,7 @@ async def unlink(g: Gramps, body: dict) -> dict:
     else:
         await g.put(f"/families/{fam_id}", fam)
     if body.get("delete"):
-        await _delete_person(g, body["delete"])
+        await delete_person(g, body["delete"])
         return {"ok": True}
     return {"ok": True, "undo": {"op": "link", "person": ph, "rel": rel, "other": oh, "famId": fam_id, "side": was_side}}
 
