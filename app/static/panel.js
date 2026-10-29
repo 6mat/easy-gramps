@@ -9,6 +9,7 @@ import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 import { loginLine, meTag } from "./me.js";
 import { messageButton, talkSection } from "./chat.js";
+import { myWaiting, suggesting } from "./suggest.js";
 
 // ---------- right panel ----------
 async function loadDetails(id) {
@@ -90,9 +91,11 @@ export function renderPanel() {
           ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
           .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
   }
+  panel.append(myWaiting(p.id));  // (suggesters: what they suggested about them, each with Delete)
   if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
-  if (canEdit()) panel.append(h("div", { class: "dupbar" }, h("button", { class: "dupbtn", onclick: () => openMerge(p.id) },
-    "Duplicate profile? Merge."), h("button", { class: "danger delbtn", onclick: () => openDelete(p.id) }, "Delete this person")));
+  if (canEdit() || suggesting()) panel.append(h("div", { class: "dupbar" },
+    canEdit() && h("button", { class: "dupbtn", onclick: () => openMerge(p.id) }, "Duplicate profile? Merge."),
+    p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: () => openDelete(p.id) }, "Delete this person")));
   drawSelink();
 }
 

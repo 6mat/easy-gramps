@@ -5,6 +5,7 @@ import { hitRows, searchKeys } from "./search.js";
 import { seeTree } from "./tree.js";
 import { flushSaves, hideDlg, refresh, showDlg, toast } from "./editor.js";
 import { showLogin } from "./start.js";
+import { addingRow, isStandIn, suggestDelete, suggesting, withdraw } from "./suggest.js";
 
 // ---------- merge two records of the same person ----------
 const dateEq = (a, b) => (!a && !b) || (a && b && a.y === b.y && (a.m || 0) === (b.m || 0) && (a.d || 0) === (b.d || 0) && !!a.about === !!b.about);
@@ -145,11 +146,42 @@ async function doMerge() {
 }
 export function closeMerge() { hideDlg(); $("#dlg").classList.remove("wide"); S.merge = null; }
 
-// ---------- "Delete this person" (editors): one made by mistake or in the wrong place, from the tree and Gramps ----------
-export function openDelete(id) {
-  const p = P[id], pf = parentFam(id);
+// ---------- "Delete this person": one made by mistake or in the wrong place, from the tree and Gramps ----------
+// main.py `delete_mode` says whether this login deletes them now or asks (a suggestion someone else approves).
+// Suggesters see it as deleting either way: their own suggested new person really is deleted (the suggestion).
+export async function openDelete(id) {
+  const p = P[id], pf = parentFam(id), word = `Delete ${p.first || name(p)}`;
   const kin = [pf?.f, pf?.m, ...spouseFams(id).flatMap(f => [other(f, id), ...f.kids])].filter(x => x && P[x]);
-  const dlg = $("#dlg"), go = h("button", { class: "danger" }, `Delete ${p.first || name(p)}`);
+  const dlg = $("#dlg"), go = h("button", { class: "danger" }, word), cancel = h("button", { onclick: hideDlg }, "Cancel");
+  const links = kin.length ? h("p", {}, "Their links to ", h("strong", {}, kin.map(k => name(P[k])).join(", ")), " go too; those people stay.") : "";
+  const run = (busy, act, done) => async () => {
+    go.disabled = true; go.textContent = busy;
+    try { await act(); hideDlg(); toast(done); }
+    catch (err) {
+      if (err instanceof LoginNeeded) return showLogin();
+      go.disabled = false; go.textContent = word;
+      toast(`Couldn't delete: ${err.message}`);
+    }
+  };
+  const open = (...body) => { dlg.replaceChildren(h("h2", { id: "dlg-title" }, `Delete ${name(p)}?`), ...body, h("div", { class: "btnrow end" }, cancel, go)); showDlg(false); cancel.focus(); };
+  if (isStandIn(id)) {  // someone they suggested adding: the suggestion goes
+    const row = addingRow(id);
+    if (!row) return toast("An editor has looked at that one already.");
+    go.onclick = run("Deleting…", async () => { await withdraw(row.id); if (S.focus === null && kin[0]) seeTree(kin[0]); }, `Deleted ${name(p)} ✓`);
+    return open(h("p", {}, "They were waiting for an editor to add them. What you suggested about them goes too."));
+  }
+  let how;
+  try { how = await api(`/tree/person/${id}/delete`); } catch (err) { return toast(err.message, false); }
+  if (how.mode === "no") return toast("You can't delete people in this tree.", false);
+  if (how.mode === "suggest") {
+    const why = h("textarea", { id: "del-why", maxlength: 500, rows: 2 });
+    go.onclick = run(suggesting() ? "Deleting…" : "Sending…", () => suggestDelete(id, why.value.trim()),
+      suggesting() ? "Done ✓ They go from the tree once an editor agrees." : "Sent ✓ Another editor will look at it in ☰ Menu → Manage → Suggestions.");
+    if (!suggesting()) go.textContent = "Ask another editor";
+    return open(h("p", {}, suggesting() ? "An editor checks it first, then they go from the tree and from Gramps." : how.why),
+      suggesting() && how.why ? h("p", { class: "small muted" }, how.why) : "", links,
+      h("label", { for: why.id }, "Why? (optional, helps the editor)", why));
+  }
   go.onclick = async () => {
     go.disabled = true; go.textContent = "Deleting…";
     try {
@@ -167,13 +199,7 @@ export function openDelete(id) {
       toast(`Couldn't delete: ${err.message}`);
     }
   };
-  dlg.replaceChildren(
-    h("h2", { id: "dlg-title" }, `Delete ${name(p)}?`),
-    h("p", {}, "They go from the tree and from Gramps, with their own events (birth, death and so on). ",
-      "Photos and documents stay in Gramps."),
-    kin.length ? h("p", {}, "Their links to ", h("strong", {}, kin.map(k => name(P[k])).join(", ")), " go too; those people stay.") : "",
-    h("p", { class: "warn" }, "This can't be undone. A duplicate? Use Merge instead: it keeps what both have."),
-    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel"), go));
-  showDlg(false);
-  dlg.querySelector("button").focus();
+  open(h("p", {}, "They go from the tree and from Gramps, with their own events (birth, death and so on). ",
+    "Photos and documents stay in Gramps."), links,
+  h("p", { class: "warn" }, "This can't be undone. A duplicate? Use Merge instead: it keeps what both have."));
 }

@@ -258,7 +258,7 @@ function nodeEl(id, focus) {
     } },
     focus ? h("span", { class: "tag" }, "This tree") : rel && h("span", { class: "tag" }, rel),
     photoEl(p), h("span", { class: "nm", title: name(p) }, name(p)), h("span", { class: "yr" }, boxText(p, 0, "years")), h("span", { class: "pl" }, boxText(p, 1, "birthPlace")),
-    p.sug && h("span", { class: "sugn" }, p.sug === "new" ? "New" : `${p.sugN} ${p.sugN === 1 ? "change" : "changes"}`));  // suggest.js
+    p.sug && h("span", { class: "sugn" }, p.sug === "new" ? "New" : p.sug === "gone" ? "To delete" : `${p.sugN} ${p.sugN === 1 ? "change" : "changes"}`));  // suggest.js
   return el;
 }
 // The ✎ on the selected box sits beside it in the page (a button inside the box's own button
