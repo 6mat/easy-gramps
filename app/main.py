@@ -320,7 +320,7 @@ def site() -> dict:
 BUILT_IN = ("burial", "residence", "work", "education", "phone", "email", "notes")  # More details, as before 1.9.5
 KIN = tuple(f"r:{x}" for x in ("siblings", "grandparents", "grandchildren", "uncles", "cousins", "inlaws"))  # worked out in the page
 DEFAULT_LAYOUT = [{"k": k, "where": "more", "see": ROLE_EDITOR if k in ("phone", "email") else 0} for k in BUILT_IN]
-BOX_LINES = ("years", "birthPlace", "nick", "burial", "gid", "")  # the person box's 2nd and 3rd lines
+BOX_LINES = ("years", "birthPlace", "nick", "burial", "gid", "")  # the person box's 2nd and 3rd lines (box: those, then a backup for each)
 
 
 def layout(role: int) -> list:
@@ -405,7 +405,7 @@ async def save_site(request: Request):
             raise HTTPException(400, "A field is in the list twice.")
         changes["layout"] = [{"k": r["k"], "where": r["where"], "see": r["see"]} for r in rows]
     if "box" in body:
-        if not isinstance(body["box"], list) or len(body["box"]) != 2 or not set(body["box"]) <= set(BOX_LINES):
+        if not isinstance(body["box"], list) or len(body["box"]) not in (2, 4) or not set(body["box"]) <= set(BOX_LINES):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["box"] = body["box"]
     if "labels" in body:

@@ -158,7 +158,7 @@ export const layout = () => ME.site?.layout || [];
 export const BOX_LINES = [["years", "Years (1950 – 2010)"], ["birthPlace", "Place of birth"], ["nick", "Nickname"],
   ["burial", "Place of burial"], ["gid", "Gramps ID"], ["", "Nothing"]];
 export function boxLine(p, k) {
-  return { years: years(p) || "No dates yet", birthPlace: p.birthPlace, nick: p.nick && `“${p.nick}”`, burial: p.burial && `Buried: ${p.burial}`,
+  return { years: years(p), birthPlace: p.birthPlace, nick: p.nick && `“${p.nick}”`, burial: p.burial && `Buried: ${p.burial}`,
     gid: p.gid }[k] || "";
 }
 // Relatives worked out from the graph (no request): r:<kin> in the layout. (parentsOf: below, with the checks)

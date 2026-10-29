@@ -245,7 +245,7 @@ function rename() {
 async function layoutPage() {
   const types = await api("/layout/types");
   const rows = layout().map(r => ({ ...r }));  // (an admin gets every row)
-  const box = [...(ME.site?.box || ["years", "birthPlace"])];
+  const box = [...(ME.site?.box || ["years", "birthPlace"]), "", ""].slice(0, 4);  // 2nd, 3rd, then their backups
   const pick = (list, v, set, label) => {
     const s = h("select", { "aria-label": label }, ...list.map(([k, t]) => h("option", { value: k }, t)));
     s.value = String(v); s.onchange = () => set(s.value);
@@ -276,7 +276,7 @@ async function layoutPage() {
   };
   add.onchange = () => { if (!add.value) return; rows.push({ k: add.value, where: "more", see: 4 }); draw(); list.lastChild.querySelector("select").focus(); };
   draw();
-  const line = i => pick(BOX_LINES, box[i], v => { box[i] = v; }, `The box's ${i ? "third" : "second"} line`);
+  const line = (i, or) => pick(BOX_LINES, box[i], v => { box[i] = v; }, `The box's ${i % 2 ? "third" : "second"} line${or ? ", when that's empty" : ""}`);
   const reset = h("button", {}, "Back to the default");
   const say = h("div", { role: "status" });
   reset.onclick = async () => {
@@ -288,6 +288,7 @@ async function layoutPage() {
   return [h("p", { class: "muted small" }, "What each person's details show, in this order. “At the top” is under Born; the rest is under More details. What's shown can be changed in the editor. New fields start as “Owner and up”: choose who else may see them. Gramps still hides private records from logins that can't see private details."),
     list, add,
     h("fieldset", {}, h("legend", {}, "The person boxes on the tree, under the name"),
-      h("label", {}, "Second line", line(0)), h("label", {}, "Third line", line(1))),
+      h("div", { class: "btnrow" }, h("label", {}, "Second line", line(0)), h("label", {}, "… when it's empty", line(2, 1))),
+      h("div", { class: "btnrow" }, h("label", {}, "Third line", line(1)), h("label", {}, "… when it's empty", line(3, 1)))),
     ...saver(() => ({ layout: rows, box }), "reload"), say, h("div", { class: "btnrow" }, reset)];
 }

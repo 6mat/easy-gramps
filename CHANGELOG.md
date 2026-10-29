@@ -2,6 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.6 — 2026-10-28
+
+### Added
+- Book viewer: type a page number to go straight to it, scroll (wheel, or one more finger swipe) past the end of a page
+  into the next one, or up into the one before, and a "Next page ›" button under each page.
+- Manage → Layout: each person-box line can have a backup, shown when that person has nothing for the first choice.
+
 ## 1.9.5 — 2026-10-28
 
 ### Added

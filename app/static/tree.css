@@ -624,7 +624,9 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .btitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .bnav button { min-width: 44px; font-size: 18px; padding: 6px 10px; }
-.bnum { min-width: 8.5em; text-align: center; }
+.bpg { white-space: nowrap; }
+.bnum { width: 4.5em; text-align: center; color: #1d1b18; }
+.bnext { display: block; margin: 12px auto; }
 .bstage { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
 .bsay { text-align: center; padding: 8px; }
 .bsay:empty { display: none; }

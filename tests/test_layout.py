@@ -24,6 +24,8 @@ def test_layout_fields(fake, client):
     for bad in ([{"k": "x:1", "where": "top", "see": 0}], [{"k": "e:Baptism", "where": "side", "see": 0}],
                 [{"k": "notes", "where": "top", "see": 9}], LAYOUT + LAYOUT[:1]):
         assert client.put(f"{E}/site", json={"layout": bad}).status_code == 400, bad
+    assert client.put(f"{E}/site", json={"box": ["nick", "gid", "years"]}).status_code == 400  # 2, or 2 and their backups
+    assert client.put(f"{E}/site", json={"box": ["nick", "", "years", "gid"]}).status_code == 200
     assert client.put(f"{E}/site", json={"layout": LAYOUT, "box": ["nick", ""]}).status_code == 200
 
     as_user(fake, "guest", 0)  # sees the baptism and notes, not the caste, the cousins or the work
