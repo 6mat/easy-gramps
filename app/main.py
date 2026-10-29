@@ -910,10 +910,42 @@ async def _said(g, op, h, what, label=""):
     return {"op": op, "id": fam.get("father_handle") or fam.get("mother_handle") or h, "what": what, "label": label},
 
 
+# Deleting a person (no undo): editors their own mistakes (people they added in Easy Gramps), the owner and admins
+# anyone; the rest is a suggestion another editor approves (suggest.py). Someone with a login is real: only an admin,
+# or they themselves (an editor), deletes them.
+def login_block(user: dict, handle: str) -> str:
+    """Why this login may not delete or approve deleting `handle` because a login is linked to them ("" if it may)."""
+    row = CHAT.one("SELECT login FROM settings WHERE person = ?", handle)
+    if not row or user.get("role", 0) >= ROLE_ADMIN or (row["login"] == user.get("name") and user.get("can_edit")):
+        return ""
+    return f"{CHAT.full_names().get(row['login'], row['login'])} has a login, so only an admin or they can approve this."
+
+
+def delete_mode(user: dict, handle: str) -> tuple[str, str]:
+    """("delete" | "suggest" | "no", why it's a suggestion)."""
+    block = login_block(user, handle)
+    if user.get("can_edit") and not block and (user.get("role", 0) >= ROLE_OWNER or CHAT.one(
+            "SELECT 1 FROM settings WHERE person = ? AND login = ?", handle, user.get("name")) or log.q(
+            "SELECT 1 FROM changes WHERE login = ? AND (json_extract(item, '$.op') = 'create' AND json_extract(item, '$.id') = ? "
+            "OR json_extract(item, '$.op') = 'add' AND json_extract(item, '$.new') AND json_extract(item, '$.existing') = ?) LIMIT 1",
+            user.get("name"), handle, handle)):
+        return "delete", ""
+    if not (user.get("can_edit") or suggest.can_suggest(user)):
+        return "no", ""
+    return "suggest", block or ("You didn't add them, so another editor checks it first." if user.get("can_edit") else "")
+
+
+@easy.get("/tree/person/{handle}/delete")
+async def tree_delete_mode(handle: str, request: Request):
+    mode, why = delete_mode(await who(request), handle)
+    return {"mode": mode, "why": why}
+
+
 @easy.delete("/tree/person/{handle}")
 async def tree_delete_person(handle: str, request: Request):
-    """Editors: a person made by mistake (or in the wrong place) goes from the tree and from Gramps. No undo."""
-    await need_edit(request, "Only editors can delete a person.")
+    """A person made by mistake (or in the wrong place) goes from the tree and from Gramps. No undo."""
+    if delete_mode(await who(request), handle)[0] != "delete":
+        raise HTTPException(403, "Please suggest it: someone else checks it first.")
     g = await gramps_as(request)
     label = await log.name_of(g, handle)
     await familytree.delete_person(g, handle)
