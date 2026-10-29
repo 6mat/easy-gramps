@@ -2,6 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Added
+- "Delete this person" (editors), under "Duplicate profile? Merge." in the details panel: for someone added by mistake or in
+  the wrong place. They go from the tree and from Gramps, with their own events and their links; their relatives stay.
+  The dialog names who they're linked to and says it can't be undone. History shows "Deleted …".
+
 ## 1.9.6 — 2026-10-28
 
 ### Added

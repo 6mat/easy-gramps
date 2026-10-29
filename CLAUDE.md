@@ -90,6 +90,8 @@ with them in another family (any family naming both, even one they don't list) j
 `joined: true`; undo `op: split` moves the children back out). `POST /tree/families/merge {keep, absorb}`
 combines the same couple recorded twice (editors; same father and mother). `POST /tree/unlink` — removes a link, never deletes people; a family is
   deleted only when it no longer links two people. `POST /tree/undo` reverses either.
+- `DELETE /tree/person/{h}` (editors) — the person goes from Gramps: off every family (an emptied family goes), their
+  events no one else uses; a login linked to them is unlinked; History logs `{op: "delete", id, label}`. No undo.
 - `POST /tree/merge {keep, absorb, fields}` — writes the chosen field values onto `keep`, then Gramps'
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
   relationships kept; `absorb` deleted). Not covered by Undo.

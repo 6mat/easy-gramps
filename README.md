@@ -9,6 +9,7 @@ relatives who find the full Gramps interface too much.
   (someone already in the tree, or someone new); remove a link; Undo for 10 seconds.
 - **Photos:** tap one to see it big; add more photos to a person and choose their profile photo. In a group photo, a person tagged on their part of it (in Gramps) shows just that part.
 - **Merge duplicates:** combine two records of the same person, keeping both sets of relationships.
+- **Delete a person** (editors): one added by mistake or in the wrong place goes from the tree and from Gramps; their relatives stay.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
 - **Find me:** claim your place in the tree, so the family can message you in the chat and your own family tree
