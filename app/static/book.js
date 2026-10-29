@@ -54,7 +54,8 @@ window.addEventListener("popstate", () => { if (B && !history.state?.book) hide(
 function frame() {
   const el = B.el = {
     say: h("div", { class: "bsay", role: "status" }, "Loading the book…"),
-    num: h("span", { class: "bnum" }),
+    num: h("input", { type: "number", min: 1, class: "bnum", "aria-label": "Page number", enterkeyhint: "go" }),
+    of: h("span"),
     page: h("div", { class: "bpage" }),
     box: h("div", { class: "bmark", hidden: true }),
     tools: h("div", { class: "btools" }),
@@ -62,12 +63,29 @@ function frame() {
   el.canvas = h("canvas");
   el.page.append(el.canvas, el.box);
   el.stage = h("div", { class: "bstage" }, el.say, el.page);
+  
   el.page.addEventListener("pointerdown", draw);
+  el.num.onchange = () => go(parseInt(el.num.value, 10) || B.page);
+  // Scrolling on past a page's end (or top) turns to the next (or last) one: a wheel, or one more finger swipe there.
+  const s = el.stage, atEdge = by => by > 0 ? s.scrollTop + s.clientHeight >= s.scrollHeight - 2 : s.scrollTop <= 0;
+  const flip = by => {
+    if (Date.now() - (B.turned || 0) < 600 || !atEdge(by)) return;
+    B.turned = Date.now(); turn(by, true);
+  };
+  s.addEventListener("wheel", e => e.deltaY && flip(Math.sign(e.deltaY)), { passive: true });
+  let t0 = null;  // the swipe: one finger, not while drawing a box; it started at the edge it goes past
+  s.addEventListener("touchstart", e => { t0 = e.touches.length === 1 && !B.drawing ? { y: e.touches[0].clientY, down: atEdge(1), up: atEdge(-1) } : null; }, { passive: true });
+  s.addEventListener("touchend", e => {
+    const dy = t0 && t0.y - e.changedTouches[0].clientY;
+    if (dy > 60 && t0.down) flip(1); else if (dy < -60 && t0.up) flip(-1);
+    t0 = null;
+  }, { passive: true });
+  el.next = h("button", { class: "bnext", onclick: () => turn(1) }, "Next page ›");
   $("#book").replaceChildren(
     h("div", { class: "vbar" }, h("strong", { class: "btitle" }, B.title || "Book"),
       h("button", { class: "vclose", onclick: () => closeBook() }, "✕ Close")),
     h("div", { class: "bnav" },
-      h("button", { "aria-label": "Previous page", onclick: () => turn(-1) }, "‹"), el.num,
+      h("button", { "aria-label": "Previous page", onclick: () => turn(-1) }, "‹"), h("label", { class: "bpg" }, "Page ", el.num, el.of),
       h("button", { "aria-label": "Next page", onclick: () => turn(1) }, "›"),
       h("button", { "aria-label": "Smaller", onclick: () => zoom(-1) }, "−"),
       h("button", { "aria-label": "Bigger", onclick: () => zoom(1) }, "+"),
@@ -80,16 +98,18 @@ function zoom(by) {
   const z = ZOOMS[Math.min(Math.max(ZOOMS.indexOf(B.zoom) + by, 0), ZOOMS.length - 1)];
   if (z !== B.zoom) { B.zoom = z; render(true); }  // (the marked paragraph back in view)
 }
-function turn(by) {
-  if (!B?.pdf) return;
-  const p = Math.min(Math.max(B.page + by, 1), B.pdf.numPages);
-  if (p !== B.page) { B.page = p; B.el.stage.scrollTop = 0; render(); }
+function turn(by, scrolled) { if (B?.pdf) go(B.page + by, scrolled && by < 0); }
+function go(to, atEnd) {
+  const p = Math.min(Math.max(to, 1), B.pdf.numPages);
+  B.el.num.value = p;
+  if (p !== B.page) { B.page = p; B.atEnd = atEnd; B.el.stage.scrollTop = 0; render(); }
 }
 
 // Draw the page to fit the screen's width (at most 900px, then zoomed), sharp on the screen it's on.
 async function render(first) {
   const n = ++B.n, el = B.el;  // a newer render wins
-  el.num.textContent = `Page ${B.page} of ${B.pdf.numPages}`;
+  el.num.value = B.page; el.num.max = B.pdf.numPages; el.of.textContent = ` of ${B.pdf.numPages}`;
+  el.next.hidden = B.page >= B.pdf.numPages;
   const page = await B.pdf.getPage(B.page);
   if (!B || n !== B.n) return;
   const fit = Math.min(el.stage.clientWidth - 16, 900) * B.zoom;
@@ -101,6 +121,8 @@ async function render(first) {
   if (!B || n !== B.n) return;
   el.page.style.width = `${vp.width}px`; el.page.style.height = `${vp.height}px`;
   el.canvas.replaceWith(c); el.canvas = c;
+  if (!el.next.isConnected) el.stage.append(el.next);
+  if (B.atEnd) { B.atEnd = false; el.stage.scrollTop = el.stage.scrollHeight; }  // scrolled up into it: its bottom
   showBox();
   if (first && !el.box.hidden) el.box.scrollIntoView({ block: "center", inline: "center" });
 }
@@ -145,10 +167,11 @@ function tools() {
         B.area ? "Save" : "Save without a box")));
 }
 
-// Keys while it's open: ← → turn pages, + − size, Esc closes; nothing reaches the tree or the editor.
+// Keys while it's open (not while typing a page number): ← → turn pages, + − size, Esc closes; nothing reaches the tree or the editor.
 window.addEventListener("keydown", e => {
   if (!B) return;
   if (e.key === "Escape") closeBook();
+  else if (e.target === B.el.num && e.key !== "Tab") return e.stopImmediatePropagation();  // typing a page number
   else if (e.key === "ArrowLeft") turn(-1);
   else if (e.key === "ArrowRight") turn(1);
   else if (e.key === "+" || e.key === "=") zoom(1);
