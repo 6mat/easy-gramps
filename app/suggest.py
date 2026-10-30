@@ -5,6 +5,7 @@ with the editor's login, by the same code as a direct edit. Off unless the owner
 A suggestion is a list of items, each saved on its own row so an editor can take any of them:
   {"op": "set", "id", "field", "value", "label"?, "before"?}    a field, as in PATCH /tree/person/{id}
   {"op": "add", "person", "rel", "famId"?, "new" | "existing", "as"?, "fam"?, "label"?}    as in POST /tree/relative
+  {"op": "delete", "id", "label"}    delete them (main.py `delete_mode`: editors suggest it too); the note says why
 New people and families get a stand-in id ("new-" + 8 letters: `as` for the person, `fam` for a family it makes) that
 later items of the same suggestion may use; approving swaps it for the real one (kept in `made`)."""
 import json
@@ -77,8 +78,10 @@ def can_suggest(user: dict) -> bool:
 def add_to_me(user: dict):
     """/auth/me: may this login suggest, and (editors, while it's on) how many wait."""
     user["can_suggest"] = can_suggest(user)
-    if user.get("can_edit") and WHO.get(m.site()["suggest"]):
-        user["suggestions"] = q("SELECT count(*) n FROM suggestions WHERE status = 'waiting'")[0]["n"]
+    if user.get("can_edit"):  # (with suggestions off, editors' suggestions to delete someone still wait here)
+        n = q("SELECT count(*) n FROM suggestions WHERE status = 'waiting'")[0]["n"]
+        if n or WHO.get(m.site()["suggest"]):
+            user["suggestions"] = n
 
 
 def _check(items, known=(), role=0) -> set:
@@ -123,6 +126,10 @@ def _check(items, known=(), role=0) -> set:
                     made.add(it[k])
             if it.get("new") and (not isinstance(it["new"], dict) or not it.get("as")):
                 raise bad
+        elif it.get("op") == "delete":
+            if STAND_IN.fullmatch(str(it.get("id"))):  # (someone still waiting to be added: delete that suggestion instead)
+                raise bad
+            ref(it.get("id"))
         else:
             raise bad
     return real
@@ -131,10 +138,11 @@ def _check(items, known=(), role=0) -> set:
 @router.post("/suggestions")
 async def send(request: Request):
     user = await m.who(request)
-    if not can_suggest(user):
-        raise HTTPException(403, "Editors change the tree directly." if user.get("can_edit") else "Suggestions are turned off.")
     body = await m.json_body(request)
     items, note = body.get("items"), " ".join(str(body.get("note") or "").split())[:500]
+    deletes = isinstance(items, list) and items and all(isinstance(it, dict) and it.get("op") == "delete" for it in items)
+    if not (can_suggest(user) or (deletes and user.get("can_edit"))):  # (editors suggest deleting someone they didn't add)
+        raise HTTPException(403, "Editors change the tree directly." if user.get("can_edit") else "Suggestions are turned off.")
     login = user["name"]
     theirs = [(r["id"], json.loads(r["item"]), r["status"]) for r in q("SELECT id, item, status FROM suggestions WHERE login = ? "
                                                                           "AND status IN ('waiting', 'approved', 'working')", login)]
@@ -155,6 +163,10 @@ async def send(request: Request):
     # the value it had takes it off the list.
     steps, fresh = [], []
     for it in items:
+        if it["op"] == "delete":
+            if not any(st == "waiting" and o["op"] == "delete" and o["id"] == it["id"] for _, o, st in theirs):  # (sent twice)
+                fresh.append(it)
+            continue
         old = next(((k, o) for k, o, st in theirs if st == "waiting" and it["op"] == o["op"] == "set"
                     and (o["id"], o["field"]) == (it["id"], it["field"])), None)
         add = it["op"] == "set" and it["field"] in NEW_FIELDS and next(
@@ -299,9 +311,37 @@ async def waiting(request: Request):
     rows = q("SELECT * FROM suggestions WHERE status = 'waiting'" + ("" if user.get("can_edit") else " AND login = ?") + " ORDER BY id",
              *(() if user.get("can_edit") else (user.get("name"),)))
     names = m.CHAT.full_names()
-    return {"items": [{"id": r["id"], "batch": r["batch"], "login": r["login"], "name": names.get(r["login"], r["login"]),
-                       "at": r["at"], "note": r["note"], "error": r["error"], "item": json.loads(r["item"])} for r in rows],
-            "made": _made()}
+    items = [{"id": r["id"], "batch": r["batch"], "login": r["login"], "name": names.get(r["login"], r["login"]),
+              "at": r["at"], "note": r["note"], "error": r["error"], "item": json.loads(r["item"])} for r in rows]
+    if user.get("can_edit"):
+        for x in items:
+            if x["item"]["op"] == "delete" and (why := _not_yours(user, x["login"], x["item"]["id"])):
+                x["blocked"] = why  # shown, not checkable: someone else approves it
+    return {"items": items, "made": _made()}
+
+
+def _not_yours(user: dict, login: str, handle: str) -> str:
+    """Why this editor can't approve deleting `handle` (suggested by `login`), or ""."""
+    if login == user.get("name"):
+        return "You suggested this, so another editor approves it."
+    return m.login_block(user, handle)
+
+
+@router.delete("/suggestions/{sid}")
+async def withdraw(sid: int, request: Request):
+    """Their own waiting suggestion, deleted (the page says "Delete"), with their later ones that build on a new person
+    in it (a new person's nickname can't go in without them)."""
+    login = (await m.who(request)).get("name")
+    ids, gone = [sid], 0
+    for k in ids:
+        for r in q("DELETE FROM suggestions WHERE id = ? AND login = ? AND status = 'waiting' RETURNING item", k, login):
+            gone += 1
+            new = {x for x in (json.loads(r["item"]).get(a) for a in ("as", "fam")) if x}
+            ids += [o["id"] for o in q("SELECT id, item FROM suggestions WHERE login = ? AND status = 'waiting'", login)
+                    if new & set(_uses(json.loads(o["item"])))]
+    if not gone:
+        raise HTTPException(404, "An editor has looked at that one already.")
+    return {"deleted": gone}
 
 
 @router.post("/suggestions/decide")
@@ -312,6 +352,7 @@ async def decide(request: Request):
     big lists one at a time with `quiet` (to show progress), then POST /suggestions/tell once."""
     await m.need_edit(request, "Only editors can approve suggestions.")
     editor, _ = await m.chat_user(request)
+    user = await m.who(request)
     body = await m.json_body(request)
     ids = {k: [int(x) for x in body.get(k) or [] if isinstance(x, int)] for k in ("approve", "reject")}
     g = await m.gramps_as(request)
@@ -335,7 +376,17 @@ async def decide(request: Request):
             return x
         try:
             new = None
-            if it["op"] == "set":
+            if it["op"] == "delete":  # no undo: History says who suggested and who approved it
+                if why := _not_yours(user, row[0]["login"], it["id"]):
+                    raise gramps.GrampsError(why)
+                try:
+                    await familytree.delete_person(g, it["id"])
+                except gramps.GrampsError as e:
+                    if e.status != 404:  # (already gone: someone else suggested it too, or it was deleted in Full Gramps)
+                        raise
+                m.CHAT.unlink_person(it["id"])
+                back = None
+            elif it["op"] == "set":
                 h = real(it["id"])
                 back = {"op": "set", "id": h, "field": it["field"], "value": (await familytree.fields_now(g, h)).get(it["field"])}
                 await familytree.update_person(g, h, {it["field"]: it["value"]}, tags)
@@ -361,7 +412,7 @@ async def decide(request: Request):
 
 async def _thank(g, editor, done):
     for login, (yes, no) in done.items():  # tell them what, in a private message from the editor
-        lines = [f"✓ Added: {x}" for x in await _say(g, yes)] + [f"✗ Not added: {x}" for x in await _say(g, no)]
+        lines = await _say(g, yes, done=True) + await _say(g, no, done=False)
         _tell(editor, login, "I looked at your suggestions. Thank you!\n" + "\n".join(lines))
 
 
@@ -385,8 +436,9 @@ WORDS = {"first": "first name", "last": "last name", "nick": "nickname", "gender
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 
 
-async def _say(g, ids, most=15) -> list:
-    """Each suggestion in words, for the message to the person who made it: "Ravi Kumar's nickname: Ravi anna"."""
+async def _say(g, ids, most=15, done=None) -> list:
+    """Each suggestion in words, for the message to the person who made it: "Ravi Kumar's nickname: Ravi anna"; with
+    `done`, as approved or not: "✓ Added: …", "✗ Not deleted: …"."""
     rows = [r for k in ids for r in q("SELECT item FROM suggestions WHERE id = ?", k)]
     if not rows:
         return []
@@ -421,13 +473,19 @@ async def _say(g, ids, most=15) -> list:
     out = []
     for r in rows[:most]:
         it = json.loads(r["item"])
-        if it["op"] == "set":
+        if it["op"] == "delete":
+            text = f"deleting {it.get('label') or await who(it['id'])}" if done is None else it.get("label") or "someone"
+        elif it["op"] == "set":
             v = it.get("label") if familytree.is_place(it["field"]) else value(it["field"], it.get("value"))
-            out.append(f"{await who(it['id'])}'s {WORDS.get(it['field']) or familytree.word(it['field'])}: {v or '(none)'}")
+            text = f"{await who(it['id'])}'s {WORDS.get(it['field']) or familytree.word(it['field'])}: {v or '(none)'}"
         else:
             whose = await who(it["person"])
             rel = {1: "wife", 0: "husband"}.get(genders.get(it["person"]), "husband or wife") if it["rel"] == "spouse" else it["rel"]
-            out.append(f"{_label(it)} as {whose}'s {rel}")
+            text = f"{_label(it)} as {whose}'s {rel}"
+        if done is not None:
+            word = ("Deleted" if done else "Not deleted") if it["op"] == "delete" else "Added" if done else "Not added"
+            text = f"{'✓' if done else '✗'} {word}: {text}"
+        out.append(text)
     return out + ([f"…and {len(rows) - most} more"] if len(rows) > most else [])
 
 

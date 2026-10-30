@@ -410,6 +410,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   color: var(--accent); font-weight: 700; font-size: 15px; }
 .panel .dupbtn::before { content: "⧉  " / ""; }
 .panel .dupbtn:hover { background: var(--accent-soft); }
+.panel .delbtn { width: 100%; margin-top: 8px; }
 .note { padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
 .spouses .twice { max-width: 320px; }
 .btnrow.end { justify-content: flex-end; }
@@ -589,6 +590,9 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .node .sugn { position: absolute; bottom: -10px; right: 10px; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px;
   background: var(--sel); color: #fff; }
 .node.sug-new .sugn { background: var(--ok); }
+.node.sug-gone, .rcard.sug-gone { opacity: .6; border: 2.5px dashed var(--bad); }
+.node.sug-gone .nm { text-decoration: line-through; }
+.node.sug-gone .sugn { background: var(--bad); }
 .sugbar { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--sel-soft); border: 1px solid var(--sel); }
 .sugrow { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; padding: 4px; border-radius: 8px; }
 .sugrow input { width: 22px; height: 22px; margin-top: 2px; }

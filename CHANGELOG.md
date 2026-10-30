@@ -2,6 +2,17 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.7 — 2026-10-29
+
+### Added
+- "Delete this person", in the details panel: for someone added by mistake or in the wrong place. They go from the tree
+  and from Gramps, with their own events and their links; their relatives stay. The dialog names who they're linked to
+  and says it can't be undone. Who deletes straight away: editors (people they added in Easy Gramps), the owner and admins
+  (anyone). Everyone else who can suggest, and editors for people they didn't add, ask instead, with an optional reason:
+  any editor except the one who asked approves it. Someone with a login: only an admin, or they themselves.
+- Suggesters see a person they asked to delete crossed out on their tree ("To delete"), with **Keep them**; and in the
+  panel, each of their changes still waiting for an editor, with **Delete**.
+
 ## 1.9.6 — 2026-10-28
 
 ### Added
