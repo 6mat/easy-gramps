@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.9.7 — 2026-10-29
 
 ### Added
 - "Delete this person", in the details panel: for someone added by mistake or in the wrong place. They go from the tree
