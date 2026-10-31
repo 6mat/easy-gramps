@@ -36,6 +36,20 @@ def test_add_new_father_creates_family_and_undo_removes_both(fake, g):
     assert fake.get("people", kid)["parent_family_list"] == []
 
 
+def test_a_father_with_children_and_no_mother_gets_one_family(fake, g):
+    dad, s1, s2 = fake.person("Tom", "Lee", 1), fake.person("Sam", "Lee", 1), fake.person("Max", "Lee", 1)
+    f = fake.family(dad, None, [s1])
+    res = run(familytree.add_relative(g, {"person": s2, "rel": "father", "existing": dad}, []))
+    assert res["famId"] == f and res["siblings"] and len(fake.db["families"]) == 1
+    assert [c["ref"] for c in fake.get("families", f)["child_ref_list"]] == [s1, s2]
+    run(familytree.undo(g, res["undo"], []))  # only Max goes out
+    fam = fake.get("families", f)
+    assert fam["father_handle"] == dad and [c["ref"] for c in fam["child_ref_list"]] == [s1]
+    fake.family(dad, None, [fake.person("Ivy", "Lee", 0)])  # two such families: which one isn't known, so a new one
+    res = run(familytree.add_relative(g, {"person": s2, "rel": "father", "existing": dad}, []))
+    assert "siblings" not in res and len(fake.db["families"]) == 3
+
+
 def test_second_father_refused_before_anyone_is_created(fake, g):
     dad, kid = fake.person("Tom", "", 1), fake.person("Sam", "", 1)
     fake.family(dad, None, [kid])

@@ -665,6 +665,7 @@ async function doAdd(choice) {
     setStatus("Saved ✓");
     toast(suggesting() ? `Suggested: ${who} as ${base.first}'s ${relWord(A.rel, base)}. An editor will look at it.` : res.joined  // they were already a couple: the children joined that family (no second one)
       ? `Saved: ${who} added as ${base.first}'s ${A.rel}, in the family ${who} already had with ${P[parentFam(A.pid)?.[A.rel === "mother" ? "f" : "m"]]?.first || "them"}.`
+      : res.siblings ? `Saved: ${who} added as ${base.first}'s ${A.rel}, with the children ${who} already had (brothers and sisters).`
       : `Saved: ${who} added as ${base.first}'s ${relWord(A.rel, base)}.`, res.undo);
   } catch (err) {
     if (err instanceof LoginNeeded) return showLogin();

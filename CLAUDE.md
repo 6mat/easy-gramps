@@ -87,7 +87,9 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
   returns an undo token. Adding a father/mother to a one-parent family whose parent is already a couple
 with them in another family (any family naming both, even one they don't list) joins that family instead (Gramps' `POST /api/families/{keep}/merge/{absorb}`;
-`joined: true`; undo `op: split` moves the children back out). `POST /tree/families/merge {keep, absorb}`
+`joined: true`; undo `op: split` moves the children back out). Adding an existing father/mother to someone with no
+parents, when that parent has exactly one family with no partner, adds them as a child there (`siblings: true`; undo
+unlinks only that child); suggest.js's proposed tree does the same. `POST /tree/families/merge {keep, absorb}`
 combines the same couple recorded twice (editors; same father and mother). `POST /tree/unlink` — removes a link, never deletes people; a family is
   deleted only when it no longer links two people. `POST /tree/undo` reverses either.
 - `DELETE /tree/person/{h}` — the person goes from Gramps: off every family (an emptied family goes), their events no one

@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## Unreleased
+
+### Fixed
+- Adding someone already in the tree as a father (or mother) no longer splits brothers and sisters into two families:
+  when that father has children with no mother listed, the new child joins them. Undo takes only the new child out.
+
 ## 1.9.7 — 2026-10-29
 
 ### Added

@@ -79,7 +79,10 @@ function link(it, mark) {
   };
   if (it.rel === "father" || it.rel === "mother") {
     const pf = parentFam(pid);
-    if (pf) { pf[it.rel === "father" ? "f" : "m"] = oid; o.fams.push(pf.id); }
+    const [side, partner] = it.rel === "father" ? ["f", "m"] : ["m", "f"];
+    const alone = FAMS.filter(f => f[side] === oid && !f[partner]);  // their children with no partner: join them (familytree.py)
+    if (pf) { pf[side] = oid; o.fams.push(pf.id); }
+    else if (alone.length === 1) { alone[0].kids.push(pid); me.pfams.unshift(alone[0].id); }
     else fam(it.rel === "father" ? oid : null, it.rel === "mother" ? oid : null, [pid]);
   } else if (it.rel === "spouse") {
     const meFather = me.gender === "m" || (me.gender !== "f" && o.gender !== "m");
