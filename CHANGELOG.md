@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.9.8 — 2026-10-30
 
 ### Added
 - ☰ Menu → **🔍 Check the tree** (the owner; editors too if an admin says so): split families (the same father or mother
