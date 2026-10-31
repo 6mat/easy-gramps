@@ -6,7 +6,7 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 
 ### Changed
 - Check the tree is in ☰ Menu → Manage only (no second menu item); editors who may check see Manage too.
-- "See them" (and Compare and merge) in Check the tree leave a "← Back to …" button on the tree: back to that list,
+- "See them" (and Compare and merge) in Check the tree leave a "← Back to Check the tree" button on the tree: back to that list,
   scrolled where you were.
 
 ## 1.9.8 — 2026-10-30

@@ -95,10 +95,9 @@ $("#menu-manage").onclick = () => { closeMenu(); openManage(); };
 // "See them" (and Compare and merge) leave a pill on the tree back to that list, where it was.
 let backTo = null;
 function toTree(go) {
-  const [, label] = SECTIONS.find(([k]) => k === M.at);
   backTo = { at: M.at, top: $("#manage .msec").scrollTop };
   leave(); go();
-  Object.assign($("#tree-list"), { hidden: false, textContent: `← Back to ${label().replace(/ \(\d+\)$/, "")}` });
+  Object.assign($("#tree-list"), { hidden: false, textContent: "← Back to Check the tree" });
 }
 $("#tree-list").onclick = () => backTo && openManage(backTo.at, backTo.top);
 $("#manage").addEventListener("keydown", e => {
