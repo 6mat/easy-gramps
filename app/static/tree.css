@@ -647,6 +647,10 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .mnav { overflow: auto; border-right: 1px solid var(--line); background: var(--card); padding: 14px; display: flex; flex-direction: column; gap: 6px; }
 .mnav button { text-align: left; border-color: transparent; background: none; font-weight: 700; }
 .mnav button[aria-current=page] { background: var(--accent-soft); border-color: var(--accent); }
+.mnav h3 { margin: 10px 0 0; font-size: .85rem; color: var(--muted); }
+.mnav button.sub { padding-left: 22px; font-weight: 600; }
+.duprow { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.duprow > .small, .duprow > .btnrow { grid-column: 1 / -1; }
 .msec { overflow: auto; padding: 20px 24px 40px; }
 .msec > * { max-width: 680px; }
 .msec h2 { margin: 0 0 12px; outline: none; }
@@ -661,5 +665,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   .mbody { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .mnav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; }
   .mnav button { white-space: nowrap; flex: none; }
+  .mnav h3 { margin: 0 0 0 8px; white-space: nowrap; align-self: center; }
+  .mnav button.sub { padding-left: 12px; }
   .msec { padding: 16px; }
 }

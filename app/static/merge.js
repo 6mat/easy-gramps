@@ -21,8 +21,8 @@ const MERGE_FIELDS = [
   { k: "burial", label: "Place of burial", text: true, get: p => p.burial || "", show: v => v || "—", empty: v => !v },
 ];
 
-export function openMerge(id) {
-  S.merge = { keep: id, absorb: null, q: name(P[id]), choice: {}, text: {}, confirm: false, busy: false };
+export function openMerge(id, absorb = null) {  // absorb: already known (Check the tree → Possible duplicates)
+  S.merge = { keep: id, absorb, q: name(P[id]), choice: {}, text: {}, confirm: false, busy: false };
   showDlg(true);
   renderMerge();
   $("#merge-q")?.focus();

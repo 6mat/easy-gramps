@@ -1,9 +1,11 @@
 // Easy Gramps — ☰ Menu → ⚙️ Manage: one page, its sections down the side (tabs across the top on a phone). Editors
-// see Suggestions; the owner also Waiting to join, Invites, Check dates and the site settings: name and icon, menu
-// items, who can do what, rename. The settings are kept on the server (main.py /site), the same for everyone. It's a
+// see Suggestions; the owner also Waiting to join, Invites, Check the tree (checks.js; editors too if an admin says so) and
+// the site settings: name and icon, menu items, who can do what, rename. The settings are kept on the server (main.py /site), the same for everyone. It's a
 // browser-history step, like the chat: Back closes it.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, BOX_LINES, BUILT, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab } from "./common.js";
+import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab, years } from "./common.js";
+import { duplicates, islands, noRelatives, splitFamilies } from "./checks.js";
+import { openMerge } from "./merge.js";
 import { seeTree } from "./tree.js";
 import { toast } from "./editor.js";
 import { ROLES } from "./me.js";
@@ -21,7 +23,7 @@ const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Me
   ["manage", "", "⚙️ Manage"], ["logout", "#logout", "Log out"]];  // "": shown with a count (named)
 const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
-const isOwner = () => (ME.role ?? 0) >= 4, isAdmin = () => (ME.role ?? 0) >= 5;
+const isOwner = () => (ME.role ?? 0) >= 4, isAdmin = () => (ME.role ?? 0) >= 5, canCheck = () => !!ME.can_check;
 const SEE = [[0, "Everyone"], [1, "Members and up"], [2, "Contributors and up"], [3, "Editors and up"], [4, "Owner and up"], [5, "Admins only"]];
 const WHERE = [["top", "At the top"], ["more", "In More details"]];
 
@@ -30,6 +32,7 @@ export function applySite() {
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   const waiting = (isOwner() ? ME.joining || 0 : 0) + (ME.suggestions || 0);
   $("#menu-manage").hidden = !isOwner() && ME.suggestions == null;  // (editors: when suggestions are on)
+  $("#menu-check").hidden = !canCheck();
   $("#menu-manage").textContent = `${named("manage", "⚙️ Manage")}${waiting ? ` (${waiting})` : ""}`;
   const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
   $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
@@ -42,23 +45,31 @@ export function applySite() {
 }
 
 // ---------- the page ----------
-// [key, name in the side list, who sees it, what's in it]. A count after the name: something's waiting there.
+// [key, name in the side list, who sees it, what's in it, the heading it's under]. A count after the name: something's waiting there.
+const count = (k, n = found()[k]?.length) => (n ? ` (${n})` : "");
+const CHECK = "🔍 Check the tree";
 const SECTIONS = [
   ["suggest", () => `📝 Suggestions${ME.suggestions ? ` (${ME.suggestions})` : ""}`, () => ME.suggestions != null, suggestions],
   ["joining", () => `👋 Waiting to join${ME.joining ? ` (${ME.joining})` : ""}`, isOwner, joining],
   ["invites", () => "✉️ Invites", isOwner, invites],
-  ["dates", () => "🗓 Check dates", isOwner, checkDates],
+  ["split", () => `Split families${count("split")}`, canCheck, splitPage, CHECK],
+  ["alone", () => `People with no relatives${count("alone")}`, canCheck, alonePage, CHECK],
+  ["dupes", () => `Possible duplicates${count("dupes")}`, canCheck, dupesPage, CHECK],
+  ["dates", () => `Date problems${count("dates")}`, canCheck, checkDates, CHECK],
+  ["islands", () => `Groups not connected${count("islands")}`, canCheck, islandsPage, CHECK],
   ["general", () => "Name and icon", isOwner, general],
   ["menu", () => "Menu items", isOwner, menuItems],
   ["rights", () => "Who can do what", isOwner, rights],
   ["rename", () => "Rename", isOwner, rename],
   ["layout", () => "Layout", isAdmin, layoutPage],
+  ["checkset", () => "Check the tree: settings", isAdmin, checkSettings],
 ];
 let M = null;  // the open page: { at (the section shown), back }
 const mine = () => SECTIONS.filter(([, , may]) => may());
 export function openManage(at) {
   const list = mine();
   if (!list.length) return;
+  C = null;  // (Check the tree: worked out again from the tree as it is now)
   if (!M) {
     history.pushState({ ...history.state, eg: (history.state?.eg || 0) + 1, manage: 1 }, "");
     M = { back: document.activeElement };
@@ -81,14 +92,17 @@ export function closeManage() { if (M) { hide(); history.back(); } }  // (its hi
 window.addEventListener("popstate", () => { if (M && !history.state?.manage) hide(); });
 $("#manage-back").onclick = closeManage;
 $("#menu-manage").onclick = () => { closeMenu(); openManage(); };
+$("#menu-check").onclick = () => { closeMenu(); C = null; openManage(["split", "dupes", "dates", "islands", "alone"].find(k => found()[k]?.length) || "split"); };
 $("#manage").addEventListener("keydown", e => {
   if (e.key === "Escape" && $("#dlg-wrap").hidden) { e.stopPropagation(); closeManage(); }
   else if (e.key === "Tab" && $("#dlg-wrap").hidden) trapTab(e, $("#manage"));
 });
 
 function nav() {
-  $("#manage .mnav").replaceChildren(...mine().map(([k, label]) => h("button", { "aria-current": k === M.at ? "page" : null,
-    onclick: () => { M.at = k; show(); $("#manage .msec h2")?.focus(); } }, label())));
+  $("#manage .mnav").replaceChildren(...mine().flatMap(([k, label, , , group], i, all) => [
+    group && group !== all[i - 1]?.[4] ? h("h3", {}, group) : "",
+    h("button", { "aria-current": k === M.at ? "page" : null, class: group ? "sub" : "",
+      onclick: () => { M.at = k; show(); $("#manage .msec h2")?.focus(); } }, label())]));
 }
 async function show() {
   nav();
@@ -163,14 +177,90 @@ async function invites() {
     ...(rows.length ? rows : [h("p", { class: "muted" }, "No invites waiting.")])];
 }
 
-// ---------- Check dates (owner): everyone whose dates can't be right (common.js dateProblems) ----------
+// ---------- Check the tree (the owner; editors too if an admin says so): probable mistakes, from the tree itself ----------
+let C = null;  // what was found, worked out once each time the page opens: {split, alone, islands, dates, dupes (once seen)}
+function found() {
+  if (!C) {
+    const byName = ids => ids.sort((a, b) => name(P[a]).localeCompare(name(P[b])));
+    C = { split: splitFamilies(FAMS), alone: byName(noRelatives(P, FAMS)), islands: islands(P, FAMS),
+      dates: byName(Object.keys(P).filter(id => dateProblems(id).length)) };
+  }
+  return C;
+}
+const MAX = 300;  // rows shown at once (a big tree can have many people with no relatives)
+const see = id => h("button", { onclick: () => { leave(); seeTree(id); } }, "See them");
+const who = id => h("div", {}, h("strong", {}, name(P[id])), years(P[id]) && h("span", { class: "small muted" }, ` ${years(P[id])}`));
+function rows(list, row, none) {
+  if (!list.length) return [h("p", {}, h("strong", {}, none))];
+  return [h("div", { class: "datelist" }, ...list.slice(0, MAX).map(row)),
+    list.length > MAX ? h("p", { class: "small muted" }, `And ${list.length - MAX} more: fix some of these first.`) : ""];
+}
+function splitPage() {
+  return [h("p", { class: "small muted" }, "The same father or mother in more than one family with no husband or wife listed. Brothers and sisters are usually in one family: in Full Gramps, merge those families, or remove the children from one and add them to the other."),
+    ...rows(found().split, s => {
+      const p = P[s.id], partner = s.fams[0].f === s.id ? "mother" : "father";
+      return h("div", { class: "sugdone" }, h("div", {}, who(s.id),
+        h("div", { class: "small" }, `Children in ${s.fams.length} families with no ${partner} listed: `,
+          s.fams.map(f => f.kids.filter(k => P[k]).map(k => P[k].first || name(P[k])).join(", ") || "no children").join("; "))), see(p.id));
+    }, "No split families found ✓")];
+}
+function alonePage() {
+  return [h("p", { class: "small muted" }, "People who aren't linked to anyone: often added in the wrong place, or a link was forgotten."),
+    ...rows(found().alone, id => h("div", { class: "sugdone" }, who(id), see(id)), "Everyone is linked to someone ✓")];
+}
+function islandsPage() {
+  return [h("p", { class: "small muted" }, "Families linked to each other but not to the main family tree. Maybe a link between them is missing, or someone is in the tree twice."),
+    ...rows(found().islands, ids => h("div", { class: "sugdone" }, h("div", {}, h("strong", {}, `${ids.length} people`),
+      h("div", { class: "small" }, ids.slice(0, 5).map(id => name(P[id])).join(", ") + (ids.length > 5 ? "…" : ""))), see(ids[0])),
+    "Everyone is in one family tree ✓")];
+}
 function checkDates() {
-  const bad = Object.values(P).map(p => [p, dateProblems(p.id)]).filter(([, x]) => x.length).sort(([a], [b]) => name(a).localeCompare(name(b)));
   return [h("p", { class: "small muted" }, "People whose dates can't be right: died before they were born, born when a parent was under 12, or after a parent died. Years only."),
-    bad.length ? h("div", { class: "datelist" }, ...bad.map(([p, x]) => h("div", { class: "sugdone" },
-      h("div", {}, h("strong", {}, name(p)), ...x.map(t => h("div", { class: "small" }, t))),
-      h("button", { onclick: () => { leave(); seeTree(p.id); } }, "See their tree"))))
-      : h("p", {}, h("strong", {}, "Nothing wrong found ✓"))];
+    ...rows(found().dates, id => h("div", { class: "sugdone" },
+      h("div", {}, h("strong", {}, name(P[id])), ...dateProblems(id).map(t => h("div", { class: "small" }, t))), see(id)), "Nothing wrong found ✓")];
+}
+async function dupesPage() {
+  const not = await api("/checks/notsame");
+  const d = duplicates(P, FAMS, ME.site?.dupes, not);
+  found().dupes = [...d.likely, ...d.maybe]; nav();
+  const row = x => {
+    const say = h("div", { class: "small", role: "status" });
+    const no = h("button", { onclick: async () => {
+      no.disabled = true;
+      try {
+        await postJSON("/checks/notsame", { a: x.a, b: x.b });
+        line.remove(); C.dupes = C.dupes.filter(y => y !== x); nav();
+      } catch (err) { no.disabled = false; say.textContent = err.message; }
+    } }, "Not the same person");
+    const line = h("div", { class: "duprow" }, who(x.a), who(x.b), h("div", { class: "small muted" }, x.why.join(" · ")),
+      h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => { leave(); openMerge(x.a, x.b); } }, "Compare and merge"),
+        see(x.a), no), say);
+    return line;
+  };
+  const part = (title, list) => list.length ? [h("h3", {}, `${title} (${list.length})`), ...rows(list, row, "")] : [];
+  return [h("p", { class: "small muted" }, "People who may be in the tree twice: names that sound alike, close birth years, the same parents, husband or wife, or children. “Not the same person” hides a pair for everyone."),
+    ...(d.likely.length || d.maybe.length ? [...part("Very likely", d.likely), ...part("Maybe", d.maybe)] : [h("p", {}, h("strong", {}, "No duplicates found ✓"))])];
+}
+const canEditTree = () => (ME.role ?? 0) >= 3;  // (merging is the editors')
+
+// ---------- Check the tree: settings (admins) ----------
+function checkSettings() {
+  const s = ME.site || {}, d = { year: true, kin: true, place: true, level: "normal", same: "", ...s.dupes };
+  const whoSel = h("select", { id: "chk-who" }, h("option", { value: "owner" }, "Only the owner (and admins)"), h("option", { value: "editors" }, "Editors and the owner"));
+  whoSel.value = s.checks || "owner";
+  const tick = (k, text) => h("label", { class: "inline" }, h("input", { type: "checkbox", "data-k": k, checked: d[k] }), text);
+  const ticks = [tick("year", "Birth years close"), tick("kin", "The same parents, husband or wife, or children"), tick("place", "The same place of birth")];
+  const level = h("select", { id: "chk-level" }, h("option", { value: "strict" }, "Strict: only very close matches"),
+    h("option", { value: "normal" }, "Normal"), h("option", { value: "loose" }, "Loose: more pairs, more of them wrong"));
+  level.value = d.level;
+  const same = h("textarea", { id: "chk-same", rows: 5, maxlength: 5000, placeholder: "Lakshmi = Laxmi = Lachmi\nMohammed = Muhammad" }, d.same);
+  return [h("label", { for: whoSel.id }, "Who can open Check the tree", whoSel),
+    h("fieldset", {}, h("legend", {}, "Possible duplicates: what counts, besides a name that sounds alike"), ...ticks),
+    h("label", { for: level.id }, "How close a match", level),
+    h("label", { for: same.id }, "Names that are the same in this family, one group per line", same),
+    h("p", { class: "muted small" }, "Spellings that sound alike (Laxmi and Lakshmi, Mohammed and Muhammad) are matched already; add the ones that aren't."),
+    ...saver(() => ({ checks: whoSel.value, dupes: { ...Object.fromEntries(ticks.map(l => l.querySelector("input")).map(b => [b.dataset.k, b.checked])),
+      level: level.value, same: same.value } }), () => { C = null; })];
 }
 
 // ---------- the site settings (owner): each section saves its own part ----------

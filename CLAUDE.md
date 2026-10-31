@@ -205,6 +205,13 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
   Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
+- **Check the tree** (☰ Menu `#menu-check` → Manage sections under "🔍 Check the tree"; site.js): worked out in the page
+  from the graph by `checks.js` (no imports: `splitFamilies`, `noRelatives`, `islands`, `duplicates`; `node --test
+  tests/checks.test.mjs`), plus common.js `dateProblems`. Who: `/auth/me` → `can_check` (main.py `may_check`: site `checks`
+  owner|editors, admins choose). Duplicates: name sound (`speller`: spellings → one form, consonants, the site `dupes.same`
+  lines), blocked by first-name consonants or initial+surname, points per clue (`dupes`: year, kin, place; `level`
+  strict|normal|loose). `GET/POST /checks/notsame {a, b}` (chat.sqlite3 `notsame`, sorted pair): hidden for everyone.
+  "Compare and merge" → `openMerge(a, b)`.
 - **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
   non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`
   streams Gramps' `/media/{h}/file` for a `ticket` from `/tree/documents` (main.py `file_ticket`: random, that one
