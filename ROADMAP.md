@@ -61,7 +61,11 @@ share the browser's `localStorage`, where Gramps Web keeps its login (password *
   "turn your phone sideways".
 - **Faster reloads for big trees:** after an edit, re-fetch only what changed (today the whole tree
   reloads; ~0.4 MB / 7-10 s for the demo's 4,669 people).
-- **Suggest likely duplicates** on the start screen (same/similar name, overlapping dates).
+- ~~**Suggest likely duplicates**~~: done as ☰ Menu → Check the tree → Possible duplicates.
+- **Overview picture (tabled, Oct 2026):** dots and lines for a whole connected group, rows by generation, couples
+  side by side; a dot opens the panel, a family point a family card; a red ring on what Check the tree flags. For
+  "is this branch right?" reviews that the lists can't do. Layout with Graphviz (copied in, like PDF.js); one group at a
+  time, computers only. Revisit after using Check the tree on a real tree for a while.
 - **"Could use some details" list** — people missing parents, a birth year or a photo.
 - **House / family name field** to tell apart people with the same name (undecided).
 - **Translations** — all text is English today.
