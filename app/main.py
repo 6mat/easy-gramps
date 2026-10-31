@@ -296,6 +296,7 @@ async def me(request: Request):
             users = []
         user["joined"] = await let_in(bearer(request), users, user)
         user["joining"] = sum(u.get("role") == ROLE_DISABLED for u in users)  # ☰ Menu → Waiting to join
+    user["can_check"] = may_check(user)
     suggest.add_to_me(user)
     return user
 
@@ -359,6 +360,37 @@ async def layout_types(request: Request):
 SKIP_TYPES = {"Unknown", "Birth", "Death"}  # (birth and death are fixed fields)
 
 
+# ---------- Check the tree (☰ Menu): worked out in the page from the graph; here only who may, and "Not the same person" ----------
+CHECKS_FOR = {"owner": ROLE_OWNER, "editors": ROLE_EDITOR}  # who opens it (the admin's choice)
+
+
+def may_check(user: dict) -> bool:
+    return user.get("role", 0) >= CHECKS_FOR[site()["checks"]]
+
+
+async def need_check(request: Request) -> dict:
+    user = await who(request)
+    if not may_check(user):
+        raise HTTPException(403, "Only the owner can check the tree.")
+    return user
+
+
+@easy.get("/checks/notsame")
+async def notsame(request: Request):
+    await need_check(request)
+    return CHAT.notsame()
+
+
+@easy.post("/checks/notsame")
+async def add_notsame(request: Request):
+    user, body = await need_check(request), await json_body(request)
+    a, b = body.get("a"), body.get("b")
+    if not (isinstance(a, str) and isinstance(b, str) and a and b and a != b and len(a) + len(b) < 200):
+        raise HTTPException(400, "Something was missing. Please try again.")
+    CHAT.add_notsame(a, b, user.get("name"))
+    return {"ok": True}
+
+
 async def need_owner(request: Request):
     if (await who(request)).get("role", 0) < ROLE_OWNER:
         raise HTTPException(403, "Only the owner can change this.")
@@ -393,8 +425,18 @@ async def save_site(request: Request):
         if not isinstance(body["talk"], bool):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["talk"] = body["talk"]
-    if ("layout" in body or "box" in body) and (await who(request)).get("role", 0) < ROLE_ADMIN:
+    if ("layout" in body or "box" in body or "checks" in body or "dupes" in body) and (await who(request)).get("role", 0) < ROLE_ADMIN:
         raise HTTPException(403, "Only admins can change the layout.")
+    if "checks" in body:
+        if body["checks"] not in CHECKS_FOR:
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["checks"] = body["checks"]
+    if "dupes" in body:
+        d = body["dupes"]
+        if not (isinstance(d, dict) and all(type(d.get(k)) is bool for k in ("year", "kin", "place"))
+                and d.get("level") in ("strict", "normal", "loose") and isinstance(d.get("same"), str) and len(d["same"]) <= 5000):
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["dupes"] = {k: d[k] for k in chat.SITE["dupes"]}
     if "layout" in body:
         rows = body["layout"]
         if not isinstance(rows, list) or len(rows) > 80 or not all(

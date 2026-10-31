@@ -2,6 +2,22 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.8 — 2026-10-30
+
+### Added
+- ☰ Menu → **🔍 Check the tree** (the owner; editors too if an admin says so): split families (the same father or mother
+  in two families with no partner), people with no relatives, possible duplicates, date problems (was Check dates), and
+  groups not connected to the main tree, each with a count and See them.
+- Possible duplicates looks at everyone: names that sound alike (Laxmi / Lakshmi, Mohammed / Muhammad), close birth
+  years, the same parents, husband or wife or children, the same birthplace; "Very likely" and "Maybe", each with why.
+  **Compare and merge** opens the merge on the pair; **Not the same person** hides it for everyone.
+- Manage → **Check the tree: settings** (admins): who opens it, what counts for duplicates, how close a match, and the
+  family's own same names ("Lakshmi = Laxmi").
+
+### Fixed
+- Adding someone already in the tree as a father (or mother) no longer splits brothers and sisters into two families:
+  when that father has children with no mother listed, the new child joins them. Undo takes only the new child out.
+
 ## 1.9.7 — 2026-10-29
 
 ### Added

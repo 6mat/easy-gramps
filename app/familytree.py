@@ -571,6 +571,18 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
                 undo = {"op": "split", "famId": couple, "kids": kids, "side": other_side, "parent": fam.get(other_side)}
                 return {"added": oh, "famId": couple, "undo": undo, "joined": True}
         else:
+            # Their father (or mother) already has children with no partner listed: they join them as brothers and
+            # sisters, not a second family. shortcut: a really different partner means Remove from this family and add again.
+            other_side = "mother_handle" if side == "father_handle" else "father_handle"
+            alone = [f for f in [await g.get(f"/families/{x}") for x in other.get("family_list") or []]  # (none for someone new)
+                     if f.get(side) == oh and not f.get(other_side)]
+            if len(alone) == 1:
+                fam = alone[0]
+                fam.setdefault("child_ref_list", []).append(child_ref(ph))
+                await g.put(f"/families/{fam['handle']}", fam)
+                fam_id = fam["handle"]
+                undo = {"op": "unlink", "person": oh, "rel": "child", "other": ph, "famId": fam_id}
+                return {"added": oh, "famId": fam_id, "undo": undo, "siblings": True}
             fam = _family(oh if rel == "father" else None, oh if rel == "mother" else None, [ph], tags)
             await write(fam)
             fam_id = fam["handle"]

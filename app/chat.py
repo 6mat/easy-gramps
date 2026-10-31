@@ -31,9 +31,11 @@ CREATE TABLE IF NOT EXISTS settings (login TEXT PRIMARY KEY, dates TEXT, emails 
 CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, login TEXT NOT NULL, keys TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS site (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
+CREATE TABLE IF NOT EXISTS notsame (a TEXT NOT NULL, b TEXT NOT NULL, login TEXT, at REAL, PRIMARY KEY (a, b));
 """
 SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
-        "layout": [], "box": ["years", "birthPlace"]}  # the owner's site settings, and their defaults
+        "layout": [], "box": ["years", "birthPlace"],
+        "checks": "owner", "dupes": {"year": True, "kin": True, "place": True, "level": "normal", "same": ""}}  # the owner's site settings, and their defaults
 ADDED = (("convs", "private"), ("users", "private"))  # columns newer than 1.8.0's tables
 
 
@@ -363,6 +365,14 @@ class Chat:
         self.tx(*[("INSERT INTO site (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
                    k, json.dumps(v)) for k, v in changes.items()])
         return self.site()
+
+    # ----- Check the tree: two people someone said aren't the same (hidden from Possible duplicates for everyone) -----
+    def notsame(self) -> list:
+        return [[r["a"], r["b"]] for r in self.q("SELECT a, b FROM notsame")]
+
+    def add_notsame(self, a: str, b: str, login: str):
+        a, b = sorted((a, b))
+        self.q("INSERT OR IGNORE INTO notsame (a, b, login, at) VALUES (?, ?, ?, ?)", a, b, login, time.time())
 
     # ----- invites: the owner's choice of role and person for someone's email, applied once they sign in -----
     def invite(self, email: str, person: str, role: int, by: str) -> dict:
