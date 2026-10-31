@@ -31,8 +31,7 @@ export function applySite() {
   const hide = new Set(ME.site?.hide || []);
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   const waiting = (isOwner() ? ME.joining || 0 : 0) + (ME.suggestions || 0);
-  $("#menu-manage").hidden = !isOwner() && ME.suggestions == null;  // (editors: when suggestions are on)
-  $("#menu-check").hidden = !canCheck();
+  $("#menu-manage").hidden = !isOwner() && ME.suggestions == null && !canCheck();  // (editors: when suggestions are on, or they check)
   $("#menu-manage").textContent = `${named("manage", "⚙️ Manage")}${waiting ? ` (${waiting})` : ""}`;
   const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
   $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
@@ -66,10 +65,11 @@ const SECTIONS = [
 ];
 let M = null;  // the open page: { at (the section shown), back }
 const mine = () => SECTIONS.filter(([, , may]) => may());
-export function openManage(at) {
+export function openManage(at, top = 0) {  // top: the list's scroll, coming back to it
   const list = mine();
   if (!list.length) return;
   C = null;  // (Check the tree: worked out again from the tree as it is now)
+  $("#tree-list").hidden = true;
   if (!M) {
     history.pushState({ ...history.state, eg: (history.state?.eg || 0) + 1, manage: 1 }, "");
     M = { back: document.activeElement };
@@ -78,7 +78,7 @@ export function openManage(at) {
   // First: where something's waiting, else the first section.
   M.at = list.some(([k]) => k === at) ? at : ME.suggestions && list.some(([k]) => k === "suggest") ? "suggest"
     : isOwner() && ME.joining ? "joining" : list[0][0];
-  show();
+  show(top);
   $("#manage-back").focus();
 }
 function hide() {
@@ -92,7 +92,15 @@ export function closeManage() { if (M) { hide(); history.back(); } }  // (its hi
 window.addEventListener("popstate", () => { if (M && !history.state?.manage) hide(); });
 $("#manage-back").onclick = closeManage;
 $("#menu-manage").onclick = () => { closeMenu(); openManage(); };
-$("#menu-check").onclick = () => { closeMenu(); C = null; openManage(["split", "dupes", "dates", "islands", "alone"].find(k => found()[k]?.length) || "split"); };
+// "See them" (and Compare and merge) leave a pill on the tree back to that list, where it was.
+let backTo = null;
+function toTree(go) {
+  const [, label] = SECTIONS.find(([k]) => k === M.at);
+  backTo = { at: M.at, top: $("#manage .msec").scrollTop };
+  leave(); go();
+  Object.assign($("#tree-list"), { hidden: false, textContent: `← Back to ${label().replace(/ \(\d+\)$/, "")}` });
+}
+$("#tree-list").onclick = () => backTo && openManage(backTo.at, backTo.top);
 $("#manage").addEventListener("keydown", e => {
   if (e.key === "Escape" && $("#dlg-wrap").hidden) { e.stopPropagation(); closeManage(); }
   else if (e.key === "Tab" && $("#dlg-wrap").hidden) trapTab(e, $("#manage"));
@@ -104,7 +112,7 @@ function nav() {
     h("button", { "aria-current": k === M.at ? "page" : null, class: group ? "sub" : "",
       onclick: () => { M.at = k; show(); $("#manage .msec h2")?.focus(); } }, label())]));
 }
-async function show() {
+async function show(top = 0) {
   nav();
   const [at, label, , fill] = SECTIONS.find(([x]) => x === M.at);
   const box = $("#manage .msec");
@@ -112,7 +120,7 @@ async function show() {
   box.scrollTop = 0;
   let body;
   try { body = await fill(); } catch (err) { body = [h("div", { class: "warn" }, err.message)]; }
-  if (M?.at === at) box.replaceChildren(h("h2", { tabindex: "-1" }, label()), ...body);
+  if (M?.at === at) { box.replaceChildren(h("h2", { tabindex: "-1" }, label()), ...body); box.scrollTop = top; }
 }
 const leave = () => closeManage();  // before going to the tree: the page would cover it
 
@@ -188,7 +196,7 @@ function found() {
   return C;
 }
 const MAX = 300;  // rows shown at once (a big tree can have many people with no relatives)
-const see = id => h("button", { onclick: () => { leave(); seeTree(id); } }, "See them");
+const see = id => h("button", { onclick: () => toTree(() => seeTree(id)) }, "See them");
 const who = id => h("div", {}, h("strong", {}, name(P[id])), years(P[id]) && h("span", { class: "small muted" }, ` ${years(P[id])}`));
 function rows(list, row, none) {
   if (!list.length) return [h("p", {}, h("strong", {}, none))];
@@ -233,7 +241,7 @@ async function dupesPage() {
       } catch (err) { no.disabled = false; say.textContent = err.message; }
     } }, "Not the same person");
     const line = h("div", { class: "duprow" }, who(x.a), who(x.b), h("div", { class: "small muted" }, x.why.join(" · ")),
-      h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => { leave(); openMerge(x.a, x.b); } }, "Compare and merge"),
+      h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => toTree(() => { seeTree(x.a); openMerge(x.a, x.b); }) }, "Compare and merge"),
         see(x.a), no), say);
     return line;
   };

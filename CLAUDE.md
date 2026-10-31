@@ -205,7 +205,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
   Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
-- **Check the tree** (☰ Menu `#menu-check` → Manage sections under "🔍 Check the tree"; site.js): worked out in the page
+- **Check the tree** (☰ Menu → Manage, its sections under "🔍 Check the tree"; site.js; "See them" leaves `#tree-list` on the tree, back to that list where it was): worked out in the page
   from the graph by `checks.js` (no imports: `splitFamilies`, `noRelatives`, `islands`, `duplicates`; `node --test
   tests/checks.test.mjs`), plus common.js `dateProblems`. Who: `/auth/me` → `can_check` (main.py `may_check`: site `checks`
   owner|editors, admins choose). Duplicates: name sound (`speller`: spellings → one form, consonants, the site `dupes.same`
