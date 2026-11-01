@@ -25,7 +25,7 @@ relatives who find the full Gramps interface too much.
 - **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
 - **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.
 - **Book pages:** link a person to a page of a family book (a Gramps citation); it opens in the app's own viewer at that page, with the paragraph marked (editors drag a box over it).
-- **Manage** (☰ Menu; editors see Suggestions, the owner everything): one page with sections for Suggestions, Waiting to join, Invites, Check dates, and the site settings: the app's name and icon, which menu items show, who can do what (suggestions, Family talk, the Full Gramps link) and what menu items are called. Admins also get **Layout**: which Gramps events, attributes and relatives each person's details show, where, and to whom, and what the person boxes show under the name.
+- **Manage** (☰ Menu → Family; editors see Changes, the owner everything): one page in four groups. **Changes**: Suggestions and History. **People**: Waiting to join and Invites. **Check the tree**: likely mistakes in the data. **Settings**: the app's name and icon, the menu and buttons (what shows and what it's called), who can do what (suggestions, Family talk, the Full Gramps link). Admins also get **Person details and boxes**: which Gramps events, attributes and relatives each person's details show, where, and to whom, and what the person boxes show under the name.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
@@ -166,7 +166,7 @@ on an iPhone, Safari's **Share → Add to Home Screen**). It then opens from its
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
 
-To use your own icon, the owner can upload one in ☰ Menu → ⚙️ Manage → Name and icon (it wins over `ICON_FILE`), or point `ICON_FILE` at a square picture (see the commented lines in the deploy
+To use your own icon, the owner can upload one in ☰ Menu → ⚙️ Manage → Settings → App name and icon (it wins over `ICON_FILE`), or point `ICON_FILE` at a square picture (see the commented lines in the deploy
 files). After changing it, an installed app shows the new icon once the phone next checks (it can take
 a day); removing and re-installing the app shows it at once.
 

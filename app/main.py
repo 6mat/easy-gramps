@@ -303,9 +303,8 @@ async def me(request: Request):
 
 # ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
 MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "tips", "keys", "source")  # what the owner may hide
-LABELS = ("chat", "menu", "theme", "display", "dates", "you", "help", "install", "docs", "tips", "keys", "goto", "gramps",
-          "source", "manage", "logout",
-          "editors", "suggest", "owner", "joining", "checkdates", "site")  # what the owner may rename (site.js LABELS); the last six: before Manage
+LABELS = ("chat", "menu", "you", "display", "family", "docs", "gramps", "manage", "help", "tips", "keys", "install", "logout",
+          "source")  # what the owner may rename (site.js MENU)
 GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
 
 
@@ -317,7 +316,7 @@ def site() -> dict:
         return dict(chat.SITE)
 
 
-# ---------- the admin's layout (☰ Menu → Manage → Layout): the panel's fields, where they go and who sees them ----------
+# ---------- the admin's layout (☰ Menu → Manage → Person details and boxes): the panel's fields, where they go and who sees them ----------
 BUILT_IN = ("burial", "residence", "work", "education", "phone", "email", "notes")  # More details, as before 1.9.5
 KIN = tuple(f"r:{x}" for x in ("siblings", "grandparents", "grandchildren", "uncles", "cousins", "inlaws"))  # worked out in the page
 DEFAULT_LAYOUT = [{"k": k, "where": "more", "see": ROLE_EDITOR if k in ("phone", "email") else 0} for k in BUILT_IN]

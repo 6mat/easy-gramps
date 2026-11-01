@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage: Suggestions, Waiting to join, Invites, Check dates, the site settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -139,10 +139,10 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
   The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
   `talk` (bool, default true): off hides "Family talk about …" (panel.js) and `POST /chat/person/{h}` is a 403.
-  `labels` {key → text ≤ 40}: renames (main.py `LABELS` = site.js `LABELS`: key, selector, default; `.lbl` gets a
+  `labels` {key → text ≤ 40}: renames (main.py `LABELS` and `MENU_ITEMS` = site.js `MENU`: rename key, selector, default, hide key; Manage → Settings → Menu and buttons shows and renames in one list; `.lbl` gets a
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
-- **Layout** (admins, role 5; Manage → Layout in site.js): site `layout` = rows `{k, where: top|more, see: 0–5}`, `[]` = main.py
+- **Layout** (admins, role 5; Manage → Settings → Person details and boxes in site.js): site `layout` = rows `{k, where: top|more, see: 0–5}`, `[]` = main.py
   `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (the person box's 2nd/3rd line, then a backup for each when it's empty, `BOX_LINES`).
   `k`: a built-in (`BUILT_IN`), `e:<event type>`, `a:<attribute type>`, `r:<kin>` (`KIN`; common.js `kin()` from the graph).
   `layout(role)` = the rows that role sees; `/auth/me` and `PUT /site` send only those. `/tree/details` adds the visible
@@ -188,7 +188,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   filtered to `treeIds(focus)`), "History ↗" pop-up (`.dlgx` ✕).
 - **Checks in the page** (common.js): `linkProblem(pid, rel, oid, famId)` → `{stop}` / `{warn}` (editor.js `addProblem`, "Add
   anyway"; suggesters: a warn is a stop) and `dateProblems(id)` (years only; editor `#ed-datewarn`, review rows, owner's
-  ☰ Menu → Check dates in site.js).
+  ☰ Menu → Manage → Check the tree → Date problems in site.js).
 - **Book pages** (familytree.py `books`/`add_book_page`/`remove_book_page`, docs.js `bookLinks`/`bookEditor`): a Source per
   document (made the first time, the media attached) and a Citation per page on the person's `citation_list`.
   `/tree/details` → `books` with a ticket; the link re-fetches details for a fresh ticket and opens `…/file?…#page=N`.
@@ -197,7 +197,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   Web account and gives it no token, so the invite is applied from the owner's side: `/auth/me` for an owner runs
   `let_in()` — `GET /api/users/`, an account with a negative role whose email matches gets `PUT /api/users/<name>/ {role}`
   and the Find me link (`admit()`, which also emails "You're in", in the background here); `/auth/me` → `joined` (toast)
-  and `joining` (how many accounts wait, role -1). **Waiting to join** (owner, site.js, ☰ Menu → Owner): `GET /joining`
+  and `joining` (how many accounts wait, role -1). **Waiting to join** (owner, site.js, ☰ Menu → Manage → People): `GET /joining`
   lists role -1 accounts (role preset: the invite's, else 0 Guest; `before`: the login was used before, i.e. turned off),
   `POST /joining/<login> {role 0–3}` → `admit()`: role, invite's person linked, "You're in" email (Gramps Web sends none
   on approval). me.js: "✉ Invite to the family tree" in More details (person
@@ -205,7 +205,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,
   Reply-To the sender) when the server can send email, else a `mailto:` in their own mail app.
-- **Check the tree** (☰ Menu `#menu-check` → Manage sections under "🔍 Check the tree"; site.js): worked out in the page
+- **Check the tree** (☰ Menu → Manage, its sections under "🔍 Check the tree"; site.js; "See them" leaves `#tree-list` on the tree, back to that list where it was; History in Manage does the same): worked out in the page
   from the graph by `checks.js` (no imports: `splitFamilies`, `noRelatives`, `islands`, `duplicates`; `node --test
   tests/checks.test.mjs`), plus common.js `dateProblems`. Who: `/auth/me` → `can_check` (main.py `may_check`: site `checks`
   owner|editors, admins choose). Duplicates: name sound (`speller`: spellings → one form, consonants, the site `dupes.same`
@@ -278,12 +278,12 @@ Fit and centring use only the area not under the panel.
 
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at
 a readable fit (≥60%). When space is short, button words win over the map. Full screen hides only
-the top bar. ☰ Menu: Theme (☀️ Light / 🌙 Dark / ⚙️ Auto segmented control), Bigger text and line
-switches, Dates (5 formats, kept with the login; a year alone stays a year), You (Find me, the daily email, "Notify me of
-new chat messages on this device" where the browser can; asked once per device after login, `askPush`), Show tips (the tip bar
-is off until asked for; in portrait it also says to turn the phone sideways), 📲 Install as an app (main.js; always, but not in the installed app: Chrome's `beforeinstallprompt` when it offers, else
-the steps for Android/iPhone),
-Full Gramps ↗, Log out.
+the top bar. ☰ Menu (owner's pick 2026-10-31, grouped): "Logged in as …" on top; **You** (Find me, the daily email, "Notify me of
+new chat messages on this device" where the browser can; asked once per device after login, `askPush`); **Display** (Theme ☀️ Light /
+🌙 Dark / ⚙️ Auto segmented control, Bigger text and line switches, Dates: 5 formats, kept with the login; a year alone stays a
+year); **Family** (📚 Family documents, Full Gramps ↗, ⚙️ Manage); **Help** (Show tips: the tip bar is off until asked for; in
+portrait it also says to turn the phone sideways; Keyboard keys; 📲 Install as an app: main.js; always, but not in the installed
+app: Chrome's `beforeinstallprompt` when it offers, else the steps for Android/iPhone); Log out; the version · Source code ↗.
 
 **Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
 Ctrl+wheel blocked outside it) — owner's call. Drag anywhere moves the tree, pinch zooms the tree,

@@ -1,7 +1,8 @@
-// Easy Gramps — ☰ Menu → ⚙️ Manage: one page, its sections down the side (tabs across the top on a phone). Editors
-// see Suggestions; the owner also Waiting to join, Invites, Check the tree (checks.js; editors too if an admin says so) and
-// the site settings: name and icon, menu items, who can do what, rename. The settings are kept on the server (main.py /site), the same for everyone. It's a
-// browser-history step, like the chat: Back closes it.
+// Easy Gramps — ☰ Menu → ⚙️ Manage: one page, its sections down the side in groups (tabs across the top on a phone).
+// Changes (editors: Suggestions while on, History), People (owner: Waiting to join, Invites), Check the tree (checks.js; the
+// owner, editors too if an admin says so) and Settings (owner: app name and icon, the menu, who can do what; admins: person
+// details). The settings are kept on the server (main.py /site), the same for everyone. It's a browser-history step, like
+// the chat: Back closes it.
 import { api, BASE } from "./auth.js";
 import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab, years } from "./common.js";
 import { duplicates, islands, noRelatives, splitFamilies } from "./checks.js";
@@ -11,16 +12,17 @@ import { toast } from "./editor.js";
 import { ROLES } from "./me.js";
 import { openHistory, openReview } from "./suggest.js";
 
-const ITEMS = [["theme", "Theme"], ["display", "Display (bigger text, the line to the details)"], ["dates", "Dates"],
-  ["you", "You (Find me, email, notifications)"], ["install", "Install as an app"], ["docs", "Family documents"], ["tips", "Show tips"],
-  ["keys", "Keyboard keys"], ["source", "Source code"]];
-// What the owner may rename (main.py LABELS): key, where, the default text.
-const LABELS = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Menu"], ["theme", "[data-item=theme] h3", "Theme"],
-  ["display", "[data-item=display] h3", "Display"], ["dates", "[data-item=dates] h3", "Dates"], ["you", "[data-item=you] h3", "You"],
-  ["help", "#h-help", "Help"], ["install", "#menu-install", "📲 Install as an app"], ["docs", "#menu-docs", "📚 Family documents"],
-  ["tips", "#tips-again", "Show tips"], ["keys", "#menu-keys", "Keyboard keys"], ["goto", "#h-goto", "Go to"],
-  ["gramps", "#menu-gramps", "Full Gramps ↗"], ["source", "#menu-source", "Source code ↗"],
-  ["manage", "", "⚙️ Manage"], ["logout", "#logout", "Log out"]];  // "": shown with a count (named)
+// The top bar and ☰ Menu, in the order they show: [what the owner may rename it (main.py LABELS), where, the default
+// text, what hides it (main.py MENU_ITEMS)]. Where "": shown with a count (named).
+const MENU = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Menu"],
+  ["you", "#h-you", "You", "you"],
+  ["display", "#h-display", "Display"], [null, "", "Theme: Light, Dark, Auto", "theme"],
+  [null, "", "Bigger text, Line from person to details", "display"], [null, "", "Dates", "dates"],
+  ["family", "#h-family", "Family"], ["docs", "#menu-docs", "📚 Family documents", "docs"], ["gramps", "#menu-gramps", "Full Gramps ↗"],
+  ["manage", "", "⚙️ Manage"],
+  ["help", "#h-help", "Help"], ["tips", "#tips-again", "Show tips", "tips"], ["keys", "#menu-keys", "Keyboard keys", "keys"],
+  ["install", "#menu-install", "📲 Install as an app", "install"],
+  ["logout", "#logout", "Log out"], ["source", "#menu-source", "Source code ↗", "source"]];
 const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
 const isOwner = () => (ME.role ?? 0) >= 4, isAdmin = () => (ME.role ?? 0) >= 5, canCheck = () => !!ME.can_check;
@@ -31,14 +33,13 @@ export function applySite() {
   const hide = new Set(ME.site?.hide || []);
   document.querySelectorAll("#menupop [data-item]").forEach(el => el.classList.toggle("sitehidden", hide.has(el.dataset.item)));
   const waiting = (isOwner() ? ME.joining || 0 : 0) + (ME.suggestions || 0);
-  $("#menu-manage").hidden = !isOwner() && ME.suggestions == null;  // (editors: when suggestions are on)
-  $("#menu-check").hidden = !canCheck();
+  $("#menu-manage").hidden = !mine().length;
   $("#menu-manage").textContent = `${named("manage", "⚙️ Manage")}${waiting ? ` (${waiting})` : ""}`;
   const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
   $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
   const names = ME.site?.labels || {};
-  for (const [k, sel] of LABELS) {
-    const el = sel && $(sel);
+  for (const [k, sel] of MENU) {
+    const el = k && sel && $(sel);
     if (el && names[k]) el.textContent = el.classList.contains("lbl") ? ` ${names[k]}` : names[k];  // .lbl: after the icon
   }
   if (M) nav();
@@ -47,29 +48,31 @@ export function applySite() {
 // ---------- the page ----------
 // [key, name in the side list, who sees it, what's in it, the heading it's under]. A count after the name: something's waiting there.
 const count = (k, n = found()[k]?.length) => (n ? ` (${n})` : "");
-const CHECK = "🔍 Check the tree";
+const waits = n => (n ? ` (${n})` : "");
+const CHANGES = "📝 Changes", PEOPLE = "👋 People", CHECK = "🔍 Check the tree", SETTINGS = "⚙️ Settings";
 const SECTIONS = [
-  ["suggest", () => `📝 Suggestions${ME.suggestions ? ` (${ME.suggestions})` : ""}`, () => ME.suggestions != null, suggestions],
-  ["joining", () => `👋 Waiting to join${ME.joining ? ` (${ME.joining})` : ""}`, isOwner, joining],
-  ["invites", () => "✉️ Invites", isOwner, invites],
+  ["suggest", () => `Suggestions${waits(ME.suggestions)}`, () => ME.suggestions != null, suggestions, CHANGES],
+  ["history", () => "History", () => (ME.role ?? 0) >= 3, historyPage, CHANGES],
+  ["joining", () => `Waiting to join${waits(ME.joining)}`, isOwner, joining, PEOPLE],
+  ["invites", () => "Invites", isOwner, invites, PEOPLE],
   ["split", () => `Split families${count("split")}`, canCheck, splitPage, CHECK],
-  ["alone", () => `People with no relatives${count("alone")}`, canCheck, alonePage, CHECK],
+  ["alone", () => `On their own${count("alone")}`, canCheck, alonePage, CHECK],
   ["dupes", () => `Possible duplicates${count("dupes")}`, canCheck, dupesPage, CHECK],
   ["dates", () => `Date problems${count("dates")}`, canCheck, checkDates, CHECK],
-  ["islands", () => `Groups not connected${count("islands")}`, canCheck, islandsPage, CHECK],
-  ["general", () => "Name and icon", isOwner, general],
-  ["menu", () => "Menu items", isOwner, menuItems],
-  ["rights", () => "Who can do what", isOwner, rights],
-  ["rename", () => "Rename", isOwner, rename],
-  ["layout", () => "Layout", isAdmin, layoutPage],
-  ["checkset", () => "Check the tree: settings", isAdmin, checkSettings],
+  ["islands", () => `Separate groups${count("islands")}`, canCheck, islandsPage, CHECK],
+  ["checkset", () => "Settings for checks", isAdmin, checkSettings, CHECK],
+  ["general", () => "App name and icon", isOwner, general, SETTINGS],
+  ["menu", () => "Menu and buttons", isOwner, menuPage, SETTINGS],
+  ["rights", () => "Who can do what", isOwner, rights, SETTINGS],
+  ["layout", () => "Person details and boxes", isAdmin, layoutPage, SETTINGS],
 ];
 let M = null;  // the open page: { at (the section shown), back }
 const mine = () => SECTIONS.filter(([, , may]) => may());
-export function openManage(at) {
+export function openManage(at, top = 0) {  // top: the list's scroll, coming back to it
   const list = mine();
   if (!list.length) return;
   C = null;  // (Check the tree: worked out again from the tree as it is now)
+  $("#tree-list").hidden = true;
   if (!M) {
     history.pushState({ ...history.state, eg: (history.state?.eg || 0) + 1, manage: 1 }, "");
     M = { back: document.activeElement };
@@ -78,7 +81,7 @@ export function openManage(at) {
   // First: where something's waiting, else the first section.
   M.at = list.some(([k]) => k === at) ? at : ME.suggestions && list.some(([k]) => k === "suggest") ? "suggest"
     : isOwner() && ME.joining ? "joining" : list[0][0];
-  show();
+  show(top);
   $("#manage-back").focus();
 }
 function hide() {
@@ -92,7 +95,15 @@ export function closeManage() { if (M) { hide(); history.back(); } }  // (its hi
 window.addEventListener("popstate", () => { if (M && !history.state?.manage) hide(); });
 $("#manage-back").onclick = closeManage;
 $("#menu-manage").onclick = () => { closeMenu(); openManage(); };
-$("#menu-check").onclick = () => { closeMenu(); C = null; openManage(["split", "dupes", "dates", "islands", "alone"].find(k => found()[k]?.length) || "split"); };
+// "See them", Compare and merge, a family in History: a pill on the tree goes back to that list, where it was.
+let backTo = null;
+function toTree(go) {
+  const group = SECTIONS.find(([k]) => k === M.at)[4].replace(/^\S+ /, "");  // (without the emoji)
+  backTo = { at: M.at, top: $("#manage .msec").scrollTop };
+  leave(); go();
+  Object.assign($("#tree-list"), { hidden: false, textContent: `← Back to ${backTo.at === "history" ? "History" : group}` });
+}
+$("#tree-list").onclick = () => backTo && openManage(backTo.at, backTo.top);
 $("#manage").addEventListener("keydown", e => {
   if (e.key === "Escape" && $("#dlg-wrap").hidden) { e.stopPropagation(); closeManage(); }
   else if (e.key === "Tab" && $("#dlg-wrap").hidden) trapTab(e, $("#manage"));
@@ -104,7 +115,7 @@ function nav() {
     h("button", { "aria-current": k === M.at ? "page" : null, class: group ? "sub" : "",
       onclick: () => { M.at = k; show(); $("#manage .msec h2")?.focus(); } }, label())]));
 }
-async function show() {
+async function show(top = 0) {
   nav();
   const [at, label, , fill] = SECTIONS.find(([x]) => x === M.at);
   const box = $("#manage .msec");
@@ -112,7 +123,7 @@ async function show() {
   box.scrollTop = 0;
   let body;
   try { body = await fill(); } catch (err) { body = [h("div", { class: "warn" }, err.message)]; }
-  if (M?.at === at) box.replaceChildren(h("h2", { tabindex: "-1" }, label()), ...body);
+  if (M?.at === at) { box.replaceChildren(h("h2", { tabindex: "-1" }, label()), ...body); box.scrollTop = top; }
 }
 const leave = () => closeManage();  // before going to the tree: the page would cover it
 
@@ -122,8 +133,14 @@ function suggestions() {
   return [h("p", {}, n ? h("strong", {}, `${n} waiting for an editor.`) : "Nothing is waiting ✓"),
     h("p", { class: "muted small" }, "They show on the tree, as they'd look: approve or reject each one there."),
     h("div", { class: "btnrow" },
-      h("button", { class: "primary", onclick: () => { leave(); openReview(true); } }, n ? "Review them on the tree" : "See recent changes on the tree"),
-      h("button", { onclick: () => { leave(); openHistory(); } }, "History"))];
+      h("button", { class: "primary", onclick: () => { leave(); openReview(true); } }, n ? "Review them on the tree" : "See recent changes on the tree"))];
+}
+
+// ---------- History (editors): suggestions decided and editors' changes, in the page (suggest.js) ----------
+async function historyPage() {
+  const box = h("div");
+  await openHistory(null, box, id => toTree(() => seeTree(id)));
+  return [box];
 }
 
 // ---------- Waiting to join (owner) ----------
@@ -188,7 +205,7 @@ function found() {
   return C;
 }
 const MAX = 300;  // rows shown at once (a big tree can have many people with no relatives)
-const see = id => h("button", { onclick: () => { leave(); seeTree(id); } }, "See them");
+const see = id => h("button", { onclick: () => toTree(() => seeTree(id)) }, "See them");
 const who = id => h("div", {}, h("strong", {}, name(P[id])), years(P[id]) && h("span", { class: "small muted" }, ` ${years(P[id])}`));
 function rows(list, row, none) {
   if (!list.length) return [h("p", {}, h("strong", {}, none))];
@@ -233,7 +250,7 @@ async function dupesPage() {
       } catch (err) { no.disabled = false; say.textContent = err.message; }
     } }, "Not the same person");
     const line = h("div", { class: "duprow" }, who(x.a), who(x.b), h("div", { class: "small muted" }, x.why.join(" · ")),
-      h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => { leave(); openMerge(x.a, x.b); } }, "Compare and merge"),
+      h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => toTree(() => { seeTree(x.a); openMerge(x.a, x.b); }) }, "Compare and merge"),
         see(x.a), no), say);
     return line;
   };
@@ -243,7 +260,7 @@ async function dupesPage() {
 }
 const canEditTree = () => (ME.role ?? 0) >= 3;  // (merging is the editors')
 
-// ---------- Check the tree: settings (admins) ----------
+// ---------- Check the tree → Settings for checks (admins) ----------
 function checkSettings() {
   const s = ME.site || {}, d = { year: true, kin: true, place: true, level: "normal", same: "", ...s.dupes };
   const whoSel = h("select", { id: "chk-who" }, h("option", { value: "owner" }, "Only the owner (and admins)"), h("option", { value: "editors" }, "Editors and the owner"));
@@ -295,11 +312,19 @@ function general() {
       h("div", { class: "btnrow" }, iconImg, h("button", { onclick: () => file.click() }, "Choose a picture…"),
         h("button", { onclick: () => icon("DELETE") }, "Use the default"), file)), say];
 }
-function menuItems() {
-  const shows = ITEMS.map(([k, label]) => h("label", { class: "inline" },
-    h("input", { type: "checkbox", value: k, checked: !(ME.site?.hide || []).includes(k) }), label));
-  return [h("fieldset", {}, h("legend", {}, "Show in the menu"), ...shows),
-    ...saver(() => ({ hide: shows.map(l => l.querySelector("input")).filter(b => !b.checked).map(b => b.value) }))];
+function menuPage() {  // what shows in the menu, and what it's called
+  const hide = new Set(ME.site?.hide || []), names = ME.site?.labels || {};
+  const rows = MENU.map(([k, , def, item]) => {
+    const show = item && h("input", { type: "checkbox", "data-item": item, checked: !hide.has(item), "aria-label": `Show ${def}` });
+    const input = k && h("input", { "data-key": k, value: names[k] || "", placeholder: def, maxlength: 40, autocomplete: "off", "aria-label": `New name for ${def}` });
+    return [show || h("span", { class: "small muted", title: "Always shown (when it applies)" }, "—"), h("span", {}, def), input || h("span")];
+  });
+  const all = rows.flat();
+  return [h("p", { class: "muted small" }, "Untick what nobody needs. To call something else, type the new name; leave it empty to keep the name in grey. Emoji are fine."),
+    h("div", { class: "menurows" }, h("span", { class: "small muted" }, "Show"), h("span", { class: "small muted" }, "In the menu"),
+      h("span", { class: "small muted" }, "Call it"), ...all),
+    ...saver(() => ({ hide: all.filter(x => x.dataset?.item && !x.checked).map(x => x.dataset.item),
+      labels: Object.fromEntries(all.filter(x => x.dataset?.key).map(i => [i.dataset.key, i.value])) }), "reload")];
 }
 function rights() {
   const s = ME.site || {};
@@ -321,14 +346,6 @@ function rights() {
     h("p", { class: "muted small" }, "Hiding the link doesn't change what anyone may do: their role in Gramps Web decides that."),
     ...saver(() => ({ gramps: gramps.value, talk: talk.checked, suggest: suggest.value, suggest_send: sends.value }), "reload")];
 }
-function rename() {
-  const renames = LABELS.map(([k, , def]) => h("label", {}, def,
-    h("input", { "data-key": k, value: ME.site?.labels?.[k] || "", placeholder: def, maxlength: 40, autocomplete: "off" })));
-  return [h("p", { class: "muted small" }, "What the menu items and buttons are called. Leave a box empty to keep the name in grey. Emoji are fine."),
-    h("div", { class: "renames" }, ...renames),
-    ...saver(() => ({ labels: Object.fromEntries(renames.map(l => l.querySelector("input")).map(i => [i.dataset.key, i.value])) }), "reload")];
-}
-
 // ---------- Layout (admins): the details' fields, where they show and who sees them; the person box's lines ----------
 // Kept on the server (main.py `layout`, `box`); /tree/details sends each login only the fields its role may see, and
 // what's shown can be changed in the editor. Gramps' own privacy still applies on top.

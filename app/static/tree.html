@@ -26,32 +26,29 @@
     <div class="menuwrap">
       <button id="menubtn" aria-haspopup="true" aria-expanded="false" aria-label="Menu">☰<span class="lbl"> Menu</span></button>
       <div class="menu-pop" id="menupop" hidden>
-        <div class="mgroup" data-item="theme"><h3>Theme</h3>
-          <div class="seg" role="radiogroup" aria-label="Theme">
+        <div class="small muted" id="menu-role"></div>
+        <div class="mgroup"><h3 id="h-you">You</h3>
+          <div id="menu-me" class="menu-me" data-item="you"></div></div>
+        <div class="mgroup"><h3 id="h-display">Display</h3>
+          <div class="seg" role="radiogroup" aria-label="Theme" data-item="theme">
             <label title="Light background"><input type="radio" name="theme" value="light" id="th-light"><span>☀️ Light</span></label>
             <label title="Dark background, easier at night"><input type="radio" name="theme" value="dark" id="th-dark"><span>🌙 Dark</span></label>
             <label title="Follow my phone or computer's setting"><input type="radio" name="theme" value="system" id="th-system"><span>⚙️ Auto</span></label>
-          </div></div>
-        <div class="mgroup" data-item="display"><h3>Display</h3>
-          <label class="swrow">Bigger text <input type="checkbox" class="sw" id="bigtext"></label>
-          <label class="swrow">Line from person to details <input type="checkbox" class="sw" id="showlink"></label></div>
-        <div class="mgroup" data-item="dates"><h3>Dates</h3>
-          <select id="datefmt" aria-label="Show dates as"></select></div>
-        <div class="mgroup" data-item="you"><h3>You</h3>
-          <div id="menu-me" class="menu-me"></div></div>
-        <div class="mgroup"><h3 id="h-help">Help</h3>
-          <button id="menu-install" data-item="install">📲 Install as an app</button>
+          </div>
+          <div class="mgroup" data-item="display">
+            <label class="swrow">Bigger text <input type="checkbox" class="sw" id="bigtext"></label>
+            <label class="swrow">Line from person to details <input type="checkbox" class="sw" id="showlink"></label></div>
+          <label class="swrow" data-item="dates">Dates <select id="datefmt" aria-label="Show dates as"></select></label></div>
+        <div class="mgroup"><h3 id="h-family">Family</h3>
           <button id="menu-docs" data-item="docs">📚 Family documents</button>
-          <button id="tips-again" data-item="tips">Show tips</button>
-          <button id="menu-keys" data-item="keys">Keyboard keys</button></div>
-        <div class="mgroup"><h3 id="h-goto">Go to</h3>
           <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
-          <a class="menulink" id="menu-source" href="__SOURCE__" data-item="source" target="_blank" rel="noopener">Source code ↗</a></div>
-        <button id="menu-check" hidden>🔍 Check the tree</button>
-        <button id="menu-manage" hidden>⚙️ Manage</button>
+          <button id="menu-manage" hidden>⚙️ Manage</button></div>
+        <div class="mgroup"><h3 id="h-help">Help</h3>
+          <button id="tips-again" data-item="tips">Show tips</button>
+          <button id="menu-keys" data-item="keys">Keyboard keys</button>
+          <button id="menu-install" data-item="install">📲 Install as an app</button></div>
         <button id="logout">Log out</button>
-        <div class="small muted" id="menu-role"></div>
-        <div class="small muted" id="menu-version">Easy Gramps __VERSION__</div>
+        <div class="small muted" id="menu-version">Easy Gramps __VERSION__<span data-item="source"> · <a id="menu-source" href="__SOURCE__" target="_blank" rel="noopener">Source code ↗</a></span></div>
       </div>
     </div>
   </header>
@@ -60,6 +57,7 @@
       <div class="treebar">
         <button id="tree-home" class="pill" hidden title="Back to the start, to choose someone else">⌂ Home</button><!-- full screen only: the top bar is hidden then -->
         <button id="tree-back" class="pill" hidden></button>
+        <button id="tree-list" class="pill" hidden></button><!-- back to the Manage list "See them" came from (site.js) -->
         <h1 id="tree-title"></h1>
         <button id="tree-see" class="pill" hidden></button>
         <button id="show-panel" class="pill" hidden title="Show the details panel">ⓘ Details</button>
