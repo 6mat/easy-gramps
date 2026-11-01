@@ -8,6 +8,14 @@ All notable changes, newest first. Versions follow `VERSION`; releases are tagge
 - Check the tree is in ☰ Menu → Manage only (no second menu item); editors who may check see Manage too.
 - "See them" (and Compare and merge) in Check the tree leave a "← Back to Check the tree" button on the tree: back to that list,
   scrolled where you were.
+- ☰ Menu in four groups: You, Display (theme, text size, line, dates), Family (Family documents, Full Gramps, Manage) and
+  Help (tips, keyboard keys, install). "Logged in as" is at the top; Source code is a small link by the version.
+- Manage in four groups: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree and Settings.
+  History is its own section (it was a button in Suggestions), so editors always have Manage. Renamed: People with no
+  relatives → On their own, Groups not connected → Separate groups, Name and icon → App name and icon, Layout → Person
+  details and boxes, Check the tree: settings → Settings for checks (now in the Check the tree group).
+- Menu items and Rename are one page, Menu and buttons: tick what shows, type a new name beside it. Names given before
+  to the Theme, Dates and "Go to" headings are dropped: those headings are gone.
 
 ## 1.9.8 — 2026-10-30
 
