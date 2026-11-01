@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.9.9 — 2026-11-01
 
 ### Changed
 - Check the tree is in ☰ Menu → Manage only (no second menu item); editors who may check see Manage too.
