@@ -198,7 +198,7 @@ def test_page_links_to_source_code(fake, client):
     import main
     assert f'id="menu-source" href="{main.SOURCE_URL}"' in client.get("/easy-gramps/").text
     assert "__SOURCE__" not in client.get("/easy-gramps/").text
-    assert "Easy Gramps dev</div>" in client.get("/easy-gramps/").text  # the version in the Menu (release: APP_VERSION)
+    assert "Easy Gramps dev<span" in client.get("/easy-gramps/").text  # the version in the Menu (release: APP_VERSION)
 
 
 def test_tag_created_once_for_concurrent_first_edits(fake, client):  # #39
@@ -580,8 +580,8 @@ def test_site_labels(fake, client):  # #159
         return client.put("/easy-gramps/site", json={"labels": labels})
     assert put({"docs": "  📖 Family   history ", "chat": ""}).json()["labels"] == {"docs": "📖 Family history"}  # empty: the default
     assert client.get("/easy-gramps/auth/me").json()["site"]["labels"] == {"docs": "📖 Family history"}
-    assert put({"logout": "Sign out", "site": "Settings"}).json()["labels"] == {"logout": "Sign out", "site": "Settings"}
-    assert put({"nope": "x"}).status_code == 400 and put({"docs": 3}).status_code == 400 and put({"docs": "x" * 41}).status_code == 400
+    assert put({"logout": "Sign out", "family": "Ours"}).json()["labels"] == {"logout": "Sign out", "family": "Ours"}
+    assert put({"nope": "x"}).status_code == 400 and put({"goto": "x"}).status_code == 400 and put({"docs": 3}).status_code == 400 and put({"docs": "x" * 41}).status_code == 400
     fake.role = 3
     main._who_cache.clear()
     assert put({"docs": "x"}).status_code == 403

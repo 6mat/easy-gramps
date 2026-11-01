@@ -152,6 +152,7 @@ body.fullmode .treepane { border-radius: 0; border: 0; }
 /* small upper-case section headings (menu, panel, editor, start screen) */
 .menu-pop h3, .fam h3, .panel h3, .ed-sec > h3, .recent h3 { margin: 0; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .menu-pop .mgroup { display: flex; flex-direction: column; gap: 12px; }
+.menu-pop { max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }  /* (a phone: Log out stays reachable) */
 .menu-pop .sitehidden, .menu-pop .mgroup:not(:has(> :not(h3):not([hidden]):not(.sitehidden))) { display: none; }  /* hidden by the owner; a heading with nothing left */
 .menu-pop label { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 15px; }
 /* theme picker: a segmented control, like most apps */
@@ -581,8 +582,8 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .docrow > img, .doccover { width: 64px; height: 64px; flex: none; border-radius: 8px; border: 1px solid var(--edge); object-fit: cover;
   display: grid; place-items: center; font-size: 28px; background: var(--card); }
 .docmain { min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
-.renames { margin: 8px 0 12px; } .renames summary { cursor: pointer; font-weight: 700; }
-.renames label { display: block; margin-top: 8px; }
+.menurows { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; align-items: center; margin-top: 12px; }
+.menurows input:not([type=checkbox]) { width: 100%; }
 
 /* Suggestions (suggest.js): new people in green, changed ones in amber; the editor's draft bar; the review list */
 .node.sug-new, .rcard.sug-new { border: 2.5px dashed var(--ok); background: var(--ok-soft); }
