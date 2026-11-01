@@ -449,18 +449,21 @@ async function decide(body) {
 
 // History (a pop-up: the list gets long): decided suggestions and changes made straight in the tree, newest first, a
 // page at a time, by family. Undo puts a suggestion back on the list (an approved one is taken out of the tree first);
-// a rejected one can be deleted for good; admins can undo an editor's change.
+// a rejected one can be deleted for good; admins can undo an editor's change. `box`: shown there (Manage → History) instead,
+// and `go(id)` opens someone's tree.
 const H = { items: [], more: false, who: [], login: "", kind: "", closed: new Set() };
-export async function openHistory(first) {
-  H.items = []; H.first = first;
+export async function openHistory(first, box = null, go = null) {
+  Object.assign(H, { items: [], first, box, go });
   await moreHistory();
 }
+const again = () => openHistory(H.first, H.box, H.go);
 async function moreHistory() {
   const last = H.items.at(-1);
   const q = new URLSearchParams({ ...(last && { before: `${last.decided}:${last.type}:${last.id}` }), ...(H.login && { login: H.login }),
     ...(H.kind && { kind: H.kind }) });
   let d;
-  try { d = await api(`/suggestions/history?${q}`); } catch (err) { return toast(err.message, false); }
+  try { d = await api(`/suggestions/history?${q}`); }
+  catch (err) { return H.box ? H.box.replaceChildren(h("div", { class: "warn" }, err.message)) : toast(err.message, false); }
   made = { ...made, ...d.made };
   H.items.push(...d.items); H.more = d.more; H.who = d.who;
   renderHistory();
@@ -488,7 +491,7 @@ function renderHistory() {
     const del = !change && !yes && h("button", { class: "danger" }, "Delete");
     if (del) del.onclick = sure(del, "Confirm delete", async () => {
       const d = await postJSON("/suggestions/delete", { ids: [r.id] });  // (with the changes that build on it)
-      await openHistory(H.first);
+      await again();
       toast(`${d.deleted} deleted`);
     });
     return h("div", { class: "sugdone" }, h("span", { "aria-hidden": "true" }, mark(r)),
@@ -497,26 +500,26 @@ function renderHistory() {
   };
   const kind = h("select", { "aria-label": "Show" }, ...[["", "Everything"], ["approved", "Approved suggestions"],
     ["rejected", "Rejected suggestions"], ["editors", "Changed by editors"]].map(([v, t]) => h("option", { value: v, selected: v === H.kind }, t)));
-  kind.onchange = () => { H.kind = kind.value; openHistory(); };
+  kind.onchange = () => { H.kind = kind.value; again(); };
   const who = h("select", { "aria-label": "By" }, h("option", { value: "" }, "Everyone"),
     ...H.who.map(w => h("option", { value: w.login, selected: w.login === H.login }, w.name)));
-  who.onchange = () => { H.login = who.value; openHistory(); };
+  who.onchange = () => { H.login = who.value; again(); };
   const all = h("button", { class: "danger" }, "Delete all rejected");
   all.onclick = sure(all, "Confirm: delete every rejected one", async () => {
     const r = await postJSON("/suggestions/delete", { rejected: "all" });
-    toast(`${r.deleted} deleted`); openHistory();
+    toast(`${r.deleted} deleted`); again();
   });
   const groups = families(H.items).map(g => famBox(g, !H.closed.has(g.key), o => H.closed[o ? "delete" : "add"](g.key),
-    () => { if (g.id && P[g.id]) { hideDlg(); seeTree(g.id); } }, nested(g.rows, row)));
-  $("#dlg").replaceChildren(h("button", { class: "dlgx", "aria-label": "Close", onclick: hideDlg }, "✕"),
-    h("h3", { id: "dlg-title" }, "History"),
-    H.first ? h("p", {}, h("strong", {}, H.first)) : "",
+    () => { if (g.id && P[g.id]) { if (H.box) return H.go(g.id); hideDlg(); seeTree(g.id); } }, nested(g.rows, row)));
+  const body = [H.first ? h("p", {}, h("strong", {}, H.first)) : "",
     h("p", { class: "small muted" }, "Suggestions people made, and what editors changed in Easy Gramps. Undo puts a suggestion back on the waiting list to decide again; an approved one is taken out of the tree first. Deleting a new person also deletes the changes to them.",
       ME.role >= 5 ? " As an admin you can also undo an editor's change, while nothing changed it again since." : ""),
     h("div", { class: "histbar" }, h("label", {}, "Show ", kind), h("label", {}, "By ", who),
       H.items.some(r => r.status === "rejected") ? all : ""),
     ...(groups.length ? groups : [h("p", { class: "muted" }, "Nothing here yet.")]),
-    H.more ? h("button", { onclick: moreHistory }, "Show older") : "", say,
-    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
+    H.more ? h("button", { onclick: moreHistory }, "Show older") : "", say];
+  if (H.box) return H.box.replaceChildren(...body);
+  $("#dlg").replaceChildren(h("button", { class: "dlgx", "aria-label": "Close", onclick: hideDlg }, "✕"),
+    h("h3", { id: "dlg-title" }, "History"), ...body, h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
   showDlg(true);
 }

@@ -413,7 +413,7 @@ function centreCard(p) {
     moreBox);
 }
 
-// The fields the admin's layout shows this login (☰ Menu → Manage → Layout), in its order: what's shown can be changed here.
+// The fields the admin's layout shows this login (☰ Menu → Manage → Person details and boxes), in its order: what's shown can be changed here.
 // Relatives are changed on the tree, burial with "Passed away?". The others of a type (or an event they're only a witness
 // at, godparent…, shared with its main person) are shown, to change in Full Gramps.
 function layoutFields(p, where, off) {

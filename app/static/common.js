@@ -147,7 +147,7 @@ export function years(p) {
   const b = p.birth?.y, d = p.death?.y;
   return b || d ? `${b || "?"} – ${d || (p.deceased ? "?" : "")}` : "";
 }
-// The admin's layout (☰ Menu → Manage → Layout, main.py `layout`): the details' fields in order, with only the ones this
+// The admin's layout (☰ Menu → Manage → Person details and boxes, main.py `layout`): the details' fields in order, with only the ones this
 // login may see; "e:<event type>", "a:<attribute type>", "r:<kin>" or a built-in. And the person box's 2nd and 3rd lines.
 const FIELD_NAMES = { burial: "Buried at", residence: "Lives in", work: "Work", education: "Education", phone: "Phone", email: "Email",
   notes: "Notes", "r:siblings": "Brothers and sisters", "r:grandparents": "Grandparents", "r:grandchildren": "Grandchildren",

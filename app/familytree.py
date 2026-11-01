@@ -83,7 +83,7 @@ async def graph(g: Gramps) -> dict:
     return {"people": out, "families": fams, "media": pictures}  # media: each picture's Gramps ID
 
 
-# The admin's own fields (☰ Menu → Manage → Layout): "e:<event type>" is the person's first event of that type where they
+# The admin's own fields (☰ Menu → Manage → Person details and boxes): "e:<event type>" is the person's first event of that type where they
 # are the main person (role Primary), edited as "e:<type>.date" / ".place" / ".desc"; "a:<attribute type>" the first
 # attribute of that type. Events where they're a witness, godparent… (shared with the main person) are read-only.
 PARTS = ("date", "place", "desc")
