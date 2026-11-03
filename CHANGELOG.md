@@ -2,7 +2,7 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
-## Unreleased
+## 1.9.10 — 2026-11-02
 
 ### Added
 - 🔗 Related to… in each person's details (everyone): pick someone ("Me" first, once you've claimed your place) and see
