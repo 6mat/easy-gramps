@@ -19,6 +19,7 @@ relatives who find the full Gramps interface too much.
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
   given when they sign in with Google.
 - **Waiting to join** (owner, ☰ Menu → Manage): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
+- **Related to…** (each person's details): how two people are related, in Gramps' own words, with a chart of the route through the common ancestor; "Me" is the first choice. Also on each pair in Check the tree → Possible duplicates.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
 - **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
