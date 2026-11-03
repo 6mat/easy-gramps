@@ -763,6 +763,13 @@ async def tree_places(request: Request):
     return await familytree.places(await gramps_as(request))
 
 
+@easy.get("/tree/relation/{a}/{b}")
+async def tree_relation(a: str, b: str, request: Request):  # Related to… (relate.js): everyone; Gramps hides private people
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x) for x in (a, b)):
+        raise HTTPException(400, "Something was missing. Please try again.")
+    return await familytree.relations(await gramps_as(request), a, b)
+
+
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
     g = await gramps_as(request)

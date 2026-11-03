@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Related to…) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -212,6 +212,12 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   lines), blocked by first-name consonants or initial+surname, points per clue (`dupes`: year, kin, place; `level`
   strict|normal|loose). `GET/POST /checks/notsame {a, b}` (chat.sqlite3 `notsame`, sorted pair): hidden for everyone.
   "Compare and merge" → `openMerge(a, b)`.
+- **Related to…** (relate.js; panel button for everyone, not on stand-ins; Possible duplicates "How are they related?"):
+  `GET /tree/relation/{a}/{b}` → familytree `relations` = Gramps' `/api/relations/{a}/{b}/all` (its calculator, 15
+  generations): `[{say, ancestors}]` (how b is to a; `[]` = not by blood). The page draws the route from the graph
+  (checks.js `upTo`: up through parents to the nearest common ancestor, plus their partner if both are; `route`: shortest
+  route through any link, for in-laws or nothing from Gramps). "👤 Me" (Find me) is `a`, so it reads "X is your …".
+  Lines longer than 5 fold.
 - **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
   non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`
   streams Gramps' `/media/{h}/file` for a `ticket` from `/tree/documents` (main.py `file_ticket`: random, that one

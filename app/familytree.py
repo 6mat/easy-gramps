@@ -738,6 +738,13 @@ async def merge(g: Gramps, body: dict, tags: list) -> dict:
     return {"merged": keep, "name": name or "this person"}
 
 
+async def relations(g: Gramps, a: str, b: str) -> list:
+    """How b is related to a, every way (Gramps' own relationship calculator, up to 15 generations back):
+    [{say: "first cousin", ancestors: [handles]}]; [] when they aren't."""
+    got = await g.get(f"/relations/{a}/{b}/all")
+    return [{"say": r["relationship_string"], "ancestors": r.get("common_ancestors") or []} for r in got if r.get("relationship_string")]
+
+
 async def documents(g: Gramps) -> list:
     """Family documents (☰ Menu): every media object that isn't a picture, such as a PDF book, by title.
     Gramps leaves out private ones for logins that may not see them."""

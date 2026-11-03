@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.10 — 2026-11-02
+
+### Added
+- 🔗 Related to… in each person's details (everyone): pick someone ("Me" first, once you've claimed your place) and see
+  how they're related, in Gramps' own words, with a chart: the common ancestor on top and a line down to each of the two
+  (long lines fold their middle generations). Related more than one way: each way, and why that can happen. Not by
+  blood: the route through marriages, step by step. Not linked at all: says a link is missing. Also "How are they
+  related?" on each pair in Check the tree → Possible duplicates.
+
 ## 1.9.9 — 2026-11-01
 
 ### Changed

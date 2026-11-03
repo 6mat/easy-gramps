@@ -670,3 +670,28 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   .mnav button.sub { padding-left: 12px; }
   .msec { padding: 16px; }
 }
+
+/* 🔗 Related to… (relate.js): the common ancestors on top, a line down to each of the two */
+.relme { width: 100%; margin: 4px 0 8px; }
+.relsay { font-size: 1.1rem; margin: 8px 0 14px; }
+.relways { display: flex; flex-wrap: wrap; gap: 6px; }
+.relways button[aria-pressed=true] { background: var(--accent-soft); border-color: var(--accent); }
+.relchart { display: flex; flex-direction: column; align-items: center; }
+.relchart > p { margin: 0 0 8px; }
+.reltop { display: flex; gap: 8px; justify-content: center; padding-bottom: 14px; position: relative; }
+.reltop::after { content: ""; position: absolute; bottom: 0; left: 50%; height: 14px; border-left: 2px solid var(--line); }
+.relcols { display: grid; gap: 12px; width: 100%; }
+.relcols.n2 { grid-template-columns: 1fr 1fr; }
+.relcols.n2::before { content: ""; grid-column: 1 / -1; height: 14px; margin: 0 25%; border: 2px solid var(--line); border-bottom: 0; }
+.relcols.n1::before { content: ""; height: 0; }
+.relcol { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
+.relcol > * { position: relative; max-width: 100%; }
+.relcol > * + *::before { content: ""; position: absolute; top: -16px; left: 50%; height: 14px; border-left: 2px solid var(--line); }
+.relchain > .relhow::before, .relchain > .relhow + *::before { display: none; }
+.relchain { gap: 4px; }
+.relbox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; text-align: left; min-width: 0; background: var(--card); }
+.relbox > span:last-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.relbox .ph { flex: none; }
+.relbox.a { border: 2px solid var(--accent); }
+.relbox.b { border: 2px solid var(--sel); }
+.relfold { font-size: 14px; padding: 4px 12px; }

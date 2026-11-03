@@ -31,6 +31,7 @@ class FakeGramps:
         self.user = "tester"           # the login's user name
         self.email = None              # and its email address (Gramps Web account)
         self.users = []                # other accounts, for the owner: {name, email, full_name, role}
+        self.relations = {}            # (a, b) -> what /relations/a/b/all answers
 
     # ----- helpers for tests -----
     def add(self, kind, **obj):
@@ -95,6 +96,8 @@ class FakeGramps:
         body = json.loads(request.content) if request.content and "json" in request.headers.get("content-type", "") else None
         parts = [x for x in path.split("/") if x]
 
+        if parts[:1] == ["relations"] and parts[3:] == ["all"]:
+            return httpx.Response(200, json=self.relations.get((parts[1], parts[2]), [{}]))
         if path == "/token/":
             if self.token_status != 200:
                 return httpx.Response(self.token_status, json={"error": {"message": "no"}})

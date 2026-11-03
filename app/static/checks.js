@@ -1,5 +1,6 @@
-// Easy Gramps — Check the tree (☰ Menu): things in the family data that are probably mistakes, worked out from the graph
-// alone (no calls to Gramps). Plain functions of (P, FAMS), so tests/checks.test.mjs runs them without a page.
+// Easy Gramps — Check the tree (☰ Menu → Manage): things in the family data that are probably mistakes, and the routes for
+// Related to… (relate.js), worked out from the graph alone (no calls to Gramps). Plain functions of (P, FAMS), so
+// tests/checks.test.mjs runs them without a page.
 // people: {id: {first, last, gender "m"|"f"|"", birth {y}, birthPlace}}; fams: [{id, f, m, kids}].
 
 const members = f => [f.f, f.m, ...f.kids].filter(Boolean);
@@ -118,4 +119,32 @@ export function duplicates(people, fams, opts = {}, notsame = []) {
   }
   found.sort((p, q) => q.score - p.score);
   return { likely: found.filter(d => d.score >= LEVELS[o.level][0]), maybe: found.filter(d => d.score < LEVELS[o.level][0]) };
+}
+
+// ---------- Related to…: the routes the chart draws (Gramps' calculator names the relationship) ----------
+// Up through parents from `id` to the nearest of `tops` (common ancestors): [id, parent, …, top], or null.
+export function upTo(fams, id, tops) {
+  const prev = { [id]: null }, todo = [id];
+  for (const x of todo) {
+    if (tops.has(x)) { const path = []; for (let y = x; y != null; y = prev[y]) path.unshift(y); return path; }
+    for (const f of fams) if (f.kids.includes(x)) for (const p of [f.f, f.m]) if (p && !(p in prev)) { prev[p] = x; todo.push(p); }
+  }
+  return null;
+}
+
+// The shortest route through any links (parents, children, husbands and wives), for in-laws and "not by blood":
+// [{id: a}, {id, how: "parent"|"child"|"spouse"} …, {id: b, how}], or null when nothing links them.
+export function route(fams, a, b) {
+  const next = {};
+  const link = (x, y, how) => (next[x] ||= []).push([y, how]);
+  for (const f of fams) {
+    if (f.f && f.m) { link(f.f, f.m, "spouse"); link(f.m, f.f, "spouse"); }
+    for (const p of [f.f, f.m]) if (p) for (const k of f.kids) { link(k, p, "parent"); link(p, k, "child"); }
+  }
+  const prev = { [a]: null }, todo = [a];
+  for (const x of todo) {
+    if (x === b) { const path = []; for (let y = b; y !== a; y = prev[y][0]) path.unshift({ id: y, how: prev[y][1] }); return [{ id: a }, ...path]; }
+    for (const [y, how] of next[x] || []) if (!(y in prev)) { prev[y] = [x, how]; todo.push(y); }
+  }
+  return null;
 }

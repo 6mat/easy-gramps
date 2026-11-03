@@ -1,7 +1,7 @@
 // Check the tree (app/static/checks.js), without a page: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { duplicates, islands, noRelatives, speller, splitFamilies } from "../app/static/checks.js";
+import { duplicates, islands, noRelatives, route, speller, splitFamilies, upTo } from "../app/static/checks.js";
 
 const person = (id, first, last, gender = "", y, birthPlace = "") => [id, { id, first, last, gender, birth: y ? { y } : null, birthPlace }];
 
@@ -36,4 +36,16 @@ test("possible duplicates", () => {
   assert.ok(!all.includes("c,d") && !all.includes("c,e") && !all.includes("g,h"));
   assert.equal(duplicates(P, F, {}, [["b", "a"]]).likely.length, 0);  // someone said they aren't the same
   assert.equal(duplicates(P, F, { kin: false, year: false, level: "strict" }).likely.length, 0);
+});
+
+test("routes for Related to…", () => {
+  // gpa+gma → dad, uncle; dad+mum → me; uncle → cousin; me+wife; wife's brother has the same parents as wife
+  const F = [{ id: "g", f: "gpa", m: "gma", kids: ["dad", "uncle"] }, { id: "d", f: "dad", m: "mum", kids: ["me"] },
+    { id: "u", f: "uncle", m: null, kids: ["cousin"] }, { id: "w", f: "me", m: "wife", kids: [] }, { id: "in", f: "x", m: null, kids: ["wife", "bro"] }];
+  const tops = new Set(["gpa", "gma"]);
+  assert.deepEqual(upTo(F, "me", tops), ["me", "dad", "gpa"]);
+  assert.deepEqual(upTo(F, "cousin", tops), ["cousin", "uncle", "gpa"]);
+  assert.equal(upTo(F, "wife", tops), null);
+  assert.deepEqual(route(F, "me", "bro").map(s => [s.id, s.how]), [["me", undefined], ["wife", "spouse"], ["x", "parent"], ["bro", "child"]]);
+  assert.equal(route(F, "me", "nobody"), null);
 });

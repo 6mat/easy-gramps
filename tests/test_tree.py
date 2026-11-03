@@ -167,3 +167,11 @@ def test_the_couple_is_found_even_when_gramps_web_took_it_off_both_people(fake, 
         fake.db["people"][x]["family_list"] = [f for f in fake.db["people"][x]["family_list"] if f != couple]
     res = run(familytree.add_relative(g, {"person": c, "rel": "mother", "existing": b}, []))
     assert res["famId"] == couple and res["joined"] and fake.get("families", only_a) is None
+
+
+def test_how_two_people_are_related(fake, client):
+    a, b = fake.person("A", "", 1), fake.person("B", "", 1)
+    fake.relations[(a, b)] = [{"relationship_string": "first cousin", "common_ancestors": ["g1", "g2"]}]
+    assert client.get(f"/easy-gramps/tree/relation/{a}/{b}").json() == [{"say": "first cousin", "ancestors": ["g1", "g2"]}]
+    assert client.get(f"/easy-gramps/tree/relation/{b}/{a}").json() == []  # Gramps' [{}]: not related
+    assert client.get("/easy-gramps/tree/relation/x/a..b").status_code == 400
