@@ -7,8 +7,9 @@ import { api, BASE } from "./auth.js";
 import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab, years } from "./common.js";
 import { duplicates, islands, noRelatives, splitFamilies } from "./checks.js";
 import { openMerge } from "./merge.js";
+import { openRelate } from "./relate.js";
 import { seeTree } from "./tree.js";
-import { toast } from "./editor.js";
+import { hideDlg, toast } from "./editor.js";
 import { ROLES } from "./me.js";
 import { openHistory, openReview } from "./suggest.js";
 
@@ -251,6 +252,7 @@ async function dupesPage() {
     } }, "Not the same person");
     const line = h("div", { class: "duprow" }, who(x.a), who(x.b), h("div", { class: "small muted" }, x.why.join(" · ")),
       h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => toTree(() => { seeTree(x.a); openMerge(x.a, x.b); }) }, "Compare and merge"),
+        h("button", { onclick: () => openRelate(x.a, x.b, id => { hideDlg(); toTree(() => seeTree(id)); }) }, "How are they related?"),
         see(x.a), no), say);
     return line;
   };

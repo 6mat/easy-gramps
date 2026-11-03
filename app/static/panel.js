@@ -9,7 +9,8 @@ import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 import { loginLine, meTag } from "./me.js";
 import { messageButton, talkSection } from "./chat.js";
-import { myWaiting, suggesting } from "./suggest.js";
+import { isStandIn, myWaiting, suggesting } from "./suggest.js";
+import { openRelate } from "./relate.js";
 
 // ---------- right panel ----------
 async function loadDetails(id) {
@@ -62,7 +63,8 @@ export function renderPanel() {
       ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
       : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
-        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p), messageButton(p))),
+        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p), messageButton(p),
+        !isStandIn(p.id) && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, "🔗 Related to…"))),
     p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
       p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
         h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
