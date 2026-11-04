@@ -302,8 +302,8 @@ async def me(request: Request):
 
 
 # ---------- the owner's site settings: the menu, the Full Gramps link, the app's name and icon ----------
-MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "tips", "keys", "source")  # what the owner may hide
-LABELS = ("chat", "menu", "you", "display", "family", "docs", "gramps", "manage", "help", "tips", "keys", "install", "logout",
+MENU_ITEMS = ("theme", "display", "dates", "you", "install", "docs", "trace", "tips", "keys", "source")  # what the owner may hide
+LABELS = ("chat", "menu", "you", "display", "family", "docs", "trace", "gramps", "manage", "help", "tips", "keys", "install", "logout",
           "source")  # what the owner may rename (site.js MENU)
 GRAMPS_FOR = {"everyone": 0, "editors": ROLE_EDITOR, "owner": ROLE_OWNER, "nobody": 99}  # who sees the Full Gramps link
 

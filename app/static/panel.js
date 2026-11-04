@@ -1,10 +1,9 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { bookLinks } from "./docs.js";
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, named, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
-import { openDelete, openMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { showLogin } from "./start.js";
 import { loginLine, meTag } from "./me.js";
@@ -63,8 +62,9 @@ export function renderPanel() {
       ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
       : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
-        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p), messageButton(p),
-        !isStandIn(p.id) && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, "🔗 Related to…"))),
+        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p),
+        h("div", { class: "pacts" }, messageButton(p), !isStandIn(p.id) && !ME.site?.hide?.includes("trace")
+          && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
     p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
       p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
         h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
@@ -95,9 +95,6 @@ export function renderPanel() {
   }
   panel.append(myWaiting(p.id));  // (suggesters: what they suggested about them, each with Delete)
   if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
-  if (canEdit() || suggesting()) panel.append(h("div", { class: "dupbar" },
-    canEdit() && h("button", { class: "dupbtn", onclick: () => openMerge(p.id) }, "Duplicate profile? Merge."),
-    p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: () => openDelete(p.id) }, "Delete this person")));
   drawSelink();
 }
 

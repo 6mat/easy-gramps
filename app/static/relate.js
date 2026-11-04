@@ -1,16 +1,16 @@
-// Easy Gramps — 🔗 Related to… (the details panel; Check the tree → Possible duplicates): pick someone ("You" first), then
+// Easy Gramps — 🔗 Trace relationship (the details panel; ☰ Menu: two people; Check the tree → Possible duplicates): pick someone ("You" first), then
 // how they're related in Gramps' own words (main.py /tree/relation: every way, up to 15 generations back) and a chart of
 // the route, worked out from the graph (checks.js): the common ancestors on top, a line down to each of the two. A long
 // line folds its middle generations. Not by blood: the shortest route through marriages; nothing: a missing link, said so.
 import { api } from "./auth.js";
-import { FAMS, ME, P, h, matches, name, photoEl, searchWords, years } from "./common.js";
+import { $, FAMS, ME, P, closeMenu, h, matches, name, photoEl, searchWords, years } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { seeTree } from "./tree.js";
 import { hideDlg, showDlg } from "./editor.js";
 import { myPerson } from "./me.js";
 import { route, upTo } from "./checks.js";
 
-let R = null;  // { a: whose panel it was opened from, go(id): see their tree }
+let R = null;  // { a: whose panel it was opened from (null from the menu: picked first), go(id): see their tree }
 const dlg = () => document.getElementById("dlg");
 
 export function openRelate(a, b = null, go = null) {
@@ -18,6 +18,7 @@ export function openRelate(a, b = null, go = null) {
   showDlg(true);
   if (b) show(a, b); else pick();
 }
+$("#menu-trace").onclick = () => { closeMenu(); openRelate(null); };
 
 function pick() {
   const me = myPerson();
@@ -27,12 +28,14 @@ function pick() {
     const ws = searchWords(input.value);
     const found = ws.length ? Object.values(P).filter(p => p.id !== R.a && matches(p, ws)).sort((x, y) => name(x).localeCompare(name(y))).slice(0, 40) : [];
     list.replaceChildren(...(ws.length && !found.length ? [h("div", { class: "small muted pad" }, "No one found with that name.")]
-      : hitRows(found, p => show(R.a, p.id), "Choose")));
+      : hitRows(found, p => choose(p.id), "Choose")));
   });
-  const you = me && me !== R.a;
+  const first = !R.a, you = me && me !== R.a;
+  const choose = id => first ? (R.a = id, pick()) : show(R.a, id);
   dlg().replaceChildren(
-    h("h2", { id: "dlg-title" }, `🔗 How is ${name(P[R.a])} related to…`),
-    you ? h("button", { class: "primary relme", onclick: () => show(me, R.a) }, `👤 Me (${name(P[me])})`) : "",
+    h("h2", { id: "dlg-title" }, first ? "🔗 Trace relationship" : `🔗 How is ${name(P[R.a])} related to…`),
+    first ? h("p", { class: "muted" }, "Pick the first person, then the second.") : "",
+    you ? h("button", { class: "primary relme", onclick: () => first ? choose(me) : show(me, R.a) }, `👤 Me (${name(P[me])})`) : "",
     h("label", { for: input.id }, you ? "Or someone else" : "Someone in the tree", input), list,
     h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
   searchKeys(input, list);

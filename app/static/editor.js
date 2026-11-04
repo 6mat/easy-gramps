@@ -3,7 +3,7 @@ import { api, LoginNeeded } from "./auth.js";
 import { $, FAMS, closeMenu, P, S, fieldName, fmtDate, layout, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
-import { closeMerge } from "./merge.js";
+import { closeMerge, openDelete, openMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
@@ -517,7 +517,10 @@ export function renderEditor() {
   $("#ed-body").replaceChildren(draftBar(),
     h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
     h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
-    h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)));
+    h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)),
+    canEdit() || suggesting() ? h("section", { class: "ed-sec ed-other" }, h("h3", {}, "Other actions"),  // (closed first: they change the tree)
+      canEdit() && h("button", { class: "dupbtn", onclick: async () => { await closeEditor(); openMerge(id); } }, "Duplicate profile? Merge."),
+      p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: async () => { await closeEditor(); openDelete(id); } }, "Delete this person")) : "");
 }
 
 // ---------- add dialog ----------

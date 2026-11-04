@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Related to…) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -212,7 +212,8 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   lines), blocked by first-name consonants or initial+surname, points per clue (`dupes`: year, kin, place; `level`
   strict|normal|loose). `GET/POST /checks/notsame {a, b}` (chat.sqlite3 `notsame`, sorted pair): hidden for everyone.
   "Compare and merge" → `openMerge(a, b)`.
-- **Related to…** (relate.js; panel button for everyone, not on stand-ins; Possible duplicates "How are they related?"):
+- **Trace relationship** (relate.js; panel button for everyone, not on stand-ins; ☰ Menu → Family: pick two people, "Me" first;
+  Possible duplicates; the owner may hide or rename it, key `trace`, in both places):
   `GET /tree/relation/{a}/{b}` → familytree `relations` = Gramps' `/api/relations/{a}/{b}/all` (its calculator, 15
   generations): `[{say, ancestors}]` (how b is to a; `[]` = not by blood). The page draws the route from the graph
   (checks.js `upTo`: up through parents to the nearest common ancestor, plus their partner if both are; `route`: shortest
@@ -278,8 +279,9 @@ and "💬 Message …" under the name of someone with a linked login. Text only,
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
 panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
 details ▾ (burial, lives in, work, education, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
-sets `contactHidden`); **"⧉ Duplicate profile? Merge."** for editors: a button in a
-strip pinned to the panel's bottom edge (top line, shadow) so it shows without scrolling (#55).
+sets `contactHidden`). Under the name: 💬 Message (when they have a login) and 🔗 Trace relationship, outlined buttons.
+**"⧉ Duplicate profile? Merge."** (editors) and **Delete this person** (editors; suggesters suggest it) are at the bottom of
+✎ Edit person under "Other actions" (no longer pinned to the panel, #55); they close the editor first, then run as before.
 Fit and centring use only the area not under the panel.
 
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at

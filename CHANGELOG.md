@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.11 — 2026-11-03
+
+### Changed
+- 🔗 Related to… is now **🔗 Trace relationship**: an outlined button under the name, next to 💬 Message (both look like
+  buttons now). Also in ☰ Menu → Family, to pick any two people. The owner can hide or rename it in Manage → Menu and buttons.
+- "Duplicate profile? Merge." and "Delete this person" moved from the panel's bottom strip to the bottom of ✎ Edit person
+  ("Other actions"), so the details panel has more room.
+
 ## 1.9.10 — 2026-11-02
 
 ### Added

@@ -19,7 +19,8 @@ const MENU = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Menu
   ["you", "#h-you", "You", "you"],
   ["display", "#h-display", "Display"], [null, "", "Theme: Light, Dark, Auto", "theme"],
   [null, "", "Bigger text, Line from person to details", "display"], [null, "", "Dates", "dates"],
-  ["family", "#h-family", "Family"], ["docs", "#menu-docs", "📚 Family documents", "docs"], ["gramps", "#menu-gramps", "Full Gramps ↗"],
+  ["family", "#h-family", "Family"], ["docs", "#menu-docs", "📚 Family documents", "docs"],
+  ["trace", "#menu-trace", "🔗 Trace relationship", "trace"], ["gramps", "#menu-gramps", "Full Gramps ↗"],
   ["manage", "", "⚙️ Manage"],
   ["help", "#h-help", "Help"], ["tips", "#tips-again", "Show tips", "tips"], ["keys", "#menu-keys", "Keyboard keys", "keys"],
   ["install", "#menu-install", "📲 Install as an app", "install"],
@@ -252,7 +253,7 @@ async function dupesPage() {
     } }, "Not the same person");
     const line = h("div", { class: "duprow" }, who(x.a), who(x.b), h("div", { class: "small muted" }, x.why.join(" · ")),
       h("div", { class: "btnrow" }, canEditTree() && h("button", { class: "primary", onclick: () => toTree(() => { seeTree(x.a); openMerge(x.a, x.b); }) }, "Compare and merge"),
-        h("button", { onclick: () => openRelate(x.a, x.b, id => { hideDlg(); toTree(() => seeTree(id)); }) }, "How are they related?"),
+        h("button", { onclick: () => openRelate(x.a, x.b, id => { hideDlg(); toTree(() => seeTree(id)); }) }, named("trace", "🔗 Trace relationship")),
         see(x.a), no), say);
     return line;
   };
