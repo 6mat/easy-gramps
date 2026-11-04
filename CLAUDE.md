@@ -282,7 +282,7 @@ panel » / ✎ Edit person (pinned at the top while the panel scrolls); 64px pho
 "years · birthplace" (full Born/Passed away rows open More details), clickable Parents/Wives/Children, More
 details ▾ (burial, lives in, work, education, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
 sets `contactHidden`). Under the name: 💬 Message (when they have a login) and 🔗 Trace relationship, outlined buttons.
-**"⧉ Duplicate profile? Merge."** (editors) and **Delete this person** (editors; suggesters suggest it) are in
+**Merge with a duplicate** (editors) and **Delete this person** (editors; suggesters suggest it) are in
 ✎ Edit person under "Other actions", below Add husband/wife (no longer pinned to the panel, #55); they close the editor first, then run as before.
 Fit and centring use only the area not under the panel.
 
@@ -295,8 +295,11 @@ year); **Family** (📚 Family documents, Full Gramps ↗, ⚙️ Manage); **Hel
 portrait it also says to turn the phone sideways; Keyboard keys; 📲 Install as an app: main.js; always, but not in the installed
 app: Chrome's `beforeinstallprompt` when it offers, else the steps for Android/iPhone); Log out; the version · Source code ↗.
 
-**Touch.** The **page never zooms** (`user-scalable=no`, `touch-action: pan-x pan-y` outside the tree,
-Ctrl+wheel blocked outside it) — owner's call. Drag anywhere moves the tree, pinch zooms the tree,
+**Colours** (`tree.css` `:root`): tokens by role, dark set written twice (device dark; ☰ Menu → Dark) and `.viewer`
+uses it too; `tests/test_palette.py` keeps both copies equal and checks the pairs (text 4.5:1, lines and rings 3:1).
+Amber (`--sel`) means "selected" only; the focus ring is `--ink`; text on a solid status fill is `--solid-ink`.
+**Touch.** The page zooms like any page (pinch, Ctrl+wheel, WCAG 1.4.4); on the tree itself (`touch-action: none`,
+its own Ctrl+wheel) drag moves the tree, pinch zooms the tree,
 double-tap returns to the opening zoom centred on that person.
 **Keys** (not while typing in a box): arrows move between people **and the dotted Add boxes** (↑ parent,
 ↓ eldest child, ← → row neighbours); Enter edits the person (on an Add box: its pop-up), Space shows the
@@ -321,7 +324,7 @@ tree" switches it to the search (← Back returns; typing is kept; rows have the
 Choose), one kind of box at a time; **one person per add**; spouse gender set automatically. Adding a father or
 mother says first that brothers and sisters in the same family get them too. The same couple recorded twice:
 an amber "B is listed as A's wife twice" with Combine them (editors, two-step), in the editor and the details panel. ⋯ on a relative: open their family, remove from this
-family (editors, with confirmation). Undo shown for 10 s after every add/remove.
+family (editors, with confirmation). Undo shown after every add/remove until ✕ or the next message (no time limit: WCAG 2.2.1).
 
 **Open in Full Gramps ↗** (editors only, `grampsLink()` in common.js; new tab at `GRAMPS_PUBLIC_URL/<kind>/<Gramps ID>`):
 the panel's More details (this person, birth, place of birth, death, burial, burial place), the editor's header
@@ -333,7 +336,7 @@ the panel's More details (this person, birth, place of birth, death, burial, bur
 beside the photo, or Back (a history step with the same address). Editors: "Use as profile photo",
 "Remove from this person" (two-step; only unlinks).
 
-**Merge dialog** ("Duplicate profile? Merge."): find the other profile (rows with the ⓘ preview) → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
+**Merge dialog** ("Merge with a duplicate"): find the other profile (rows with the ⓘ preview) → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
 tap a value to use it; names/places can also be typed, pasted or dragged into the result box;
 ⇄ swaps which is kept; two-step confirm.
 

@@ -106,6 +106,7 @@ function chart(a, b, ancestors) {
 // In-laws and the rest: the shortest route through any links, drawn as a zigzag on a grid: a husband or wife one
 // step sideways, a parent one up, a child one down. Turning (up then down, or down then up) moves on a column, so
 // each column holds one straight run and nothing overlaps. Many generations: the middle rows fold.
+const firstName = p => p.nick || p.first.split(" ")[0] || name(p);  // short: a caption, the full name is in that box
 const WORD = { parent: ["father", "mother", "parent"], child: ["son", "daughter", "child"], spouse: ["husband", "wife", "husband or wife"] };
 function chain(a, b, steps = route(FAMS, a, b)) {
   if (!steps) return null;
@@ -131,7 +132,7 @@ function chain(a, b, steps = route(FAMS, a, b)) {
     steps.forEach((s, i) => {
       const { c: x, r: y } = at[i];
       if (row[y]) put(box(s.id, s.id === a ? "a" : s.id === b ? "b" : "",
-        i ? `${["his", "her", "their"][g(steps[i - 1].id)]} ${WORD[s.how][g(s.id)]}` : ""), 2 * x + 1, row[y]);
+        i ? `${WORD[s.how][g(s.id)]} of ${firstName(P[steps[i - 1].id])}` : ""), 2 * x + 1, row[y]);  // named: "his" can point at a box below
       if (!i) return;
       const p = at[i - 1], hi = Math.min(p.r, y), side = x > p.c;
       if (y === p.r) { if (row[y]) put(h("div", { class: "rl h" }), 2 * p.c + 2, row[y]); }  // husband or wife
@@ -140,7 +141,7 @@ function chain(a, b, steps = route(FAMS, a, b)) {
     if (foldAt) put(h("button", { class: "relfold", onclick: () => draw(true) }, `⋮ ${low - top - 3} more generations`), "1 / -1", foldAt);
     const cols = at.at(-1).c;
     const grid = h("div", { class: "relgrid" }, ...cells);
-    grid.style.gridTemplateColumns = Array(cols + 1).fill("minmax(130px, 170px)").join(" 28px ");  // (not a style="": the CSP blocks those)
+    grid.style.gridTemplateColumns = Array(cols + 1).fill("minmax(130px, 220px)").join(" 28px ");  // (not a style="": the CSP blocks those)
     wrap.replaceChildren(grid);
   };
   draw(false);

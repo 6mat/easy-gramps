@@ -405,9 +405,11 @@ $("#z-fit").onclick = () => {
   sc.scrollTop = (sc.scrollHeight - sc.clientHeight) / 2;
   drawMinimap(); placePopcard();
 };
+// Glide to a person, unless the device asks for less motion (WCAG 2.3.3): then jump.
+const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 $("#z-centre").onclick = () => {
   const sc = $("#treescroll"), L = S.layout, z = S.zoom;
-  sc.scrollTo({ left: (L.fx + L.OX + BW / 2) * z - viewW() / 2, top: (L.rowY[1] + BH / 2) * z - sc.clientHeight / 2, behavior: "smooth" });
+  sc.scrollTo({ left: (L.fx + L.OX + BW / 2) * z - viewW() / 2, top: (L.rowY[1] + BH / 2) * z - sc.clientHeight / 2, behavior: glide() });
 };
 // Double-tap: back to the opening zoom, centred on that person (or on the tree's own person).
 function viewOn(id) {
@@ -415,7 +417,7 @@ function viewOn(id) {
   applyZoom();
   const sc = $("#treescroll"), L = S.layout, n = L.nodes.find(x => x.key === id) || L.nodes.find(x => x.key === S.focus);
   if (!n) return;
-  sc.scrollTo({ left: (n.x + L.OX + BW / 2) * S.zoom - viewW() / 2, top: (n.y + BH / 2) * S.zoom - sc.clientHeight / 2, behavior: "smooth" });
+  sc.scrollTo({ left: (n.x + L.OX + BW / 2) * S.zoom - viewW() / 2, top: (n.y + BH / 2) * S.zoom - sc.clientHeight / 2, behavior: glide() });
 }
 // The width of the tree you can actually see: not counting the details panel floating over its right side.
 function viewW() {
@@ -431,7 +433,7 @@ function reveal(id) {
   const right = box.left + viewW() - 16, left = box.left + 16, bottom = box.top + sc.clientHeight - 16, top = box.top + 16;
   const dx = r.right > right ? r.right - right : r.left < left ? r.left - left : 0;
   const dy = r.bottom > bottom ? r.bottom - bottom : r.top < top ? r.top - top : 0;
-  if (dx || dy) sc.scrollBy({ left: dx, top: dy, behavior: "smooth" });
+  if (dx || dy) sc.scrollBy({ left: dx, top: dy, behavior: glide() });
 }
 $("#treescroll").addEventListener("wheel", e => {
   if (!e.ctrlKey) return;
@@ -441,8 +443,6 @@ $("#treescroll").addEventListener("wheel", e => {
 }, { passive: false });
 
 // ----- on the tree: drag to move, pinch (or Ctrl + scroll) to zoom, double-tap to centre -----
-// The page itself never zooms (see the viewport tag and touch-action in tree.css); only the tree does.
-document.addEventListener("wheel", e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 (() => {
   const sc = $("#treescroll");
   const pts = new Map();  // fingers (or the mouse) currently down: id -> {x, y}

@@ -12,14 +12,17 @@ import { bookEditor } from "./docs.js";
 
 // ---------- undo + toast ----------
 let toastTimer, undoToken = null;
-// undo: what the server says will reverse the change (shown as an "Undo" button for 10 seconds)
+// undo: what the server says will reverse the change (an "Undo" button that stays until ✕ or the next message:
+// a time limit locks out slow readers, WCAG 2.2.1). Without one the message goes after 10 seconds.
 export function toast(msg, undo = null) {
   undoToken = undo || null;
-  $("#toast-msg").textContent = msg;
+  $("#toast-msg").textContent = "";
   $("#toast-undo").hidden = !undoToken;
   $("#toast").hidden = false;
+  // The text goes in once the role="status" box is showing: screen readers only read changes to a box already there.
+  setTimeout(() => { $("#toast-msg").textContent = msg; }, 100);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { $("#toast").hidden = true; undoToken = null; }, 10000);
+  if (!undoToken) toastTimer = setTimeout(() => { $("#toast").hidden = true; }, 10000);
 }
 $("#toast-x").onclick = () => { clearTimeout(toastTimer); $("#toast").hidden = true; undoToken = null; };
 $("#toast-undo").onclick = async () => {
@@ -58,7 +61,7 @@ function setStatus(text, cls = "") {
   if (suggesting() && text === "Saved ✓") text = "Not in the tree yet";  // it's a suggestion until an editor approves it
   const st = $("#ed-status");
   st.className = `status ${cls}`.trim();
-  st.replaceChildren(text);
+  st.textContent = text;
   if (cls === "failed") st.append(" ", h("button", { onclick: () => { saveFailed = null; flushSaves(); } }, "Try again"));
 }
 function autosave(id, patch, wait = 700) {
@@ -104,7 +107,7 @@ async function ensureDetails(id) {
 }
 export async function openEditor(id, rel, famId, restoring = false) {
   S.stack = [id]; S.edMore = false; S.menu = null;
-  setStatus("Saved ✓");
+  setStatus("");  // nothing saved yet: the pill says so only after a save
   $("#editor").hidden = false;
   if (!restoring) pushView();  // Back closes it again
   $("#ed-body").replaceChildren(h("p", { class: "muted" }, "Loading…"));
@@ -503,7 +506,7 @@ export function renderEditor() {
     canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
       sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`),
     canEdit() || suggesting() ? h("div", { class: "ed-other" }, h("h3", {}, "Other actions"),  // (closed first: they change the tree)
-      canEdit() && h("button", { class: "dupbtn", onclick: async () => { await closeEditor(); openMerge(id); } }, "Duplicate profile? Merge."),
+      canEdit() && h("button", { class: "dupbtn", onclick: async () => { await closeEditor(); openMerge(id); } }, "Merge with a duplicate"),
       p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: async () => { await closeEditor(); openDelete(id); } }, "Delete this person")) : "");
   const kidGroups = sfs.map(x => {
     const o = other(x, id);
