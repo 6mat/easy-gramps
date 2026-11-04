@@ -320,7 +320,8 @@ def site() -> dict:
 BUILT_IN = ("burial", "residence", "work", "education", "phone", "email", "notes")  # More details, as before 1.9.5
 KIN = tuple(f"r:{x}" for x in ("siblings", "grandparents", "grandchildren", "uncles", "cousins", "inlaws"))  # worked out in the page
 DEFAULT_LAYOUT = [{"k": k, "where": "more", "see": ROLE_EDITOR if k in ("phone", "email") else 0} for k in BUILT_IN]
-BOX_LINES = ("years", "birthPlace", "nick", "burial", "gid", "")  # the person box's 2nd and 3rd lines (box: those, then a backup for each)
+# The person box's 2nd and 3rd lines (box): a list in order, of which each box shows the first two the person has.
+BOX_LINES = ("years", "born", "died", "birthPlace", "burial", "parents", "spouse", "kids", "nick", "gid", "")
 
 
 def layout(role: int) -> list:

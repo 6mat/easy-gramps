@@ -155,11 +155,17 @@ const FIELD_NAMES = { burial: "Buried at", residence: "Lives in", work: "Work", 
 export const KIN = Object.keys(FIELD_NAMES).filter(k => k.startsWith("r:")), BUILT = Object.keys(FIELD_NAMES).filter(k => !k.includes(":"));
 export const fieldName = k => FIELD_NAMES[k] || k.slice(2);
 export const layout = () => ME.site?.layout || [];
-export const BOX_LINES = [["years", "Years (1950 – 2010)"], ["birthPlace", "Place of birth"], ["nick", "Nickname"],
-  ["burial", "Place of burial"], ["gid", "Gramps ID"], ["", "Nothing"]];
+export const BOX_LINES = [["years", "Years (1950 – 2010)"], ["born", "Born (full date)"], ["died", "Died (full date)"],
+  ["birthPlace", "Place of birth"], ["burial", "Place of burial"], ["parents", "Son or daughter of …"], ["spouse", "Married to …"],
+  ["kids", "Number of children"], ["nick", "Nickname"], ["gid", "Gramps ID"], ["", "Nothing"]];
 export function boxLine(p, k) {
-  return { years: years(p), birthPlace: p.birthPlace, nick: p.nick && `“${p.nick}”`, burial: p.burial && `Buried: ${p.burial}`,
-    gid: p.gid }[k] || "";
+  return {
+    years: () => years(p), born: () => p.birth && `Born ${fmtDate(p.birth)}`, died: () => p.deceased && p.death && `Died ${fmtDate(p.death)}`,
+    birthPlace: () => p.birthPlace, burial: () => p.burial && `Buried: ${p.burial}`, parents: () => childOf(p),
+    spouse: () => { const s = P[spousesOf(p.id)[0]]; return s && `Married to ${name(s)}`; },
+    kids: () => { const n = new Set(kidsOf(p.id)).size; return n && `${n} ${n === 1 ? "child" : "children"}`; },
+    nick: () => p.nick && `“${p.nick}”`, gid: () => p.gid,
+  }[k]?.() || "";
 }
 // Relatives worked out from the graph (no request): r:<kin> in the layout. (parentsOf: below, with the checks)
 const sibsOf = id => { const f = parentFam(id); return f ? f.kids.filter(x => x !== id) : []; };
@@ -176,11 +182,13 @@ export function kin(id, k) {
   }[k]?.() || [];
   return byBirth([...new Set(ids)].filter(x => x !== id && P[x]));
 }
+function childOf(p) {  // "son of George VI": the first parent listed
+  const pf = parentFam(p.id), par = pf && (P[pf.f] || P[pf.m]);
+  return par ? `${p.gender === "m" ? "Son" : p.gender === "f" ? "Daughter" : "Child"} of ${name(par)}` : "";
+}
 export function desc(p) {
-  const pf = parentFam(p.id);
-  const par = pf && (P[pf.f] || P[pf.m]);
-  const word = p.gender === "m" ? "son" : p.gender === "f" ? "daughter" : "child";
-  return [years(p), par && `${word} of ${name(par)}`, p.birthPlace].filter(Boolean).join(" · ");
+  const of = childOf(p);
+  return [years(p), of && of[0].toLowerCase() + of.slice(1), p.birthPlace].filter(Boolean).join(" · ");
 }
 // Stand-in "photos" are soft gradients; people without a photo get initials on a tint picked from their name.
 const TINTS = [["#dbe6f2", "#9fbbd8"], ["#dcefe9", "#8cc3b4"], ["#f3e3d2", "#d9a878"], ["#ebdff0", "#b995c7"], ["#f4dde2", "#d494a3"], ["#e4ebd8", "#a7ba86"]];

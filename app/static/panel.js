@@ -55,48 +55,56 @@ export function renderPanel() {
   const panel = $("#panel"), rows = where => layout().filter(r => r.where === where).flatMap(r => row(fieldName(r.k), shown(p, r.k, chips)));
   const life = [years(p), p.birthPlace].filter(Boolean).join(" · "), top = rows("top");
   if (layout().some(r => r.where === "top" && !fromGraph(r.k))) loadDetails(p.id);
-  panel.replaceChildren(
-    h("div", { class: "ptop" },
-      h("button", { class: "pill hide", onclick: hidePanel, title: "Hide this panel to give the tree more room" }, "Hide panel »"),
-      canAdd() && h("button", { class: "pill edit", onclick: () => openEditor(p.id) }, S.role === "suggest" ? "✎ Suggest a change" : "✎ Edit person")),
-    h("div", { class: "who" }, p.photos[0] && p.photos[0] === p.photo
-      ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
-      : photoEl(p, true),
-      h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
-        life && h("div", { class: "small life" }, life),  // full dates and places: More details
-        p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p),
-        h("div", { class: "pacts" }, messageButton(p), !isStandIn(p.id) && !ME.site?.hide?.includes("trace")
-          && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
-    p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
-      p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
-        h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
-    top.length ? h("dl", { class: "kv" }, ...top) : "",
-    famRow("Parents", parents),
-    famRow(spouseHeading(p, spouses.length), spouses),
-    ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
-      .map(o => twiceWarn(p, o, spouseFams(p.id).filter(x => other(x, p.id) === o), renderPanel)),
-    famRow("Children", kids),
-    h("button", { class: "moretoggle", "aria-expanded": String(S.more), onclick: () => toggleMore(p.id) },
-      S.more ? "Fewer details ▴" : "More details ▾"));
-  if (S.more) {
-    const more = rows("more"), locked = layout().some(r => r.see > 0 && (r.k === "phone" && p.phone || r.k === "email" && p.email));
-    const any = more.length || p.contactHidden || p.books?.length;
-    panel.append(h("div", { class: "details" },
-      loginLine(p),
-      h("dl", { class: "kv" },
-        row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
-        row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : ""), ...more),
-      ...bookLinks(p),
-      locked ? h("div", { class: "private" }, "🔒 Not everyone sees phone and email.") : "",
-      p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are kept private.") : "",
-      !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
-      canEdit() ? h("div", { class: "glinks small" }, h("span", { class: "muted" }, "Open in Full Gramps:"),
-        ...[["person", p.gid, "this person"], ["event", p.gids.birth, "birth"], ["place", p.gids.birthPlace, "place of birth"],
-          ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
-          .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
+  const draw = (open, fold = true) => {  // fold: the More details ▾ button
+    panel.replaceChildren(
+      h("div", { class: "ptop" },
+        h("button", { class: "pill hide", onclick: hidePanel, title: "Hide this panel to give the tree more room" }, "Hide panel »"),
+        canAdd() && h("button", { class: "pill edit", onclick: () => openEditor(p.id) }, S.role === "suggest" ? "✎ Suggest a change" : "✎ Edit person")),
+      h("div", { class: "who" }, p.photos[0] && p.photos[0] === p.photo
+        ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
+        : photoEl(p, true),
+        h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
+          life && h("div", { class: "small life" }, life),  // full dates and places: More details
+          p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p),
+          h("div", { class: "pacts" }, messageButton(p), !isStandIn(p.id) && !ME.site?.hide?.includes("trace")
+            && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
+      p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
+        p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
+          h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
+      top.length ? h("dl", { class: "kv" }, ...top) : "",
+      famRow("Parents", parents),
+      famRow(spouseHeading(p, spouses.length), spouses),
+      ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
+        .map(o => twiceWarn(p, o, spouseFams(p.id).filter(x => other(x, p.id) === o), renderPanel)),
+      famRow("Children", kids),
+      fold ? h("button", { class: "moretoggle", "aria-expanded": String(open), onclick: () => toggleMore(p.id) },
+        open ? "Fewer details ▴" : "More details ▾") : "");
+    if (open) {
+      const more = rows("more"), locked = layout().some(r => r.see > 0 && (r.k === "phone" && p.phone || r.k === "email" && p.email));
+      const any = more.length || p.contactHidden || p.books?.length;
+      panel.append(h("div", { class: "details" },
+        loginLine(p),
+        h("dl", { class: "kv" },
+          row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
+          row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : ""), ...more),
+        ...bookLinks(p),
+        locked ? h("div", { class: "private" }, "🔒 Not everyone sees phone and email.") : "",
+        p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are kept private.") : "",
+        !any ? h("div", { class: "muted small" }, "No more details yet.") : "",
+        canEdit() ? h("div", { class: "glinks small" }, h("span", { class: "muted" }, "Open in Full Gramps:"),
+          ...[["person", p.gid, "this person"], ["event", p.gids.birth, "birth"], ["place", p.gids.birthPlace, "place of birth"],
+            ["event", p.gids.death, "death"], ["event", p.gids.burial, "burial"], ["place", p.gids.burialPlace, "burial place"]]
+            .map(([kind, gid, what]) => grampsLink(kind, gid, `${what} ↗`, `Open ${name(p)}'s ${what} in Full Gramps`))) : ""));
+    }
+    panel.append(myWaiting(p.id));  // (suggesters: what they suggested about them, each with Delete)
+    if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
+  };
+  draw(S.more);
+  // Room to spare: show all of it, with nothing to fold. More details ▾ only when everything wouldn't fit.
+  if (!S.more && panel.clientHeight && panel.scrollHeight <= panel.clientHeight) {
+    if (!p._details) loadDetails(p.id);  // (draws again when they're here)
+    else { draw(true, false); if (panel.scrollHeight > panel.clientHeight) draw(false); }
   }
-  panel.append(myWaiting(p.id));  // (suggesters: what they suggested about them, each with Delete)
-  if (ME.site?.talk !== false) panel.append(talkSection(p));  // the owner can turn it off (Site settings)
   drawSelink();
 }
 
