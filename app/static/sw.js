@@ -11,7 +11,7 @@ const OFFLINE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   h1 { font-size: 26px; margin: 0 0 8px; }
   button { font: inherit; border: 0; cursor: pointer; margin-top: 16px; padding: 12px 28px; border-radius: 12px; background: #1f5f99;
     color: #fff; font-weight: 700; }
-  @media (prefers-color-scheme: dark) { body { background: #171614; color: #ece8e1; } }
+  @media (prefers-color-scheme: dark) { body { background: #171614; color: #f3efe8; } }
 </style></head><body><main>
 <h1>🌳 No internet</h1>
 <p>The family tree needs an internet connection. Check your Wi-Fi or mobile data, then try again.</p>

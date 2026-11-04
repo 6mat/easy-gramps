@@ -1,4 +1,4 @@
-// Easy Gramps — "Duplicate profile? Merge.": find the other profile, compare, combine.
+// Easy Gramps — "Merge with a duplicate": find the other profile, compare, combine.
 import { api, LoginNeeded } from "./auth.js";
 import { $, P, S, fmtDate, h, matches, name, other, parentFam, photoEl, postJSON, searchWords, spouseFams } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
@@ -63,7 +63,7 @@ function renderMerge() {
         : [h("div", { class: "small muted pad" }, "No one else found with that name.")];
     }
     dlg.replaceChildren(
-      h("h2", { id: "dlg-title" }, "Duplicate profile? Merge."),
+      h("h2", { id: "dlg-title" }, "Merge with a duplicate"),
       h("p", { class: "muted" }, "Keeping ", h("strong", {}, name(keep)), ". Find their other profile to merge into this one."),
       input,
       h("div", { id: "merge-list", class: "pick hits" }, ...candidates()),

@@ -198,7 +198,7 @@ export function photoEl(p, big) {
     img.onerror = async () => {
       // The photo cookie may have outlived its token: renew the login once, then try again.
       if (!retried && !src.startsWith("blob:")) { retried = true; if (await renewPhotos()) { img.src = `${src}&r=1`; return; } }
-      const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2;
+      const [a2] = tint(p); box.replaceChildren((p.first[0] || "") + (p.last[0] || "")); box.style.background = a2; box.style.color = "#1d1b18";  // dark text: the tints stay light in dark mode
     };
     return box;
   }

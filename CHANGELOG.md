@@ -2,6 +2,30 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.13 — 2026-11-04
+
+### Changed
+- The page can be zoomed again (pinch, Ctrl + scroll, Ctrl +), so anyone who needs bigger text everywhere can have it.
+  On the tree itself, pinch and Ctrl + scroll still zoom just the tree.
+- Easier to see in the light theme: the keyboard focus ring, the ring round the selected person, and the edges of
+  text boxes and buttons are darker (each at least 3:1 against what's behind it).
+- When the phone or computer asks for less motion, the tree jumps to a person instead of gliding, and the on/off
+  switches don't slide.
+- Undo stays on screen until you close it (it used to go after 10 seconds), and screen readers now read the message.
+- Typing boxes are never smaller than 16px, so iPhones no longer zoom in when you tap one.
+- Trace relationship, the zigzag: wider boxes, so long names don't break mid-word; each box says whose relative it is
+  by name ("father of Henry"), not "his father".
+- ✎ Edit person no longer says "Saved ✓" before anything was saved.
+- "Duplicate profile? Merge." is now "Merge with a duplicate".
+- Dark mode: the chat count and the "changes" / "New" / "To delete" tags were white on light colours, and the initials
+  shown when a photo can't load were almost invisible: both readable now (at least 6:1).
+- The keyboard focus ring is now dark grey (light theme) or cream (dark theme). Amber means only "selected", so you
+  can tell the box you're on from the person you picked, and the light-theme amber moved further from the family lines.
+- Trace relationship: the lines between the boxes are darker.
+- The photo and book viewers use the dark theme's own colours (their copies had drifted).
+- A box marked "To delete" fades only its photo, so its name and tag stay readable.
+- A test (`tests/test_palette.py`) keeps the two copies of the dark colours the same and checks the main colour pairs.
+
 ## 1.9.12 — 2026-11-04
 
 ### Changed
