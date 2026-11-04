@@ -143,7 +143,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   leading space; empty = default; start.js runs `applySite()` after setting the Full Gramps link text).
   site.js: the dialog, and `applySite()` hides `#menupop [data-item]` (`.sitehidden`; a group with nothing left hides too).
 - **Layout** (admins, role 5; Manage → Settings → Person details and boxes in site.js): site `layout` = rows `{k, where: top|more, see: 0–5}`, `[]` = main.py
-  `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (the person box's 2nd/3rd line, then a backup for each when it's empty, `BOX_LINES`).
+  `DEFAULT_LAYOUT` (the old More details fields; phone/email for editors), and `box` (up to 4 fields in order; each person box shows the first two that person has under the name, `BOX_LINES`: years, born, died, birth/burial place, son-or-daughter of, married to, number of children, nickname, Gramps ID).
   `k`: a built-in (`BUILT_IN`), `e:<event type>`, `a:<attribute type>`, `r:<kin>` (`KIN`; common.js `kin()` from the graph).
   `layout(role)` = the rows that role sees; `/auth/me` and `PUT /site` send only those. `/tree/details` adds the visible
   `e:`/`a:` fields (familytree `details(want=…)`, places by name, others of the type in `also` with the role) and blanks hidden
@@ -277,11 +277,12 @@ and photos come from Find me, else the login name. Phones (≤ 700px): the list,
 Panel: "💬 Family talk about … (n) ▾" at the bottom, folded to one line until tapped (open: last 2 messages, See all, a box + Send; typing survives panel redraws)
 and "💬 Message …" under the name of someone with a linked login. Text only, no editing, no voice or photos.
 
-**Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
+**Panel** floats over the right of the tree card, its full height (portrait/<900px: slides up from the bottom, ≤55%). Hide
 panel » / ✎ Edit person (pinned at the top while the panel scrolls); 64px photo (tap: big view; a strip when there are more), name, relation,
 "years · birthplace" (full Born/Passed away rows open More details), clickable Parents/Wives/Children, More
 details ▾ (burial, lives in, work, education, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
-sets `contactHidden`). Under the name: 💬 Message (when they have a login) and 🔗 Trace relationship, outlined buttons.
+sets `contactHidden`). More details is simply open, with no ▾, when everything fits without scrolling (panel.js `draw`,
+loads `/tree/details` for that); folded behind ▾ only when it wouldn't fit. Under the name: 💬 Message (when they have a login) and 🔗 Trace relationship, outlined buttons.
 **Merge with a duplicate** (editors) and **Delete this person** (editors; suggesters suggest it) are in
 ✎ Edit person under "Other actions", below Add husband/wife (no longer pinned to the panel, #55); they close the editor first, then run as before.
 Fit and centring use only the area not under the panel.

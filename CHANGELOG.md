@@ -2,6 +2,21 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.14 — 2026-11-04
+
+### Changed
+- On a computer the details panel runs the tree's full height again, instead of a small box at the top.
+- More details is simply open when there's room for everything, with no More details ▾ to tap. It folds behind
+  More details ▾ only when it wouldn't fit without scrolling.
+- Settings → Person details and boxes: the boxes on the tree take up to 4 choices in order and show the first two
+  each person has, so nothing shows twice (it was a 2nd and 3rd line, each with a backup). New choices: Born and Died
+  (full dates), Son or daughter of …, Married to … and Number of children. The page has two headings now, "Details
+  panel" and "Boxes on the tree". A long line in a box ends in "…"; the full text is in the details.
+
+### Fixed
+- On a computer, the details panel scrolls again when More details makes it taller than the tree. Since 1.9.12 the
+  bottom (Born, Passed away, Family talk) was cut off with no way to scroll to it.
+
 ## 1.9.13 — 2026-11-04
 
 ### Changed

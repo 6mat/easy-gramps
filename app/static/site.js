@@ -355,7 +355,7 @@ function rights() {
 async function layoutPage() {
   const types = await api("/layout/types");
   const rows = layout().map(r => ({ ...r }));  // (an admin gets every row)
-  const box = [...(ME.site?.box || ["years", "birthPlace"]), "", ""].slice(0, 4);  // 2nd, 3rd, then their backups
+  const box = [...(ME.site?.box || ["years", "birthPlace"]), "", "", ""].slice(0, 4);  // in order: the box shows the first two they have
   const pick = (list, v, set, label) => {
     const s = h("select", { "aria-label": label }, ...list.map(([k, t]) => h("option", { value: k }, t)));
     s.value = String(v); s.onchange = () => set(s.value);
@@ -386,7 +386,8 @@ async function layoutPage() {
   };
   add.onchange = () => { if (!add.value) return; rows.push({ k: add.value, where: "more", see: 4 }); draw(); list.lastChild.querySelector("select").focus(); };
   draw();
-  const line = (i, or) => pick(BOX_LINES, box[i], v => { box[i] = v; }, `The box's ${i % 2 ? "third" : "second"} line${or ? ", when that's empty" : ""}`);
+  const NTH = ["1st", "2nd", "3rd", "4th"];
+  const line = i => h("label", {}, `${NTH[i]} choice`, pick(BOX_LINES, box[i], v => { box[i] = v; }, `The box's ${NTH[i]} choice`));
   const reset = h("button", {}, "Back to the default");
   const say = h("div", { role: "status" });
   reset.onclick = async () => {
@@ -395,10 +396,10 @@ async function layoutPage() {
     try { await api("/site", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ layout: [], box: ["years", "birthPlace"] }) }); location.reload(); }
     catch (err) { reset.disabled = false; say.replaceChildren(h("div", { class: "warn" }, err.message)); }
   };
-  return [h("p", { class: "muted small" }, "What each person's details show, in this order. “At the top” is under Born; the rest is under More details. What's shown can be changed in the editor. New fields start as “Owner and up”: choose who else may see them. Gramps still hides private records from logins that can't see private details."),
+  return [h("h3", {}, "Details panel"), h("p", { class: "muted small" }, "What each person's details show, in this order. “At the top” is under Born; the rest is under More details. What's shown can be changed in the editor. New fields start as “Owner and up”: choose who else may see them. Gramps still hides private records from logins that can't see private details."),
     list, add,
-    h("fieldset", {}, h("legend", {}, "The person boxes on the tree, under the name"),
-      h("div", { class: "btnrow" }, h("label", {}, "Second line", line(0)), h("label", {}, "… when it's empty", line(2, 1))),
-      h("div", { class: "btnrow" }, h("label", {}, "Third line", line(1)), h("label", {}, "… when it's empty", line(3, 1)))),
+    h("h3", {}, "Boxes on the tree"),
+    h("p", { class: "muted small" }, "Two lines under each name: the first two of these that the person has, so nothing shows twice."),
+    h("div", { class: "btnrow" }, line(0), line(1)), h("div", { class: "btnrow" }, line(2), line(3)),
     ...saver(() => ({ layout: rows, box }), "reload"), say, h("div", { class: "btnrow" }, reset)];
 }

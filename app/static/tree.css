@@ -198,7 +198,7 @@ body.big .node .tag { font-size: 14px; }
 .node:hover { border-color: var(--accent); }
 .node .ph { grid-row: 1 / span 3; align-self: center; }
 .node .nm { font-weight: 700; font-size: 15px; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.node .yr { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.node .yr { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .node .pl { font-size: 13px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .node .tag, .rcard .role { position: absolute; top: -11px; left: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
   padding: 1px 8px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
@@ -282,7 +282,7 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; box-shadow: var(--shadow); }
 .centre .full, .newperson .full { grid-column: 1 / -1; }
 .centre label, .dlg label, .msec label, .newperson label, .flabel { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 700; color: var(--muted); }
-.centre input, .centre textarea, .dlg input, .msec input, .newperson input, .flabel input { font-weight: 400; color: var(--ink); }
+.centre input, .centre textarea, .dlg input, .msec input, .msec select, .newperson input, .flabel input { font-weight: 400; color: var(--ink); }
 .centre label.inline, .dlg label.inline, .msec label.inline, .newperson label.inline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; }
 .centre .photo-row { display: flex; gap: 16px; align-items: center; }
 .centre fieldset, .dlg fieldset, .msec fieldset, .newperson fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
@@ -399,7 +399,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 /* ---------- details panel: a card floating over the right of the tree ---------- */
 .treepane { grid-template-columns: minmax(0, 1fr); }
 .treepane > * { grid-column: 1; }
-.treepane > .panel { grid-row: 3; justify-self: end; align-self: start; z-index: 7; width: min(360px, calc(100% - 24px));  /* as tall as its content */
+.treepane > .panel { grid-row: 3; justify-self: end; z-index: 7; width: min(360px, calc(100% - 24px));  /* the tree's full height: scrolls past it */
   margin: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); }
 @media (hover: hover) { .treepane > .panel { margin: 12px 28px 28px 12px; } }  /* keep the tree's scroll bars visible */
 .main:not(.nopanel) .navcorner { right: calc(min(360px, 100% - 24px) + 56px); }

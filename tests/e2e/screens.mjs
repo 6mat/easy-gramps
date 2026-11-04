@@ -60,6 +60,11 @@ async function login(page, user) {
     .then(() => page.click("#dlg button:has-text('Not now')"), () => {});
 }
 const status = page => page.textContent("#ed-status");
+// More details: open by itself when the panel has room for it (1.9.14), else behind More details ▾
+async function openMore(page) {
+  if (!(await page.waitForSelector("#panel .details", { timeout: 3000 }).catch(() => null))) await page.click("#panel .moretoggle");
+  await page.waitForSelector("#panel .details");
+}
 async function saved(page) { await page.waitForFunction(() => /Saved/.test(document.querySelector("#ed-status").textContent)); }
 
 // ---------- Gramps API (cleanup of ZZTEST records) ----------
@@ -171,7 +176,7 @@ async function cleanup() {
     await page.click(".node:not(.focus) >> nth=0");
     await page.waitForSelector("#panel.sel-view");
   });
-  await step(page, "more details", async () => { await page.click("#panel .moretoggle"); await page.waitForSelector("#panel .details"); });
+  await step(page, "more details", () => openMore(page));
   await step(page, "see their tree, back", async () => {
     await page.click("#tree-see"); await page.waitForSelector("#tree-back:not([hidden])");
     await page.click("#tree-back"); await page.waitForSelector("#tree-back[hidden]", { state: "attached" });
@@ -417,9 +422,9 @@ if (WRITE) {
     await page.fill("#me-q", "Victoria"); await page.click(".dlg .hit .hitmain");
     await page.click(".dlg button:has-text('Yes, this is me')");
     await page.waitForSelector(".mecard"); await page.click(".mecard");
-    await page.click("#panel .moretoggle"); await page.click(".loginline .linkish"); await page.click(".loginline .danger");
+    await openMore(page); await page.click(".loginline .linkish"); await page.click(".loginline .danger");
     await page.waitForSelector("#panel .metag", { state: "detached" });
-    await page.click("#panel .moretoggle"); await page.click("#brand"); await page.waitForSelector("#start-q");
+    await page.click("#brand"); await page.waitForSelector("#start-q");
   });
   // Names, places and notes that look like code must show as typed and never become page elements (#9).
   // (The CSP would stop the scripts anyway, so this looks for the elements themselves, not for alerts.)
@@ -443,7 +448,7 @@ if (WRITE) {
     await page.fill("#ed-notes", note); await page.press("#ed-notes", "Tab");
     await saved(page); await check("editor");
     await page.click("#ed-back"); await page.waitForSelector(".node.focus");
-    await page.click("#panel .moretoggle"); await page.waitForSelector("#panel .details");
+    await openMore(page);
     await check("tree and panel");
     if (!(await page.evaluate(t => document.querySelector("#panel").innerText.includes(t), note))) throw new Error("the note isn't shown as typed");
     await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results .hit"); await page.click("#results .info >> nth=0");
