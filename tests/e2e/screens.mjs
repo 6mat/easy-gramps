@@ -356,8 +356,8 @@ if (WRITE) {
     await page.click("#ed-back"); await page.waitForSelector("#editor", { state: "hidden" });
   });
   await step(page, "merge dialog: find, compare, swap, combine", async () => {
-    await page.click(".node:has-text('ZZTEST Wife')"); await page.waitForSelector("#panel .dupbtn");
-    await page.click("#panel .dupbtn");
+    await page.click(".node:has-text('ZZTEST Wife')"); await page.click("#panel .edit");
+    await page.click("#ed-body .dupbtn");
     if (!/Duplicate profile\? Merge\./.test(await page.textContent("#dlg-title"))) throw new Error("old title");
     await page.fill("#merge-q", "ZZTEST Mum");
     await page.click("#merge-list .info >> nth=0"); await page.waitForSelector("#merge-list .preview:not([hidden])");
@@ -448,7 +448,7 @@ if (WRITE) {
     if (!(await page.evaluate(t => document.querySelector("#panel").innerText.includes(t), note))) throw new Error("the note isn't shown as typed");
     await page.fill("#q", "ZZTEST img"); await page.waitForSelector("#results .hit"); await page.click("#results .info >> nth=0");
     await check("top search and preview"); await page.fill("#q", "");
-    await page.click("#panel .dupbtn"); await page.fill("#merge-q", "ZZTEST"); await page.waitForTimeout(500); await check("merge dialog");
+    await page.click("#panel .edit"); await page.click("#ed-body .dupbtn"); await page.fill("#merge-q", "ZZTEST"); await page.waitForTimeout(500); await check("merge dialog");
     await page.click("#dlg button:has-text('Cancel')");
     await page.click("#brand"); await page.waitForSelector(".recentcard"); await check("start screen");
   });

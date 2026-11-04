@@ -1,7 +1,7 @@
 // Easy Gramps — The details panel beside the tree, and the dotted line from the selected box to it.
 import { bookLinks } from "./docs.js";
 import { api, LoginNeeded } from "./auth.js";
-import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, named, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink } from "./common.js";
+import { $, ME, P, S, byBirth, canAdd, canEdit, fieldName, fmtDate, h, kin, layout, name, named, other, parentFam, photoEl, spouseFams, spouseHeading, thumbUrl, grampsLink, years } from "./common.js";
 import { REL, hidePanel, seeTree, select } from "./tree.js";
 import { openEditor, toast, twiceWarn } from "./editor.js";
 import { openViewer } from "./photos.js";
@@ -53,6 +53,7 @@ export function renderPanel() {
   const kids = byBirth(spouseFams(p.id).flatMap(x => x.kids));
   const rel = S.sel !== S.focus && REL[p.id]?.phrase;
   const panel = $("#panel"), rows = where => layout().filter(r => r.where === where).flatMap(r => row(fieldName(r.k), shown(p, r.k, chips)));
+  const life = [years(p), p.birthPlace].filter(Boolean).join(" · "), top = rows("top");
   if (layout().some(r => r.where === "top" && !fromGraph(r.k))) loadDetails(p.id);
   panel.replaceChildren(
     h("div", { class: "ptop" },
@@ -62,15 +63,14 @@ export function renderPanel() {
       ? h("button", { class: "phbtn", title: "Show the photo bigger", "aria-label": `Show ${name(p)}'s photo bigger`, onclick: () => openViewer(p.photos, 0, name(p)) }, photoEl(p, true))
       : photoEl(p, true),
       h("div", {}, rel && h("div", { class: "muted small" }, rel), h("h2", {}, name(p)),
+        life && h("div", { class: "small life" }, life),  // full dates and places: More details
         p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p),
         h("div", { class: "pacts" }, messageButton(p), !isStandIn(p.id) && !ME.site?.hide?.includes("trace")
           && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
     p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
       p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
         h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)
-    h("dl", { class: "kv" },
-      row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
-      row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : ""), ...rows("top")),
+    top.length ? h("dl", { class: "kv" }, ...top) : "",
     famRow("Parents", parents),
     famRow(spouseHeading(p, spouses.length), spouses),
     ...[...new Set(spouses.filter((o, i) => spouses.indexOf(o) !== i))]
@@ -83,7 +83,9 @@ export function renderPanel() {
     const any = more.length || p.contactHidden || p.books?.length;
     panel.append(h("div", { class: "details" },
       loginLine(p),
-      h("dl", { class: "kv" }, ...more),
+      h("dl", { class: "kv" },
+        row("Born", [fmtDate(p.birth), p.birthPlace].filter(Boolean).join(", ") || "Not known"),
+        row("Passed away", p.deceased ? fmtDate(p.death) || "Date not known" : ""), ...more),
       ...bookLinks(p),
       locked ? h("div", { class: "private" }, "🔒 Not everyone sees phone and email.") : "",
       p.contactHidden ? h("div", { class: "private" }, "🔒 Phone and email are kept private.") : "",

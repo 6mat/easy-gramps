@@ -136,10 +136,12 @@ input[type=checkbox], input[type=radio] { width: 24px; height: 24px; flex: none;
 .popcard .pc-head { display: flex; gap: 12px; align-items: center; }
 .popcard strong { font-size: 18px; line-height: 1.2; }
 .popcard .btnrow button { padding: 6px 11px; font-size: 14px; }
-.panel .ptop { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: -6px -6px -4px 0; }
+.panel .ptop { display: flex; justify-content: space-between; align-items: center; gap: 8px; position: sticky; top: -14px; z-index: 2;
+  margin: -20px -14px -4px -14px; padding: 14px 8px 8px 14px; background: var(--card); }  /* stays put while the details scroll */
 .panel .ptop .hide { margin-left: -6px; }
 .panel .ptop .edit { margin-left: auto; }
-.panel .moretoggle { width: 100%; margin-top: auto; }
+.panel .moretoggle { align-self: flex-start; border: 0; background: none; padding: 4px 0; color: var(--accent); }
+.panel .moretoggle:hover { text-decoration: underline; }
 
 .main.nopanel .panel { display: none; }
 body.fullmode .app { padding-inline: 0; }
@@ -221,13 +223,15 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .ph.big { width: 120px; height: 120px; border-radius: 16px; font-size: 34px; }
 
 /* ---------- right panel ---------- */
-.panel { background: var(--card); border: 1px solid var(--line); border-left-width: 5px; border-radius: 16px; padding: 20px; overflow: auto; min-height: 0;
-  display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow); }
+.panel { background: var(--card); border: 1px solid var(--line); border-left-width: 5px; border-radius: 16px; padding: 14px; overflow: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow); }
 .panel.focus-view { border-color: var(--accent); }
 .panel.sel-view { border-color: var(--sel); box-shadow: 0 0 0 1px var(--sel), var(--shadow); }
 .panel.sel-view .who h2 { text-decoration: underline; text-decoration-color: var(--sel); text-decoration-thickness: 3px; text-underline-offset: 3px; }
-.panel h2 { margin: 0; font-size: 26px; line-height: 1.15; text-wrap: balance; }
-.panel .who { display: flex; gap: 16px; align-items: flex-end; }
+.panel h2 { margin: 0; font-size: 20px; line-height: 1.15; text-wrap: balance; }
+.panel .who { display: flex; gap: 12px; align-items: flex-start; }
+.panel .who .ph.big { width: 64px; height: 64px; border-radius: 12px; font-size: 22px; }  /* tap: the big view */
+.panel .life { color: var(--muted); margin-top: 2px; }
 .kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; margin: 0; }
 .kv dt { color: var(--muted); font-size: 14px; }
 .kv dd { margin: 0; }
@@ -393,7 +397,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 /* ---------- details panel: a card floating over the right of the tree ---------- */
 .treepane { grid-template-columns: minmax(0, 1fr); }
 .treepane > * { grid-column: 1; }
-.treepane > .panel { grid-row: 3; justify-self: end; z-index: 7; width: min(360px, calc(100% - 24px));
+.treepane > .panel { grid-row: 3; justify-self: end; align-self: start; z-index: 7; width: min(360px, calc(100% - 24px));  /* as tall as its content */
   margin: 12px; box-shadow: 0 8px 28px rgba(0, 0, 0, .18); }
 @media (hover: hover) { .treepane > .panel { margin: 12px 28px 28px 12px; } }  /* keep the tree's scroll bars visible */
 .main:not(.nopanel) .navcorner { right: calc(min(360px, 100% - 24px) + 56px); }
@@ -403,8 +407,9 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 }
 
 /* ---------- "Duplicate profile? Merge." + merge dialog ---------- */
-/* At the bottom of ✎ Edit person, under "Other actions" (they used to be pinned to the panel, #55) */
-.ed-other { max-width: 360px; }
+/* ✎ Edit person, under Add husband/wife: "Other actions" (they used to be pinned to the panel, #55) */
+.ed-other { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.ed-other h3 { margin: 0; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .dupbtn { width: 100%; padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 10px; background: var(--card);
   color: var(--accent); font-weight: 700; font-size: 15px; }
 .dupbtn::before { content: "⧉  " / ""; }
@@ -549,7 +554,8 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .dlg .pickrow { flex-direction: row; align-items: center; gap: 10px; font-size: 16px; font-weight: 400; color: var(--ink); }
 .dlg .pickrow .ph { width: 36px; height: 36px; }
 /* details panel: "Family talk about …" and "💬 Message …" */
-.panel .talk { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.panel .talk { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.panel .linkish.talkhead { text-decoration: none; font-weight: 700; }
 .panel .talk .msg .ph { width: 36px; height: 36px; }
 .panel .talk .msg .txt { font-size: 15px; }
 .panel .talk .cwrite textarea { font-size: 15px; min-height: 44px; }
@@ -687,8 +693,17 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .relcol { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
 .relcol > * { position: relative; max-width: 100%; }
 .relcol > * + *::before { content: ""; position: absolute; top: -16px; left: 50%; height: 14px; border-left: 2px solid var(--line); }
-.relchain > .relhow::before, .relchain > .relhow + *::before { display: none; }
-.relchain { gap: 4px; }
+/* the zigzag (relate.js chain): boxes on even grid lines, lines between: h ─, v │, dn ↘, up ↗ */
+.relgridwrap { overflow-x: auto; padding-bottom: 4px; }
+.relgrid { display: grid; grid-auto-rows: auto; align-items: center; width: max-content; margin: 0 auto; }
+.relgrid > .relbox { width: 100%; min-width: 0; justify-self: stretch; white-space: normal; }  /* long names wrap, never cover the lines */
+.relgrid .relbox > span:last-child { overflow-wrap: break-word; }
+.relgrid > .relfold { justify-self: center; margin: 6px 0; }
+.rl { align-self: stretch; justify-self: stretch; min-height: 18px; }
+.rl.h { background: linear-gradient(var(--line), var(--line)) center / 100% 2px no-repeat; }
+.rl.v { background: linear-gradient(var(--line), var(--line)) center / 2px 100% no-repeat; }
+.rl.dn { background: linear-gradient(to top right, transparent calc(50% - 1.5px), var(--line) 50%, transparent calc(50% + 1.5px)); }
+.rl.up { background: linear-gradient(to bottom right, transparent calc(50% - 1.5px), var(--line) 50%, transparent calc(50% + 1.5px)); }
 .relbox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; text-align: left; min-width: 0; background: var(--card); }
 .relbox > span:last-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .relbox .ph { flex: none; }

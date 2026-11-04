@@ -217,8 +217,9 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `GET /tree/relation/{a}/{b}` → familytree `relations` = Gramps' `/api/relations/{a}/{b}/all` (its calculator, 15
   generations): `[{say, ancestors}]` (how b is to a; `[]` = not by blood). The page draws the route from the graph
   (checks.js `upTo`: up through parents to the nearest common ancestor, plus their partner if both are; `route`: shortest
-  route through any link, for in-laws or nothing from Gramps). "👤 Me" (Find me) is `a`, so it reads "X is your …".
-  Lines longer than 5 fold.
+  route through any link, for in-laws or nothing from Gramps; drawn as a zigzag grid: husband/wife sideways, parent up,
+  child down, a turn moves on a column). "👤 Me" (Find me) is `a`, so it reads "X is your …". Lines longer than 5 fold;
+  the grid keeps 2 top and 2 bottom generations. Grid columns are set via `el.style` (the CSP blocks style="").
 - **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
   non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`
   streams Gramps' `/media/{h}/file` for a `ticket` from `/tree/documents` (main.py `file_ticket`: random, that one
@@ -273,15 +274,16 @@ step (Back / Esc close it): left Groups (+ New group for editors), Groups you ca
 two-step delete, Leave group / Delete group, See their tree →, a big box + Send; Enter sends on a computer). The unread
 count is also in the tab title and on the installed app's icon (`navigator.setAppBadge`, where it exists). Names
 and photos come from Find me, else the login name. Phones (≤ 700px): the list, then one conversation (← Chats).
-Panel: "Family talk about …" at the bottom (last 2 messages, See all, a box + Send; typing survives panel redraws)
+Panel: "💬 Family talk about … (n) ▾" at the bottom, folded to one line until tapped (open: last 2 messages, See all, a box + Send; typing survives panel redraws)
 and "💬 Message …" under the name of someone with a linked login. Text only, no editing, no voice or photos.
 
 **Panel** floats over the right of the tree card (portrait/<900px: slides up from the bottom). Hide
-panel » / ✎ Edit person; photo (tap: big view; a strip when there are more), name, relation, born/died, clickable Parents/Wives/Children, More
+panel » / ✎ Edit person (pinned at the top while the panel scrolls); 64px photo (tap: big view; a strip when there are more), name, relation,
+"years · birthplace" (full Born/Passed away rows open More details), clickable Parents/Wives/Children, More
 details ▾ (burial, lives in, work, education, phone, email, notes; phone and email only for editors: `/tree/details` blanks them and
 sets `contactHidden`). Under the name: 💬 Message (when they have a login) and 🔗 Trace relationship, outlined buttons.
-**"⧉ Duplicate profile? Merge."** (editors) and **Delete this person** (editors; suggesters suggest it) are at the bottom of
-✎ Edit person under "Other actions" (no longer pinned to the panel, #55); they close the editor first, then run as before.
+**"⧉ Duplicate profile? Merge."** (editors) and **Delete this person** (editors; suggesters suggest it) are in
+✎ Edit person under "Other actions", below Add husband/wife (no longer pinned to the panel, #55); they close the editor first, then run as before.
 Fit and centring use only the area not under the panel.
 
 **Controls.** Bottom strip: overview map, − % +, Fit, ⌖ Centre, ⛶ Full screen, Hide controls. Opens at

@@ -2,6 +2,17 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.12 — 2026-11-04
+
+### Changed
+- The details panel's Hide panel and ✎ Edit person stay at the top while you scroll down the details.
+- A more compact details panel: a smaller photo and name, the years and birthplace on one line under the name (full
+  dates in More details), More details as a slim link, Family talk folded to one line until opened (with the number
+  of messages), tighter spacing, and on a computer the panel is only as tall as what's in it.
+- Trace relationship, "linked through marriage": drawn as a zigzag instead of a straight list. A husband or wife
+  sits beside, parents above, children below, so a route through several marriages reads as a picture.
+- ✎ Edit person: "Other actions" (Merge, Delete) moved up, under Add husband/wife, instead of at the very bottom.
+
 ## 1.9.11 — 2026-11-03
 
 ### Changed
