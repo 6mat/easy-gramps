@@ -501,7 +501,10 @@ export function renderEditor() {
     ...twice.map(o => twiceWarn(p, o, sfs.filter(x => other(x, id) === o))),
     ...sfs.filter(x => other(x, id)).map(x => rcard(other(x, id), "spouse", x, id, lastNew === other(x, id))),
     canLink() && h("button", { class: "slot ed-slot", onclick: () => openAdd(id, "spouse") },
-      sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`));
+      sfs.some(x => other(x, id)) ? `Another ${sw}` : `Add ${sw}`),
+    canEdit() || suggesting() ? h("div", { class: "ed-other" }, h("h3", {}, "Other actions"),  // (closed first: they change the tree)
+      canEdit() && h("button", { class: "dupbtn", onclick: async () => { await closeEditor(); openMerge(id); } }, "Duplicate profile? Merge."),
+      p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: async () => { await closeEditor(); openDelete(id); } }, "Delete this person")) : "");
   const kidGroups = sfs.map(x => {
     const o = other(x, id);
     const g = h("div", { class: "kidgroup" },
@@ -517,10 +520,7 @@ export function renderEditor() {
   $("#ed-body").replaceChildren(draftBar(),
     h("section", { class: "ed-sec" }, h("h3", {}, "Parents"), parentsRow),
     h("section", { class: "ed-sec" }, h("div", { class: "mid" }, centreCard(p), spouseCol)),
-    h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)),
-    canEdit() || suggesting() ? h("section", { class: "ed-sec ed-other" }, h("h3", {}, "Other actions"),  // (closed first: they change the tree)
-      canEdit() && h("button", { class: "dupbtn", onclick: async () => { await closeEditor(); openMerge(id); } }, "Duplicate profile? Merge."),
-      p.sug !== "gone" && !S.review && h("button", { class: "danger delbtn", onclick: async () => { await closeEditor(); openDelete(id); } }, "Delete this person")) : "");
+    h("section", { class: "ed-sec" }, h("h3", {}, "Children"), h("div", { class: "kids" }, kidGroups)));
 }
 
 // ---------- add dialog ----------

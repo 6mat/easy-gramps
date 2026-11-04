@@ -74,8 +74,8 @@ async function show(a, b) {
   title.focus();
 }
 
-const box = (id, cls = "") => h("button", { class: `relbox ${cls}`, title: `See ${name(P[id])}'s tree`, onclick: () => R.go(id) },
-  photoEl(P[id]), h("span", {}, h("strong", {}, name(P[id])), h("span", { class: "small muted" }, years(P[id]) || "")));
+const box = (id, cls = "", how = "") => h("button", { class: `relbox ${cls}`, title: `See ${name(P[id])}'s tree`, onclick: () => R.go(id) },
+  photoEl(P[id]), h("span", {}, how && h("span", { class: "small muted" }, how), h("strong", {}, name(P[id])), h("span", { class: "small muted" }, years(P[id]) || "")));
 const FOLD = 5;  // a line longer than this shows its first and last ones and folds the rest
 function column(ids, ends) {
   const col = h("div", { class: "relcol" });
@@ -103,16 +103,46 @@ function chart(a, b, ancestors) {
     h("div", { class: `relcols n${lines.length}` }, ...lines.map(l => column(l, ends))));
 }
 
-// In-laws and the rest: the shortest route through any links, each step in words ("his wife", "her brother"…).
+// In-laws and the rest: the shortest route through any links, drawn as a zigzag on a grid: a husband or wife one
+// step sideways, a parent one up, a child one down. Turning (up then down, or down then up) moves on a column, so
+// each column holds one straight run and nothing overlaps. Many generations: the middle rows fold.
 const WORD = { parent: ["father", "mother", "parent"], child: ["son", "daughter", "child"], spouse: ["husband", "wife", "husband or wife"] };
 function chain(a, b, steps = route(FAMS, a, b)) {
   if (!steps) return null;
   const g = id => ({ m: 0, f: 1 })[P[id]?.gender] ?? 2;
-  const step = (s, i) => [i ? h("div", { class: "relhow small muted" }, `↓ ${["his", "her", "their"][g(steps[i - 1].id)]} ${WORD[s.how][g(s.id)]}`) : "",
-    box(s.id, s.id === a ? "a" : s.id === b ? "b" : "")];
-  const col = h("div", { class: "relcol relchain" });
-  const draw = all => col.replaceChildren(...(all || steps.length <= FOLD + 2 ? steps.flatMap(step) : [...steps.slice(0, 2).flatMap(step),
-    h("button", { class: "relfold", onclick: () => draw(true) }, `⋮ ${steps.length - 5} more`), ...steps.slice(-3).flatMap((s, i) => step(s, steps.length - 3 + i))]));
+  let c = 0, r = 0;
+  const at = steps.map((s, i) => {
+    const turn = i > 1 && ((s.how === "child" && steps[i - 1].how === "parent") || (s.how === "parent" && steps[i - 1].how === "child"));
+    if (s.how === "spouse" || turn) c++;
+    if (s.how === "parent") r--; else if (s.how === "child") r++;
+    return { c, r };
+  });
+  const top = Math.min(...at.map(x => x.r)), low = Math.max(...at.map(x => x.r));
+  const wrap = h("div", { class: "relgridwrap" });
+  const draw = all => {
+    const fold = !all && low - top > 4;  // keep the two top and two bottom generations
+    const row = {}, cells = [];
+    let n = 1, foldAt = 0;
+    for (let y = top; y <= low; y++) {
+      if (fold && y > top + 1 && y < low - 1) { if (!foldAt) { foldAt = n; n += 2; } continue; }
+      row[y] = n; n += 2;  // a row for the boxes, then one for the lines down to the next
+    }
+    const put = (el, col, rw) => { el.style.gridColumn = col; el.style.gridRow = rw; cells.push(el); };
+    steps.forEach((s, i) => {
+      const { c: x, r: y } = at[i];
+      if (row[y]) put(box(s.id, s.id === a ? "a" : s.id === b ? "b" : "",
+        i ? `${["his", "her", "their"][g(steps[i - 1].id)]} ${WORD[s.how][g(s.id)]}` : ""), 2 * x + 1, row[y]);
+      if (!i) return;
+      const p = at[i - 1], hi = Math.min(p.r, y), side = x > p.c;
+      if (y === p.r) { if (row[y]) put(h("div", { class: "rl h" }), 2 * p.c + 2, row[y]); }  // husband or wife
+      else if (row[hi] && row[hi + 1]) put(h("div", { class: `rl ${!side ? "v" : y > p.r ? "dn" : "up"}` }), side ? 2 * p.c + 2 : 2 * x + 1, row[hi] + 1);
+    });
+    if (foldAt) put(h("button", { class: "relfold", onclick: () => draw(true) }, `⋮ ${low - top - 3} more generations`), "1 / -1", foldAt);
+    const cols = at.at(-1).c;
+    const grid = h("div", { class: "relgrid" }, ...cells);
+    grid.style.gridTemplateColumns = Array(cols + 1).fill("minmax(130px, 170px)").join(" 28px ");  // (not a style="": the CSP blocks those)
+    wrap.replaceChildren(grid);
+  };
   draw(false);
-  return col;
+  return wrap;
 }

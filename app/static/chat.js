@@ -310,6 +310,7 @@ export function messageButton(p) {
   if (!login || login === D.me) return "";
   return h("button", { class: "msgbtn small", onclick: () => openPrivate({ person: p.id }) }, `💬 Message ${first(p)}`);
 }
+const talkOpen = new Set();  // people whose Family talk is unfolded (this visit)
 export function talkSection(p) {
   const box = h("section", { class: "talk" });
   const draw = () => {
@@ -329,7 +330,12 @@ export function talkSection(p) {
         await fetchTalk(p.id); draw(); refresh();
       } catch (err) { btn.disabled = false; failed(err); }
     } }, "Send");
-    box.replaceChildren(...[h("h3", {}, `Family talk about ${first(p)}`),
+    const open = talkOpen.has(p.id) || !!talkDraft[p.id];
+    const head = h("button", { class: "linkish talkhead", "aria-expanded": String(open),
+      onclick: () => { talkOpen.has(p.id) ? talkOpen.delete(p.id) : talkOpen.add(p.id); draw(); } },
+      `💬 Family talk about ${first(p)}${t?.count ? ` (${t.count})` : ""} ${open ? "▴" : "▾"}`);
+    if (!open) return box.replaceChildren(head);  // folded: one line, the count says if there's anything
+    box.replaceChildren(...[head,
       !t ? h("div", { class: "small muted" }, "Loading…")
         : t.count ? [...t.messages.map(m => h("div", { class: "msg small" }, avatar(m.login),
           h("div", { class: "mb" }, h("div", { class: "who" }, h("strong", {}, whoName(m.login)), h("span", { class: "small muted" }, dayLabel(m.at))),
