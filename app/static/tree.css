@@ -701,6 +701,11 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .rl { align-self: stretch; justify-self: stretch; min-height: 18px; }
 .rl.h { background: linear-gradient(var(--edge), var(--edge)) center / 100% 2px no-repeat; }
 .rl.v { background: linear-gradient(var(--edge), var(--edge)) center / 2px 100% no-repeat; }
+.relgrid > .reltop { align-self: stretch; align-items: flex-end; padding-bottom: 14px; }
+.relgrid > .reltop::after { border-color: var(--edge); }
+.relgrid > .reltop > .relbox { flex: 0 1 calc(50% - 4px); white-space: normal; }
+.rl.fork { background: linear-gradient(var(--edge), var(--edge)) center top / calc(50% + 15px) 2px no-repeat,  /* from the couple to the middle of each line's column (28px gap) */
+  linear-gradient(var(--edge), var(--edge)) calc(25% - 7px) 0 / 2px 100% no-repeat, linear-gradient(var(--edge), var(--edge)) calc(75% + 7px) 0 / 2px 100% no-repeat; }
 .rl.dn { background: linear-gradient(to top right, transparent calc(50% - 1.5px), var(--edge) 50%, transparent calc(50% + 1.5px)); }
 .rl.up { background: linear-gradient(to bottom right, transparent calc(50% - 1.5px), var(--edge) 50%, transparent calc(50% + 1.5px)); }
 .relbox { display: flex; align-items: center; gap: 8px; padding: 6px 10px; text-align: left; min-width: 0; background: var(--card); }

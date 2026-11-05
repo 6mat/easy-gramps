@@ -218,7 +218,8 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   generations): `[{say, ancestors}]` (how b is to a; `[]` = not by blood). The page draws the route from the graph
   (checks.js `upTo`: up through parents to the nearest common ancestor, plus their partner if both are; `route`: shortest
   route through any link, for in-laws or nothing from Gramps; drawn as a zigzag grid: husband/wife sideways, parent up,
-  child down, a turn moves on a column). "👤 Me" (Find me) is `a`, so it reads "X is your …". Lines longer than 5 fold;
+  child down, a turn moves on a column; where it goes up then down, that parent and their partner from the
+  family both kids are in sit centred over both columns in a `.reltop`, with a `.rl.fork` under them). "👤 Me" (Find me) is `a`, so it reads "X is your …". Lines longer than 5 fold;
   the grid keeps 2 top and 2 bottom generations. Grid columns are set via `el.style` (the CSP blocks style="").
 - **Family documents** (docs.js, ☰ Menu `#menu-docs`, Site settings item `docs`): `GET /tree/documents` = every
   non-`image/*` media `{id, title (desc, else file name), mime}` by title. `GET /gapi/media/{h}/file?name=&download=1`

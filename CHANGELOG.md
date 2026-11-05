@@ -2,6 +2,12 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.15 — 2026-11-04
+
+### Fixed
+- Trace relationship through a marriage: the couple at the top is shown together (both, when the tree has both), centred
+  over the two lines, as it is for blood relatives. Before, only one of them showed, sitting over the left line.
+
 ## 1.9.14 — 2026-11-04
 
 ### Changed
