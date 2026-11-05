@@ -105,7 +105,8 @@ function chart(a, b, ancestors) {
 
 // In-laws and the rest: the shortest route through any links, drawn as a zigzag on a grid: a husband or wife one
 // step sideways, a parent one up, a child one down. Turning (up then down, or down then up) moves on a column, so
-// each column holds one straight run and nothing overlaps. Many generations: the middle rows fold.
+// each column holds one straight run and nothing overlaps. Where it goes up and then down, that parent and their husband
+// or wife sit centred over both runs, as with blood relatives. Many generations: the middle rows fold.
 const firstName = p => p.nick || p.first.split(" ")[0] || name(p);  // short: a caption, the full name is in that box
 const WORD = { parent: ["father", "mother", "parent"], child: ["son", "daughter", "child"], spouse: ["husband", "wife", "husband or wife"] };
 function chain(a, b, steps = route(FAMS, a, b)) {
@@ -118,6 +119,7 @@ function chain(a, b, steps = route(FAMS, a, b)) {
     if (s.how === "parent") r--; else if (s.how === "child") r++;
     return { c, r };
   });
+  const peak = i => steps[i]?.how === "parent" && steps[i + 1]?.how === "child";  // up to here, then down the other side
   const top = Math.min(...at.map(x => x.r)), low = Math.max(...at.map(x => x.r));
   const wrap = h("div", { class: "relgridwrap" });
   const draw = all => {
@@ -131,11 +133,16 @@ function chain(a, b, steps = route(FAMS, a, b)) {
     const put = (el, col, rw) => { el.style.gridColumn = col; el.style.gridRow = rw; cells.push(el); };
     steps.forEach((s, i) => {
       const { c: x, r: y } = at[i];
-      if (row[y]) put(box(s.id, s.id === a ? "a" : s.id === b ? "b" : "",
-        i ? `${WORD[s.how][g(s.id)]} of ${firstName(P[steps[i - 1].id])}` : ""), 2 * x + 1, row[y]);  // named: "his" can point at a box below
+      const cap = (id, how) => i ? `${WORD[how][g(id)]} of ${firstName(P[steps[i - 1].id])}` : "";  // named: "his" can point at a box below
+      const one = id => box(id, id === a ? "a" : id === b ? "b" : "", cap(id, s.how));
+      if (row[y] && peak(i)) {  // the top of the route: the couple (when both are in the tree), centred over the two lines
+        const fam = FAMS.find(f => (f.f === s.id || f.m === s.id) && f.kids.includes(steps[i - 1].id) && f.kids.includes(steps[i + 1].id));
+        put(h("div", { class: "reltop" }, ...(fam ? [fam.f, fam.m].filter(id => P[id]) : [s.id]).map(one)), `${2 * x + 1} / span 3`, row[y]);
+      } else if (row[y]) put(one(s.id), 2 * x + 1, row[y]);
       if (!i) return;
       const p = at[i - 1], hi = Math.min(p.r, y), side = x > p.c;
-      if (y === p.r) { if (row[y]) put(h("div", { class: "rl h" }), 2 * p.c + 2, row[y]); }  // husband or wife
+      if (peak(i) || peak(i - 1)) { if (peak(i - 1) && row[hi] && row[hi + 1]) put(h("div", { class: "rl fork" }), `${2 * p.c + 1} / span 3`, row[hi] + 1); }
+      else if (y === p.r) { if (row[y]) put(h("div", { class: "rl h" }), 2 * p.c + 2, row[y]); }  // husband or wife
       else if (row[hi] && row[hi + 1]) put(h("div", { class: `rl ${!side ? "v" : y > p.r ? "dn" : "up"}` }), side ? 2 * p.c + 2 : 2 * x + 1, row[hi] + 1);
     });
     if (foldAt) put(h("button", { class: "relfold", onclick: () => draw(true) }, `⋮ ${low - top - 3} more generations`), "1 / -1", foldAt);
