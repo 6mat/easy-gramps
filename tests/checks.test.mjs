@@ -49,3 +49,18 @@ test("routes for Related to…", () => {
   assert.deepEqual(route(F, "me", "bro").map(s => [s.id, s.how]), [["me", undefined], ["wife", "spouse"], ["x", "parent"], ["bro", "child"]]);
   assert.equal(route(F, "me", "nobody"), null);
 });
+
+test("dates are typed and shown in the chosen format", async () => {
+  globalThis.document ??= { documentElement: { dataset: {} } };  // common.js reads the page's settings when it loads
+  const { fmtDate, parseTyped, setDateFormat } = await import("../app/static/common.js");
+  const d = { y: 1950, m: 3, d: 12 };
+  for (const [f, shown, typed] of [["d mon y", "12 Mar 1950", "12/3/1950"], ["d/m/y", "12/03/1950", "12.03.1950"], ["m/d/y", "03/12/1950", "3/12/1950"],
+    ["y-m-d", "1950-03-12", "19500312"], ["mon d, y", "March 12, 1950", "3/12/1950"]]) {
+    setDateFormat(f);
+    assert.equal(fmtDate(d), shown);
+    assert.deepEqual(parseTyped(shown), d, f);
+    assert.deepEqual(parseTyped(typed), d, f);
+  }
+  assert.equal(parseTyped("31 Feb 1950"), null);
+  assert.equal(parseTyped("12 Foo 1950"), null);
+});

@@ -1,7 +1,7 @@
 // Easy Gramps — "Find me": each login linked to its own person in the tree. Anyone with a login can link
 // themselves (no approval; one login per person); editors see who is linked and can unlink.
 import { api, auth, BASE, LoginNeeded, SHARED, store } from "./auth.js";
-import { $, APP_NAME, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords } from "./common.js";
+import { $, APP_NAME, ME, P, canEdit, closeMenu, fmtDate, h, matches, name, parentFam, photoEl, searchWords, send } from "./common.js";
 import { hitRows, searchKeys } from "./search.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { seeTree } from "./tree.js";
@@ -11,9 +11,10 @@ import { showLogin } from "./start.js";
 const LATER = "eg_findme_later";  // "Not now" on the start screen, this device only
 let LOGINS = {};                  // editors: person -> login name
 let INVITES = {};                 // the owner: person -> waiting invite {email, role, at}
-const isOwner = () => (ME.role ?? 0) >= 4;
+export const isOwner = () => (ME.role ?? 0) >= 4;
 export const ROLES = [[0, "Guest", "can look at the tree, not private details"], [1, "Member", "can look, and sees private details"],
   [2, "Contributor", "can also add people"], [3, "Editor", "can also change and remove"]];
+export const roleName = n => [...ROLES, [4, "Owner"], [5, "Admin"]].find(([v]) => v === n)?.[1] || "";
 
 export const myPerson = () => (P[ME.settings?.person] ? ME.settings.person : null);
 
@@ -30,7 +31,6 @@ export function joinedToast() {
   if (j.length) toast(`${j.map(x => `${x.name} (${ROLES[x.role][1]})`).join(", ")} joined the family tree ✓`);
 }
 
-const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
 function failed(err, where) {
   if (err instanceof LoginNeeded) return showLogin();
   where ? where.replaceChildren(h("div", { class: "warn" }, err.message)) : toast(`Not saved: ${err.message}`);

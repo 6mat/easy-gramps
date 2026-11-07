@@ -32,7 +32,7 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 ## Layout
 ```
 app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
-                    /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}[/cropped/x1/y1/x2/y2]/thumbnail/{size} (the person's region of a picture: graph `crops` {media: rect}; login from the HttpOnly eg_photo cookie), /debug/log (only with DEBUG_LOG=1), / = the page
+                    /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}[/cropped/x1/y1/x2/y2]/thumbnail/{size} (the person's region of a picture: graph `crops` {media: rect}; login from the HttpOnly eg_photo cookie), / = the page
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
 app/suggest.py      Suggestions (APIRouter, included by main.py): table `suggestions` in chat.sqlite3; /suggestions, /suggestions/decide,
@@ -47,10 +47,8 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
                     (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites, Logins), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
-                    (tokens + api()) · debug.js (?debug)
+                    (tokens + api())
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
-app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
-                    or the browser's login for Google users); ask "yes" before changing anything
 deploy/             compose.traefik.yaml — install next to Gramps Web on the same domain
 LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added dependency compatible
 ```
@@ -232,7 +230,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   else `attachment` + `application/octet-stream`; filename = name + Gramps' extension; its own CSP
   (`frame-ancestors 'none'` only: the page CSP's object-src 'none' would stop the browser's PDF viewer). The dialog
   calls `refreshLogin()` first, so the token behind the tickets has its full time ahead.
-- No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything; `remove_tag.py`).
+- No tag on records unless `TREE_TAG` is set (before 1.2: "Easy Gramps" on everything).
 - `GET /tree/recent` — people by last change, with who changed them (last 80 history entries).
 - Deleting a family: first empty it with a PUT so Gramps clears everyone's back-links, then delete.
   Gramps maintains `family_list` / `parent_family_list` itself when families change — relied on.
@@ -319,7 +317,7 @@ with their own buttons steps back over those entries (Back never reopens them).
 **Editor** (full screen): Back to tree, Home, Saving…/Saved ✓/Not saved + Try again. Parents on top,
 the person's card, spouses beside, children grouped by spouse. Fields: photo, Photos (tiles, ★ = profile,
 + Add photos), first/last/nickname,
-**Male / Female only**, birthday (typed in Menu → Dates' order (`dateHint`/`parseTyped` in common.js) with the number keypad, 📅 = the browser's
+**Male / Female only**, birthday (shown and typed as Menu → Dates (`dateHint`/`parseTyped` in common.js; numbers in that order or a month word), number keypad for all-number formats, 📅 = the browser's
 date box laid invisibly over it; or "I only know the year"), place of birth, Passed away?
 (reveals death date and burial place), More details (residing at, work, education, phone, email, notes). Autosave:
 typing is saved when you leave the box or pause 2 s; ticks, buttons and the calendar at once; a year

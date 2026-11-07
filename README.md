@@ -79,19 +79,6 @@ https://gramps.example.com/easy-gramps/   -> Easy Gramps
 
 See the comments in `deploy/compose.traefik.yaml` for the network and router assumptions.
 
-**Clean up places (once, after upgrading from 0.9.1 or older).** Older versions made a new place
-each time you paused while typing one ("Lo", "Lond", "London"). This lists the places Easy Gramps
-made that nobody uses, and deletes them only if you type `yes` (log in as an Editor or Owner):
-`docker exec -it easy-gramps python unused_places.py`
-
-**Take the "Easy Gramps" tag off (once, after upgrading from 1.1 or older).** Older versions put the
-tag "Easy Gramps" on every record they made; 1.2 adds no tag (unless `TREE_TAG` is set). This takes
-it off every record that has it, then deletes the tag. Nothing else changes and nothing is deleted;
-it shows how many records have it and asks for `yes` first. Run the place clean-up above first if you
-need it (it finds those places by the tag). Log in as an Editor or Owner, with your name and password,
-or, if you log in with Google, with your browser's login (it shows you how):
-`podman exec -it easy-gramps python remove_tag.py` (or `docker exec -it …`)
-
 **Move from `/family` to `/easy-gramps` (after upgrading from 1.4 or older).** Easy Gramps used to live at
 `/family`, but Gramps Web's own family pages are `/family/F0012`, so the "Open in Full Gramps" links to a
 family would open Easy Gramps instead. An install that sets `BASE_PATH=/family` keeps working at `/family`
@@ -151,7 +138,7 @@ read-only screen check weekly.
 | `GRAMPS_URL` | How the app reaches Gramps Web (internal Docker URL on a server). |
 | `GRAMPS_PUBLIC_URL` | The Gramps Web address browsers open from the menu. Defaults to `GRAMPS_URL`. When it's the same site as this page (Easy Gramps at `https://gramps.example.com/easy-gramps/`, this set to `https://gramps.example.com`), the two apps share one login, Google / single sign-on included (see below). |
 | `BASE_PATH` | Path the app is served under. Default `/easy-gramps`. |
-| `TREE_TAG` | A tag put on records the tree makes (people, families, events, places, notes, photos), e.g. `Easy Gramps`. Empty by default: no tag. Before 1.2 the default was `Easy Gramps`; `remove_tag.py` takes it off again (see below). |
+| `TREE_TAG` | A tag put on records the tree makes (people, families, events, places, notes, photos), e.g. `Easy Gramps`. Empty by default: no tag. Before 1.2 the default was `Easy Gramps`. |
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
@@ -159,7 +146,6 @@ read-only screen check weekly.
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | The family chat's daily email: anyone with chat messages unread for a day gets one email listing them (at most one a day; each person can switch it off in ☰ Menu → You). The same names and values as Gramps Web's own email settings; Gramps Web's `GRAMPSWEB_EMAIL_HOST`, `GRAMPSWEB_EMAIL_HOST_USER` and the rest are read too, so both containers can share one env file. Port 465 uses SSL, 587 STARTTLS (required when there's a login, so the password never goes unencrypted). No `EMAIL_HOST`: no emails. Logins not seen for 30 days (e.g. disabled in Gramps Web) get none. |
 | `APP_URL` | This page's address for the link in those emails. Defaults to `GRAMPS_PUBLIC_URL` + `BASE_PATH`. |
 | `PASSWORD_LOGIN` | `off` hides the name-and-password form on this page only, leaving Gramps Web's sign-in buttons (e.g. Continue with Google). Gramps Web keeps its own password login, and with a shared login (see below) logging in there logs you in here too. On by default. |
-| `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
 ## On a phone or tablet: install it as an app
 
@@ -201,8 +187,7 @@ the name-and-password form, as before.
   family chat. `app/push.py` — the chat's phone notifications (Web Push; its key is made in `data/push-key.pem`).
 - `app/static/` — the page: `tree.html` + `tree.css` and small ES modules (`main.js` entry, `common.js`,
   `tree.js`, `panel.js`, `editor.js`, `merge.js`, `start.js`, `search.js`, `me.js`); `auth.js` handles login and tokens.
-- `app/remove_tag.py`, `app/unused_places.py` — one-off clean-ups the owner runs on the server (`cli_login.py`
-  logs them in). Keep the `data/` folder (`chat.sqlite3`, `push-key.pem`) in your backups; for a copy of the database
+- Keep the `data/` folder (`chat.sqlite3`, `push-key.pem`) in your backups; for a copy of the database
   while the app runs, use `sqlite3 chat.sqlite3 ".backup copy.sqlite3"`.
 
 ## License

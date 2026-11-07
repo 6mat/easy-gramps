@@ -10,7 +10,7 @@ import { openMerge } from "./merge.js";
 import { openRelate } from "./relate.js";
 import { seeTree } from "./tree.js";
 import { hideDlg, toast } from "./editor.js";
-import { ROLES, linkLogin } from "./me.js";
+import { ROLES, isOwner, linkLogin, roleName } from "./me.js";
 import { hitRows, searchKeys } from "./search.js";
 import { openHistory, openReview } from "./suggest.js";
 
@@ -28,7 +28,7 @@ const MENU = [["chat", "#chatbtn .lbl", "Chat"], ["menu", "#menubtn .lbl", "Menu
   ["logout", "#logout", "Log out"], ["source", "#menu-source", "Source code ↗", "source"]];
 const SUGGEST = [["off", "Off"], ["members", "Members and contributors"], ["everyone", "Everyone, guests too"]];
 const GRAMPS = [["nobody", "Nobody"], ["owner", "Only the owner"], ["editors", "Editors and the owner"], ["everyone", "Everyone"]];
-const isOwner = () => (ME.role ?? 0) >= 4, isAdmin = () => (ME.role ?? 0) >= 5, canCheck = () => !!ME.can_check;
+const isAdmin = () => (ME.role ?? 0) >= 5, canCheck = () => !!ME.can_check;
 const SEE = [[0, "Everyone"], [1, "Members and up"], [2, "Contributors and up"], [3, "Editors and up"], [4, "Owner and up"], [5, "Admins only"]];
 const WHERE = [["top", "At the top"], ["more", "In More details"]];
 
@@ -38,7 +38,7 @@ export function applySite() {
   const waiting = (isOwner() ? ME.joining || 0 : 0) + (ME.suggestions || 0);
   $("#menu-manage").hidden = !mine().length;
   $("#menu-manage").textContent = `${named("manage", "⚙️ Manage")}${waiting ? ` (${waiting})` : ""}`;
-  const role = [...ROLES, [4, "Owner"], [5, "Admin"]].find(([n]) => n === ME.role)?.[1];
+  const role = roleName(ME.role);
   $("#menu-role").textContent = role ? `Logged in as ${ME.full_name || ME.name} (${role})` : "";
   const names = ME.site?.labels || {};
   for (const [k, sel] of MENU) {
@@ -178,7 +178,6 @@ async function joining() {
 // ---------- Invites (owner): the ones nobody has used yet (made with ✉ Invite in someone's details) ----------
 async function invites() {
   const list = await api("/invites");
-  const roleName = n => ROLES.find(([v]) => v === n)?.[1] || "";
   const rows = list.map(i => {
     const say = h("div", { class: "small", role: "status" });
     const drop = h("button", {}, "Cancel invite");
@@ -202,7 +201,6 @@ async function invites() {
 async function logins() {
   const list = await api("/logins");
   list.sort((x, y) => !y.person - !x.person || x.name.localeCompare(y.name));
-  const roleName = n => [...ROLES, [4, "Owner"], [5, "Admin"]].find(([v]) => v === n)?.[1] || "";
   const rows = list.map(u => {
     const row = h("div", { class: "joinrow" }), say = h("div", { class: "small", role: "status" });
     const draw = () => {
