@@ -245,7 +245,33 @@ function inviteLine(p) {
   return h("div", { class: "small loginline" }, inv
     ? [h("span", { class: "muted" }, `✉ Invited as ${ROLES[inv.role][1]} on ${fmtDate({ y: when.getFullYear(), m: when.getMonth() + 1, d: when.getDate() })}, waiting for them to sign in · `),
       h("button", { class: "linkish", onclick: () => openInvite(p) }, "Invite again")]
-    : h("button", { onclick: () => openInvite(p) }, "✉ Invite to the family tree"));
+    : h("span", { class: "btnrow" }, h("button", { onclick: () => openInvite(p) }, "✉ Invite to the family tree"),
+      isOwner() ? h("button", { onclick: () => openLinkLogin(p) }, "🔗 Link a login") : ""));
+}
+// ---------- the owner: link someone's login to their person (here, and ☰ Menu → Manage → Logins) ----------
+// One login per person; a login linked to someone else moves here, and says where it was.
+export async function linkLogin(p, login) {
+  const r = await send("PUT", `/tree/logins/${encodeURIComponent(p.id)}`, { login });
+  for (const [k, v] of Object.entries(LOGINS)) if (v === login) delete LOGINS[k];
+  LOGINS[p.id] = login;
+  if (login === ME.name) changed({ ...ME.settings, person: p.id }); else renderPanel();
+  toast(`Done: ${name(p)} is linked to the login “${login}”${P[r.was] ? `. It was linked to ${name(P[r.was])} before.` : "."}`);
+}
+async function openLinkLogin(p) {
+  const list = h("div", { class: "pick" }, h("p", { class: "muted", role: "status" }, "Loading…"));
+  $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, `Link a login to ${name(p)}`), list,
+    h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Close")));
+  showDlg(false);
+  let all;
+  try { all = await api("/logins"); } catch (err) { return failed(err, list); }
+  all.sort((x, y) => !y.person - !x.person || x.name.localeCompare(y.name));  // not linked yet first
+  list.replaceChildren(h("p", { class: "small muted" }, "Pick their login. They see the tree from their own place when they log in."),
+    ...all.map(u => h("button", { class: "loginpick", onclick: async () => {
+      try { await linkLogin(p, u.login); hideDlg(); } catch (err) { failed(err, list); }
+    } }, h("strong", {}, u.name), h("span", { class: "small muted" }, [u.login !== u.name && u.login, u.email,
+      P[u.person] ? `now linked to ${name(P[u.person])}` : "not linked yet"].filter(Boolean).join(" · ")))),
+    all.length ? "" : h("p", { class: "muted" }, "No logins yet."));
+  list.querySelector("button")?.focus();
 }
 // The same words as main.py invite_text.
 const inviteText = () => `You're invited to join our family tree!\n\nClick here: ${new URL(`${BASE}/`, location.href).href}\n\n`

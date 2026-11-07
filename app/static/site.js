@@ -4,13 +4,14 @@
 // details). The settings are kept on the server (main.py /site), the same for everyone. It's a browser-history step, like
 // the chat: Back closes it.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, name, named, postJSON, trapTab, years } from "./common.js";
+import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, matches, name, named, postJSON, searchWords, trapTab, years } from "./common.js";
 import { duplicates, islands, noRelatives, splitFamilies } from "./checks.js";
 import { openMerge } from "./merge.js";
 import { openRelate } from "./relate.js";
 import { seeTree } from "./tree.js";
 import { hideDlg, toast } from "./editor.js";
-import { ROLES } from "./me.js";
+import { ROLES, linkLogin } from "./me.js";
+import { hitRows, searchKeys } from "./search.js";
 import { openHistory, openReview } from "./suggest.js";
 
 // The top bar and ☰ Menu, in the order they show: [what the owner may rename it (main.py LABELS), where, the default
@@ -57,6 +58,7 @@ const SECTIONS = [
   ["history", () => "History", () => (ME.role ?? 0) >= 3, historyPage, CHANGES],
   ["joining", () => `Waiting to join${waits(ME.joining)}`, isOwner, joining, PEOPLE],
   ["invites", () => "Invites", isOwner, invites, PEOPLE],
+  ["logins", () => "Logins", isOwner, logins, PEOPLE],
   ["split", () => `Split families${count("split")}`, canCheck, splitPage, CHECK],
   ["alone", () => `On their own${count("alone")}`, canCheck, alonePage, CHECK],
   ["dupes", () => `Possible duplicates${count("dupes")}`, canCheck, dupesPage, CHECK],
@@ -194,6 +196,36 @@ async function invites() {
   });
   return [h("p", { class: "small muted" }, "People you invited who haven't signed in yet. When they do, they get this role and their place in the tree. To invite someone, open their details and press ✉ Invite."),
     ...(rows.length ? rows : [h("p", { class: "muted" }, "No invites waiting.")])];
+}
+
+// ---------- Logins (owner): everyone let in, and the person each is linked to (me.js linkLogin; also 🔗 Link a login in someone's details) ----------
+async function logins() {
+  const list = await api("/logins");
+  list.sort((x, y) => !y.person - !x.person || x.name.localeCompare(y.name));
+  const roleName = n => [...ROLES, [4, "Owner"], [5, "Admin"]].find(([v]) => v === n)?.[1] || "";
+  const rows = list.map(u => {
+    const row = h("div", { class: "joinrow" }), say = h("div", { class: "small", role: "status" });
+    const draw = () => {
+      const who = P[u.person];
+      const input = h("input", { type: "search", placeholder: "Search a name", autocomplete: "off", "aria-label": `Find ${u.name}'s person` });
+      const hits = h("div", { class: "pick hits" });
+      input.addEventListener("input", () => {
+        const ws = searchWords(input.value);
+        hits.replaceChildren(...(ws.length ? hitRows(Object.values(P).filter(p => matches(p, ws)).slice(0, 20), async p => {
+          try { await linkLogin(p, u.login); u.person = p.id; draw(); } catch (err) { say.textContent = err.message; }
+        }, "Link") : []));
+      });
+      searchKeys(input, hits);
+      const change = h("button", { onclick: () => { change.replaceWith(input); input.focus(); } }, who ? "Change person" : "Choose their person");
+      row.replaceChildren(h("div", {}, h("strong", {}, u.name), [u.login !== u.name && u.login, u.email, roleName(u.role)].filter(Boolean).map(x => ` · ${x}`).join(""),
+        h("div", { class: "small muted" }, who ? `Linked to ${name(who)}` : "Not linked to anyone in the tree")),
+        h("div", { class: "btnrow" }, who && h("button", { onclick: () => { leave(); seeTree(who.id); } }, "See their tree"), change), hits, say);
+    };
+    draw();
+    return row;
+  });
+  return [h("p", { class: "small muted" }, "Everyone who can log in, and who they are in the tree. Linked, they see the tree from their own place. Not linked yet first."),
+    ...(rows.length ? rows : [h("p", { class: "muted" }, "No logins yet.")])];
 }
 
 // ---------- Check the tree (the owner; editors too if an admin says so): probable mistakes, from the tree itself ----------

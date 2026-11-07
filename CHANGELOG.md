@@ -2,6 +2,17 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.16 — 2026-11-06
+
+### Added
+- `PASSWORD_LOGIN=off` hides the name-and-password form on this page only, leaving the sign-in buttons such as
+  Continue with Google. Gramps Web keeps its password login; with a shared login, logging in there logs you in here too.
+- The owner can link someone's login to their person: 🔗 Link a login in that person's details (beside ✉ Invite), or
+  ☰ Menu → Manage → People → Logins, which lists every login and who they are in the tree.
+
+### Changed
+- Continue with Google looks like Google's own sign-in button: white (dark in dark mode), grey outline, the coloured G.
+
 ## 1.9.15 — 2026-11-04
 
 ### Fixed

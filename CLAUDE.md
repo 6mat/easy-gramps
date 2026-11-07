@@ -46,7 +46,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
-                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
+                    (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites, Logins), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api()) · debug.js (?debug)
                     · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
 app/remove_tag.py, unused_places.py   one-off clean-ups the owner runs on the server (cli_login.py: password
@@ -67,7 +67,7 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   logs this page in or out. `GET /auth/options` (no login) relays Gramps Web's `/api/oidc/config/`:
   sign-in buttons (opened in a pop-up at `/api/oidc/login/?provider=…`; Gramps Web then shows its own
   home page there, so the page watches for the login instead of being sent back) and `password: false`
-  when Gramps Web disables local login. Other origins keep the `eg_*` keys and the password form. Contributors can add people but not link them (Gramps refuses
+  when Gramps Web disables local login, or this app's `PASSWORD_LOGIN=off` (this page only). Other origins keep the `eg_*` keys and the password form. Contributors can add people but not link them (Gramps refuses
   a new family that links an existing person), so add relative / unlink / undo / merge are editors only,
   checked server-side before anything is created; the page hides those buttons for them.
 - `GET /tree/graph` — everyone and every family in one response: names, gender, birth/death as
@@ -109,7 +109,10 @@ combines the same couple recorded twice (editors; same father and mother). `POST
 - **Find me:** `PUT /auth/me/person {person}` links the login to a person (anyone with a login, no approval;
   409 "Already linked to another login" — one login per person); `DELETE /auth/me/person` unlinks it. Kept as
   `person` in the login's settings (`/auth/me` → `settings.person`; `UNIQUE`, so one login per person). `GET /tree/logins` → `{person: login}`:
-  login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. A person
+  login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. The owner links anyone's
+  login: `GET /logins` (owner: let-in Gramps users + `person`), `PUT /tree/logins/{h} {login}` → `{was}` (a login linked
+  elsewhere moves; 409 if the person has another login); from 🔗 Link a login (details panel, beside ✉ Invite) and
+  ☰ Menu → Manage → People → Logins (`me.js linkLogin`). A person
   merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps; on the same site
   me.js also sets Gramps Web's browser-side home person (`grampsjs_settings_tree[tree].homePerson`, Gramps ID; always
   on "Yes, this is me", otherwise only if none is set).

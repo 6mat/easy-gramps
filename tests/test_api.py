@@ -272,6 +272,15 @@ def test_login_options_follow_gramps_web(fake, client):  # shared login, pick 2a
     assert anon.get("/easy-gramps/auth/options").json()["password"] is False  # Gramps trouble: keep what we knew
 
 
+def test_password_login_off_here_only(fake, client, monkeypatch):  # PASSWORD_LOGIN=off: Google button only on this page
+    from starlette.testclient import TestClient
+    import main
+    fake.oidc = {"enabled": True, "providers": [{"id": "google", "name": "Google"}]}
+    main._login_options.update(until=0)
+    monkeypatch.setattr(main, "PASSWORD_LOGIN", False)
+    assert TestClient(main.app).get("/easy-gramps/auth/options").json() == {"password": False, "providers": [{"id": "google", "name": "Google"}]}
+
+
 def test_account_gramps_refuses_is_not_a_logout(fake, client):  # shared login: don't log them out of Gramps Web
     fake.me_status = 403
     r = client.get("/easy-gramps/auth/me")
@@ -393,6 +402,24 @@ def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: 
     assert client.get("/easy-gramps/tree/logins").json() == {other: "bob"}
     assert client.delete(f"/easy-gramps/tree/logins/{other}").json() == {"unlinked": "bob"}
     assert client.get("/easy-gramps/tree/logins").json() == {}
+
+
+def test_owner_links_a_login_to_a_person(fake, client):  # Logins page and 🔗 Link a login
+    import main
+    ann, bob = fake.person("Ann"), fake.person("Bob")
+    fake.users = [{"name": "ann", "email": "a@example.com", "full_name": "Ann", "role": 1},
+                  {"name": "waiting", "email": "", "full_name": "", "role": -1}]
+    assert client.get("/easy-gramps/logins").status_code == 403  # an editor
+    assert client.put(f"/easy-gramps/tree/logins/{ann}", json={"login": "ann"}).status_code == 403
+    fake.role = 4
+    main._who_cache.clear()
+    assert client.get("/easy-gramps/logins").json() == [{"login": "ann", "name": "Ann", "email": "a@example.com", "role": 1, "person": None}]
+    assert client.put(f"/easy-gramps/tree/logins/{ann}", json={"login": "waiting"}).status_code == 404  # not let in yet
+    assert client.put(f"/easy-gramps/tree/logins/{ann}", json={"login": 3}).status_code == 400
+    assert client.put("/easy-gramps/tree/logins/gone", json={"login": "ann"}).status_code == 404
+    assert client.put(f"/easy-gramps/tree/logins/{bob}", json={"login": "ann"}).json() == {"was": None}
+    assert client.put(f"/easy-gramps/tree/logins/{ann}", json={"login": "ann"}).json() == {"was": bob}  # moved
+    assert client.get("/easy-gramps/logins").json()[0]["person"] == ann
 
 
 def test_a_merged_away_person_takes_its_login_along(fake, client):

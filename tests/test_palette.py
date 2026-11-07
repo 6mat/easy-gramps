@@ -35,8 +35,8 @@ def ratio(t, a, b):
 
 TEXT = [("--ink", "--bg"), ("--muted", "--card"), ("--muted", "--canvas"), ("--accent", "--card"), ("--accent-ink", "--accent"),
         ("--ok", "--ok-soft"), ("--bad", "--card"), ("--sel-ink", "--sel-soft"), ("--solid-ink", "--bad"),
-        ("--solid-ink", "--sel-ink"), ("--solid-ink", "--ok")]
-LINES = [("--ring", "--card"), ("--ring", "--canvas"), ("--sel", "--canvas"), ("--edge", "--card"), ("--edge", "--canvas")] + [
+        ("--solid-ink", "--sel-ink"), ("--solid-ink", "--ok"), ("--gbtn-ink", "--gbtn-bg")]
+LINES = [("--ring", "--card"), ("--ring", "--canvas"), ("--sel", "--canvas"), ("--edge", "--card"), ("--edge", "--canvas"), ("--gbtn-line", "--gbtn-bg")] + [
     (f"--f{i}", "--canvas") for i in range(6)]
 
 
