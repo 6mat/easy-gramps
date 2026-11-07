@@ -13,7 +13,8 @@ relatives who find the full Gramps interface too much.
 - **Open in Full Gramps ↗** (editors): a person, their birth, death, burial and places, a family or a photo,
   straight to its own page in Gramps Web.
 - **Find me:** claim your place in the tree, so the family can message you in the chat and your own family tree
-  is one tap from the start (offers Gramps Web's home person when there is one).
+  is one tap from the start (offers Gramps Web's home person when there is one). The owner can link anyone's login to their person:
+  🔗 Link a login in their details, or ☰ Menu → Manage → Logins.
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
@@ -157,6 +158,7 @@ read-only screen check weekly.
 | `ICON_FILE` | Your own app icon: a square picture (PNG or JPG) inside the container. Every icon size is made from it, and installed phones pick up a new one. Defaults to the bundled tree. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | The family chat's daily email: anyone with chat messages unread for a day gets one email listing them (at most one a day; each person can switch it off in ☰ Menu → You). The same names and values as Gramps Web's own email settings; Gramps Web's `GRAMPSWEB_EMAIL_HOST`, `GRAMPSWEB_EMAIL_HOST_USER` and the rest are read too, so both containers can share one env file. Port 465 uses SSL, 587 STARTTLS (required when there's a login, so the password never goes unencrypted). No `EMAIL_HOST`: no emails. Logins not seen for 30 days (e.g. disabled in Gramps Web) get none. |
 | `APP_URL` | This page's address for the link in those emails. Defaults to `GRAMPS_PUBLIC_URL` + `BASE_PATH`. |
+| `PASSWORD_LOGIN` | `off` hides the name-and-password form on this page only, leaving Gramps Web's sign-in buttons (e.g. Continue with Google). Gramps Web keeps its own password login, and with a shared login (see below) logging in there logs you in here too. On by default. |
 | `DEBUG_LOG` | `1` accepts screen-measurement reports from `?debug` into `data/debug.log`. Off by default. |
 
 ## On a phone or tablet: install it as an app

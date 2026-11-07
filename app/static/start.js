@@ -123,7 +123,9 @@ export async function showLogin(message) {
   const sso = SHARED ? providers.filter(p => p.id) : [];  // these only work on Gramps Web's own site
   const err = h("div", { role: "status" }, message && h("div", { class: "warn" }, message));
   const form = h("form", { class: "login-form" }, h("h2", {}, `🌳 ${APP_NAME}`),
-    ...sso.map(p => h("button", { class: "primary", type: "button", onclick: () => signIn(p) }, `Continue with ${p.name || p.id}`)));
+    ...sso.map(p => p.id === "google"
+      ? h("button", { class: "gbtn", type: "button", onclick: () => signIn(p) }, h("img", { src: `${BASE}/static/google-g.svg`, alt: "" }), "Continue with Google")
+      : h("button", { class: "primary", type: "button", onclick: () => signIn(p) }, `Continue with ${p.name || p.id}`)));
   if (password) {
     const user = h("input", { id: "lg-user", autocomplete: "username", autocapitalize: "none" });
     const pass = h("input", { id: "lg-pass", type: "password", autocomplete: "current-password" });

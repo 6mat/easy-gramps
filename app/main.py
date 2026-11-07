@@ -38,6 +38,7 @@ GRAMPS_LINK_LABEL = os.environ.get("GRAMPS_LINK_LABEL", "Full Gramps")  # menu l
 # Menu link to this app's source code (AGPL: people using a modified copy over the network must be
 # offered its source). Point it at your own repository if you run a changed version.
 SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6mat/easy-gramps"
+PASSWORD_LOGIN = os.environ.get("PASSWORD_LOGIN", "on") != "off"  # off: this page shows only the sign-in buttons
 DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
@@ -215,7 +216,8 @@ async def login_options():
                 "password": not (on and c.get("disable_local_auth")),
                 "providers": [{"id": str(x.get("id", "")), "name": str(x.get("name", ""))} for x in c.get("providers") or []] if on else []}
         _login_options["until"] = time.time() + (600 if c is not None else 30)  # try again soon after a failure
-    return _login_options["value"]
+    # shortcut: off only hides the form; /auth/login still takes a password, as Gramps Web itself does anyway
+    return {**_login_options["value"], "password": _login_options["value"]["password"] and PASSWORD_LOGIN}
 
 
 @easy.post("/auth/login")
@@ -710,6 +712,37 @@ async def tree_logins(request: Request):
     """Who is linked to a login: the login names for editors, only who has one for everyone else."""
     editor = (await who(request)).get("can_edit")
     return {p: (n if editor else "") for n, p in CHAT.linked().items()}
+
+
+@easy.get("/logins")
+async def all_logins(request: Request):
+    """The owner: every login that's let in, with the person it's linked to (☰ Menu → Manage → Logins, and 🔗 Link a login)."""
+    await need_owner(request)
+    try:
+        users = await gramps_users(bearer(request))
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    linked = CHAT.linked()
+    return [{"login": u["name"], "name": u.get("full_name") or u["name"], "email": u.get("email") or "", "role": u.get("role", 0),
+             "person": linked.get(u["name"])} for u in users if u.get("role", 0) >= 0]
+
+
+@easy.put("/tree/logins/{handle}")
+async def tree_link_login(handle: str, request: Request):
+    """The owner links a login to this person; a login linked elsewhere moves here (`was`: where it was)."""
+    await need_owner(request)
+    login = (await json_body(request)).get("login")
+    if not isinstance(login, str) or not login or not handle.replace("-", "").isalnum():
+        raise HTTPException(400, "Something was missing. Please try again.")
+    try:
+        if not any(u["name"] == login and u.get("role", 0) >= 0 for u in await gramps_users(bearer(request))):
+            raise HTTPException(404, "That login isn't there any more.")
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
+    was = CHAT.linked().get(login)
+    CHAT.link(login, handle)  # (409 if another login has this person)
+    return {"was": was if was != handle else None}
 
 
 @easy.delete("/tree/logins/{handle}")

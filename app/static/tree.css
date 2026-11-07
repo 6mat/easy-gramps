@@ -15,7 +15,7 @@
 /* Easy Gramps palette (v1), extended with one colour per family for the tree's lines. */
 :root {
   --bg: #f6f3ee; --canvas: #fbf9f5; --card: #ffffff; --ink: #1d1b18; --muted: #5c574f; --line: #e2dbcf; --edge: #8f8576;
-  --accent: #1f5f99; --accent-ink: #ffffff; --accent-soft: #e6eef7; --ok: #2f6f4e; --ok-soft: #e5f1ea; --bad: #a3261b; --ring: var(--ink); --sel: #a97500; --sel-ink: #825b0c; --solid-ink: #ffffff; --sel-soft: #fbeccf; --dot: #e8e2d7;
+  --accent: #1f5f99; --accent-ink: #ffffff; --accent-soft: #e6eef7; --ok: #2f6f4e; --ok-soft: #e5f1ea; --bad: #a3261b; --ring: var(--ink); --sel: #a97500; --sel-ink: #825b0c; --solid-ink: #ffffff; --gbtn-bg: #ffffff; --gbtn-line: #747775; --gbtn-ink: #1f1f1f; --sel-soft: #fbeccf; --dot: #e8e2d7;
   --f0: #2c7a6b; --f1: #a0571a; --f2: #7a3e8e; --f3: #b0445a; --f4: #4f6b2a; --f5: #4a4fa3;
   --shadow: 0 1px 2px rgba(40, 30, 10, .08), 0 2px 8px rgba(40, 30, 10, .06);
   color-scheme: light;
@@ -23,14 +23,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #171614; --canvas: #1c1b19; --card: #25231f; --ink: #f3efe8; --muted: #b5ad9f; --line: #37342f; --edge: #787168;
-    --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: var(--ink); --sel: #f0b429; --sel-ink: #f0b429; --solid-ink: #25231f; --sel-soft: #3a2f16; --dot: #2a2825;
+    --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: var(--ink); --sel: #f0b429; --sel-ink: #f0b429; --solid-ink: #25231f; --gbtn-bg: #131314; --gbtn-line: #8e918f; --gbtn-ink: #e3e3e3; --sel-soft: #3a2f16; --dot: #2a2825;
     --f0: #5cc4ad; --f1: #e0a15c; --f2: #c79ad6; --f3: #f08aa0; --f4: #a8c46a; --f5: #9ea3f0;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
   }
 }
 :root[data-theme="dark"], .viewer {  /* .viewer: photos and books are always on dark */
   --bg: #171614; --canvas: #1c1b19; --card: #25231f; --ink: #f3efe8; --muted: #b5ad9f; --line: #37342f; --edge: #787168;
-  --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: var(--ink); --sel: #f0b429; --sel-ink: #f0b429; --solid-ink: #25231f; --sel-soft: #3a2f16; --dot: #2a2825;
+  --accent: #7ab0e6; --accent-ink: #0d1b28; --accent-soft: #1f2d3b; --ok: #7cc49c; --ok-soft: #1d2e25; --bad: #ff8a7e; --ring: var(--ink); --sel: #f0b429; --sel-ink: #f0b429; --solid-ink: #25231f; --gbtn-bg: #131314; --gbtn-line: #8e918f; --gbtn-ink: #e3e3e3; --sel-soft: #3a2f16; --dot: #2a2825;
   --f0: #5cc4ad; --f1: #e0a15c; --f2: #c79ad6; --f3: #f08aa0; --f4: #a8c46a; --f5: #9ea3f0;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
 }
@@ -357,6 +357,10 @@ button.slot:hover { color: var(--accent); border-color: var(--accent); backgroun
 .login-form h2 { margin: 0; font-size: 26px; }
 .login-form label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
 .login-form button { padding: 12px; font-size: 18px; }
+/* Google's own button (its sign-in branding: white or near-black, grey outline, the four-colour G, pill shape) */
+.login-form .gbtn { display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--gbtn-bg); color: var(--gbtn-ink);
+  border: 1px solid var(--gbtn-line); border-radius: 999px; font-weight: 500; }
+.gbtn img { width: 20px; height: 20px; flex: none; }
 .menu-pop .menulink { color: var(--accent); font-weight: 700; text-decoration: none; }
 .menu-pop .menulink:hover { text-decoration: underline; }
 
@@ -615,6 +619,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .sugdone .linkish { text-align: left; }
 .joinrow { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
 .joinrow select { max-width: 100%; }
+.loginpick { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; }
 .histbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
 .histbar label { display: flex; flex-direction: column; gap: 4px; }
 .histbar > button { padding: 6px 11px; font-size: 14px; }
