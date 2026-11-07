@@ -125,20 +125,26 @@ export const DATE_CHOICES = Object.entries(DATE_FORMATS).map(([k, f]) => [k, f({
 export let dateFormat = "d mon y";
 export function setDateFormat(f) { if (DATE_FORMATS[f]) dateFormat = f; }
 export const fmtDate = d => !d ? "" : d.m && d.d ? DATE_FORMATS[dateFormat](d) : String(d.y);
-// Typing a date: numbers in the order of the chosen format ("12 Mar 1950" types as 12/03/1950).
+// Typing a date: shown in the chosen format; numbers in its order also work ("12/3/1950" for "12 Mar 1950").
 const ORDER = { "m/d/y": "mdy", "mon d, y": "mdy", "y-m-d": "ymd" };
-export const dateHint = () => ({ dmy: "DD/MM/YYYY", mdy: "MM/DD/YYYY", ymd: "YYYY-MM-DD" })[ORDER[dateFormat] || "dmy"];
-export function typedDate(d) {
-  const o = ORDER[dateFormat] || "dmy";
-  return o === "ymd" ? `${d.y}-${pad(d.m)}-${pad(d.d)}` : o === "mdy" ? `${pad(d.m)}/${pad(d.d)}/${d.y}` : `${pad(d.d)}/${pad(d.m)}/${d.y}`;
-}
-// "12/3/1950", "12.03.1950", "12031950" (as the hint) → {y, m, d}; null when it isn't a real date.
+const HINTS = { "d mon y": "DD Mon YYYY", "d/m/y": "DD/MM/YYYY", "m/d/y": "MM/DD/YYYY", "y-m-d": "YYYY-MM-DD", "mon d, y": "Month DD, YYYY" };
+export const dateHint = () => HINTS[dateFormat];
+export const monthWords = () => dateFormat.includes("mon");
+// "12/3/1950", "12.03.1950", "12031950", "12 Mar 1950", "March 12, 1950" → {y, m, d}; null when it isn't a real date.
 export function parseTyped(text) {
   const o = ORDER[dateFormat] || "dmy", t = text.trim();
-  let parts = t.split(/\D+/).filter(Boolean);
-  if (parts.length === 1 && /^\d{8}$/.test(t)) parts = o === "ymd" ? [t.slice(0, 4), t.slice(4, 6), t.slice(6)] : [t.slice(0, 2), t.slice(2, 4), t.slice(4)];
-  if (parts.length !== 3) return null;
-  const v = Object.fromEntries([...o].map((k, i) => [k, Number(parts[i])]));
+  let parts = t.match(/\d+|[a-z]+/gi) || [], v;
+  const word = parts.find(w => isNaN(w));
+  if (word) {
+    const m = MON.findIndex(x => x.toLowerCase() === word.slice(0, 3).toLowerCase()) + 1, n = parts.filter(w => !isNaN(w));
+    if (!m || n.length !== 2) return null;
+    const [d, y] = n[0].length === 4 ? [n[1], n[0]] : n;
+    v = { y: Number(y), m, d: Number(d) };
+  } else {
+    if (parts.length === 1 && /^\d{8}$/.test(t)) parts = o === "ymd" ? [t.slice(0, 4), t.slice(4, 6), t.slice(6)] : [t.slice(0, 2), t.slice(2, 4), t.slice(4)];
+    if (parts.length !== 3) return null;
+    v = Object.fromEntries([...o].map((k, i) => [k, Number(parts[i])]));
+  }
   const x = new Date(Date.UTC(v.y, v.m - 1, v.d));
   if (v.y < 1000 || v.y > 2200 || x.getUTCMonth() !== v.m - 1 || x.getUTCDate() !== v.d) return null;
   return { y: v.y, m: v.m, d: v.d };
@@ -228,9 +234,8 @@ export const cap = w => w[0].toUpperCase() + w.slice(1);
 export const spouseHeading = (p, n) => n > 1 && p.gender ? (p.gender === "m" ? "Wives" : "Husbands") : cap(spouseWord(p));
 export const relWord = (rel, base) => rel === "spouse" ? spouseWord(base) : rel;
 
-export function postJSON(path, body) {
-  return api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-}
+export const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+export const postJSON = (path, body) => send("POST", path, body);
 
 // ---------- checks the page makes before saving (Gramps itself takes anything) ----------
 const parentsOf = id => FAMS.filter(f => f.kids.includes(id)).flatMap(f => [f.f, f.m]).filter(x => P[x]);

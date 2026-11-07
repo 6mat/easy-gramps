@@ -2,6 +2,22 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.17 — 2026-11-08
+
+### Removed
+- `remove_tag.py` and `unused_places.py` (with `cli_login.py`): one-off clean-ups for upgrades from 1.1 or older.
+  If you still need them, run them from the 1.9.16 image first.
+- The screen-diagnostics log (`?debug` and `DEBUG_LOG`).
+
+### Fixed
+- Edit person's date boxes now show dates in the format picked in ☰ Menu → Dates (for example 12 Mar 1950), not
+  always as numbers. You can type the month as a word or as a number; when you leave the box, the date is shown in your format.
+  An empty box shows the format, for example DD Mon YYYY.
+
+### Changed
+- Tidied repeated code: one helper for the owner's list of logins, one way to send JSON from the page, one place for
+  role names. Nothing you see changes.
+
 ## 1.9.16 — 2026-11-06
 
 ### Added

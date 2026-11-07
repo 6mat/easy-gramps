@@ -30,6 +30,4 @@ $("#menu-install").onclick = () => {
   $("#dlg button.primary").focus();
 };
 
-if (new URLSearchParams(location.search).has("debug")) import("./debug.js");  // screen diagnostics
-
 start();

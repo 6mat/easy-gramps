@@ -1,6 +1,6 @@
 // Easy Gramps — The full-screen family editor: toast with Undo, autosave, fields, relatives, the Add dialog and "Someone new".
 import { api, LoginNeeded } from "./auth.js";
-import { $, FAMS, closeMenu, P, S, fieldName, fmtDate, layout, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, typedDate, years, grampsLink } from "./common.js";
+import { $, FAMS, closeMenu, P, S, fieldName, fmtDate, layout, byBirth, canChange, canEdit, canLink, dateHint, dateProblems, desc, linkProblem, monthWords, dropClosedSteps, h, loadGraph, matches, name, nameNick, other, ownStep, parentFam, parseTyped, parseView, photoEl, postJSON, pushView, relWord, sameName, saveView, searchWords, spouseFams, spouseWord, thumbUrl, trapTab, years, grampsLink } from "./common.js";
 import { renderTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { closeMerge, openDelete, openMerge } from "./merge.js";
@@ -256,9 +256,9 @@ function dateInputs(prefix, label, get, set) {
   const d = get() || {};
   const yearOnlyStart = !!(d.y && !(d.m && d.d));
   const pad = n => String(n).padStart(2, "0");
-  // Typed in the order of Menu → Dates, with the number keypad; the browser's own date box only for the 📅 calendar.
-  const txt = h("input", { id: `${prefix}-date`, inputmode: "numeric", autocomplete: "off", placeholder: dateHint(), disabled: !canChange(), "aria-label": `${label} (${dateHint()})` });
-  txt.value = d.y && d.m && d.d ? typedDate(d) : "";
+  // Shown as Menu → Dates; the number keypad when the format is all numbers. The browser's own date box only for the 📅 calendar.
+  const txt = h("input", { id: `${prefix}-date`, inputmode: monthWords() ? "text" : "numeric", autocomplete: "off", placeholder: dateHint(), disabled: !canChange(), "aria-label": `${label} (${dateHint()})` });
+  txt.value = d.y && d.m && d.d ? fmtDate(d) : "";
   const cal = h("input", { id: `${prefix}-cal`, type: "date", tabindex: "-1", disabled: !canChange(), "aria-label": `${label}: pick from a calendar` });
   const calBtn = h("span", { class: "calpick", title: "Pick from a calendar" }, h("span", { "aria-hidden": "true" }, "📅"), cal);
   cal.addEventListener("click", () => { try { cal.showPicker(); } catch { /* the tap opens it anyway */ } });
@@ -276,7 +276,8 @@ function dateInputs(prefix, label, get, set) {
     else if (txt.value.trim()) {
       v = parseTyped(txt.value);
       bad.hidden = !!v || !final;
-      if (!v) { bad.textContent = `Not saved: type the date as ${dateHint()}, for example ${typedDate({ y: 1950, m: 3, d: 12 })}.`; return; }
+      if (!v) { bad.textContent = `Not saved: type the date as ${dateHint()}, for example ${fmtDate({ y: 1950, m: 3, d: 12 })}.`; return; }
+      if (final) txt.value = fmtDate(v);  // "12/3/1950" turns into "12 Mar 1950" when you leave the box
     }
     if (JSON.stringify(v) !== sent) { sent = JSON.stringify(v); set(v); }
   };
@@ -288,7 +289,7 @@ function dateInputs(prefix, label, get, set) {
   cal.addEventListener("change", () => {
     if (!cal.value) return;
     const [y, m, dd] = cal.value.split("-").map(Number);
-    txt.value = typedDate({ y, m, d: dd }); save();
+    txt.value = fmtDate({ y, m, d: dd }); save();
   });
   cal.addEventListener("focus", () => { const t = parseTyped(txt.value); cal.value = t ? `${t.y}-${pad(t.m)}-${pad(t.d)}` : ""; });
   // Saved when you leave the box, or as soon as a whole date is typed (not at "12/03/1").

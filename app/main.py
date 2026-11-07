@@ -39,7 +39,6 @@ GRAMPS_LINK_LABEL = os.environ.get("GRAMPS_LINK_LABEL", "Full Gramps")  # menu l
 # offered its source). Point it at your own repository if you run a changed version.
 SOURCE_URL = os.environ.get("SOURCE_URL", "").strip() or "https://github.com/6mat/easy-gramps"
 PASSWORD_LOGIN = os.environ.get("PASSWORD_LOGIN", "on") != "off"  # off: this page shows only the sign-in buttons
-DEBUG_LOG_ON = os.environ.get("DEBUG_LOG", "") == "1"  # screen-measurement log for layout bugs; off by default
 _base = os.environ.get("BASE_PATH", "/easy-gramps").strip("/")
 BASE_PATH = f"/{_base}" if _base else ""  # e.g. /easy-gramps
 ROLE_MEMBER, ROLE_CONTRIBUTOR, ROLE_EDITOR, ROLE_OWNER, ROLE_ADMIN = 1, 2, 3, 4, 5  # Gramps Web roles: see private / add / change / users / the server
@@ -393,9 +392,11 @@ async def add_notsame(request: Request):
     return {"ok": True}
 
 
-async def need_owner(request: Request):
-    if (await who(request)).get("role", 0) < ROLE_OWNER:
-        raise HTTPException(403, "Only the owner can change this.")
+async def need_owner(request: Request, message: str = "Only the owner can change this.") -> dict:
+    user = await who(request)
+    if user.get("role", 0) < ROLE_OWNER:
+        raise HTTPException(403, message)
+    return user
 
 
 @easy.put("/site")
@@ -509,6 +510,14 @@ async def gramps_users(token: str) -> list[dict]:
     return r.json()
 
 
+async def owner_users(request: Request) -> list[dict]:
+    """Gramps Web's logins, for the owner's pages (Waiting to join, Logins); Gramps trouble is a 502."""
+    try:
+        return await gramps_users(bearer(request))
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+
+
 CAN_NOW = {0: "see the family tree", 1: "see the family tree, private details too", 2: "see the family tree and add people",
            3: "see and change the family tree"}
 _welcomes: set = set()  # emails still being sent (see _pushing)
@@ -567,15 +576,14 @@ async def let_in(token: str, users: list[dict], owner: dict) -> list[dict]:
         return []
 
 
+LET_IN = "Only the owner can let people in."
+
+
 @easy.get("/joining")
 async def joining(request: Request):
     """The owner's ☰ Menu → Waiting to join: accounts Gramps Web keeps disabled until someone lets them in."""
-    if (await who(request)).get("role", 0) < ROLE_OWNER:
-        raise HTTPException(403, "Only the owner can let people in.")
-    try:
-        users = await gramps_users(bearer(request))
-    except (httpx.HTTPError, ValueError):
-        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    await need_owner(request, LET_IN)
+    users = await owner_users(request)
     invites = {i["email"]: i for i in CHAT.invites()}
     out = []
     for u in users:
@@ -591,16 +599,14 @@ async def joining(request: Request):
 @easy.post("/joining/{login}")
 async def let_them_in(login: str, request: Request):
     """{role: 0–3}: let them in (an invite's person is linked too) and email them."""
-    owner = await who(request)
-    if owner.get("role", 0) < ROLE_OWNER:
-        raise HTTPException(403, "Only the owner can let people in.")
+    owner = await need_owner(request, LET_IN)
     role = (await json_body(request)).get("role")
     if type(role) is not int or not 0 <= role <= ROLE_EDITOR:
         raise HTTPException(400, "Something was missing. Please try again.")
+    u = next((x for x in await owner_users(request) if x["name"] == login), None)
+    if not u or u.get("role") != ROLE_DISABLED:
+        raise HTTPException(404, "They're not waiting any more.")
     try:
-        u = next((x for x in await gramps_users(bearer(request)) if x["name"] == login), None)
-        if not u or u.get("role") != ROLE_DISABLED:
-            raise HTTPException(404, "They're not waiting any more.")
         inv = CHAT.one("SELECT person FROM invites WHERE email = ?", (u.get("email") or "").strip().lower())
         return {"emailed": await admit(bearer(request), u, role, owner, inv and inv["person"])}
     except (httpx.HTTPError, ValueError):
@@ -718,10 +724,7 @@ async def tree_logins(request: Request):
 async def all_logins(request: Request):
     """The owner: every login that's let in, with the person it's linked to (☰ Menu → Manage → Logins, and 🔗 Link a login)."""
     await need_owner(request)
-    try:
-        users = await gramps_users(bearer(request))
-    except (httpx.HTTPError, ValueError):
-        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    users = await owner_users(request)
     linked = CHAT.linked()
     return [{"login": u["name"], "name": u.get("full_name") or u["name"], "email": u.get("email") or "", "role": u.get("role", 0),
              "person": linked.get(u["name"])} for u in users if u.get("role", 0) >= 0]
@@ -734,11 +737,8 @@ async def tree_link_login(handle: str, request: Request):
     login = (await json_body(request)).get("login")
     if not isinstance(login, str) or not login or not handle.replace("-", "").isalnum():
         raise HTTPException(400, "Something was missing. Please try again.")
-    try:
-        if not any(u["name"] == login and u.get("role", 0) >= 0 for u in await gramps_users(bearer(request))):
-            raise HTTPException(404, "That login isn't there any more.")
-    except (httpx.HTTPError, ValueError):
-        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    if not any(u["name"] == login and u.get("role", 0) >= 0 for u in await owner_users(request)):
+        raise HTTPException(404, "That login isn't there any more.")
     await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
     was = CHAT.linked().get(login)
     CHAT.link(login, handle)  # (409 if another login has this person)
@@ -1298,36 +1298,6 @@ async def chat_about_post(handle: str, request: Request):
     m = CHAT.post(cid, login, text)
     notify(cid, login, m["text"])
     return {"id": cid, "message": m}
-
-
-# ---------- screen diagnostics (tree page with ?debug) ----------
-
-DEBUG_LOG = DATA / "debug.log"
-
-
-@easy.post("/debug/log")
-async def debug_log(request: Request):
-    if not DEBUG_LOG_ON:
-        raise HTTPException(404, "Not found")
-    user = await who(request)
-    body = await request.body()
-    if len(body) > 20_000:
-        raise HTTPException(413, "Too much")
-    try:
-        info = json.loads(body)
-    except ValueError:
-        raise HTTPException(400, "Expected JSON") from None
-    entry = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "user": user["name"], "info": info}
-    await asyncio.to_thread(append_debug_log, json.dumps(entry) + "\n")
-    return {"ok": True}
-
-
-def append_debug_log(line: str):
-    DATA.mkdir(parents=True, exist_ok=True)
-    if DEBUG_LOG.exists() and DEBUG_LOG.stat().st_size > 1_000_000:
-        DEBUG_LOG.replace(DATA / "debug.log.old")
-    with DEBUG_LOG.open("a") as f:
-        f.write(line)
 
 
 # ---------- photo thumbnails (the only Gramps read the page makes directly) ----------
