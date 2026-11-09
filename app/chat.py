@@ -2,7 +2,9 @@
 
 Conversations: the whole family (everyone; can't be left), groups (editors and the owner make them: open:
 anyone can join or leave; only members read and write), private (two logins) and one per person in the
-tree (every login can read and write; about a private person: only logins that may see private records).
+tree (every login can read and write; about a private person: only logins that may see private records), and each
+login's own "Family tree updates" (written by the app, e.g. what happened to their suggestions; nobody writes back).
+A login can turn private chats off: then it has none at all, either way (its old ones stay readable, closed).
 Nothing here is written to Gramps Web.
 """
 import json
@@ -36,7 +38,11 @@ CREATE TABLE IF NOT EXISTS notsame (a TEXT NOT NULL, b TEXT NOT NULL, login TEXT
 SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
         "layout": [], "box": ["years", "birthPlace"],
         "checks": "owner", "dupes": {"year": True, "kin": True, "place": True, "level": "normal", "same": ""}}  # the owner's site settings, and their defaults
-ADDED = (("convs", "private"), ("users", "private"))  # columns newer than 1.8.0's tables
+ADDED = (("convs", "private", "INTEGER"), ("users", "private", "INTEGER"),  # columns newer than 1.8.0's tables
+         ("settings", "dms", "INTEGER"), ("messages", "extra", "TEXT"))
+UPDATES = "Family tree updates"
+NO_DMS_ME = "You've turned off private chats. Turn them on in ☰ Menu → You to chat."
+NO_DMS = "They've turned off private chats, so you can't message them here."
 
 
 class ChatError(Exception):
@@ -74,9 +80,9 @@ class Chat:
             con = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
             con.row_factory = sqlite3.Row
             con.executescript(SCHEMA)
-            for table, col in ADDED:
+            for table, col, kind in ADDED:
                 if col not in {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}:
-                    con.execute(f"ALTER TABLE {table} ADD COLUMN {col} INTEGER")
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {kind}")
             con.execute("INSERT OR IGNORE INTO convs (id, kind, name, emoji, created) VALUES (?, 'family', 'Whole family', '🏠', ?)",
                         (FAMILY, time.time()))
             self._import_settings(con)
@@ -122,15 +128,16 @@ class Chat:
 
     # ----- each login's settings: date format, the daily email on or off, who they are in the tree ("Find me") -----
     def settings(self, login: str) -> dict:
-        row = self.one("SELECT dates, emails, person FROM settings WHERE login = ?", login)
+        row = self.one("SELECT dates, emails, person, dms FROM settings WHERE login = ?", login)
         if not row:
             return {}
-        out = {"dates": row["dates"], "emails": None if row["emails"] is None else bool(row["emails"]), "person": row["person"]}
+        out = {"dates": row["dates"], "emails": None if row["emails"] is None else bool(row["emails"]), "person": row["person"],
+               "dms": None if row["dms"] is None else bool(row["dms"])}
         return {k: v for k, v in out.items() if v is not None}
 
     def save_settings(self, login: str, changes: dict) -> dict:
         for k, v in changes.items():
-            assert k in ("dates", "emails"), k  # (column names: never from the request)
+            assert k in ("dates", "emails", "dms"), k  # (column names: never from the request)
             self.q(f"INSERT INTO settings (login, {k}) VALUES (?, ?) ON CONFLICT (login) DO UPDATE SET {k} = excluded.{k}", login, v)
         return self.settings(login)
 
@@ -167,6 +174,17 @@ class Chat:
     def logins(self) -> list[str]:
         return [r["login"] for r in self.q("SELECT login FROM users WHERE seen > ? ORDER BY login", time.time() - ACTIVE)]
 
+    def no_dms(self) -> list[str]:
+        """The logins that turned private chats off (on unless they did)."""
+        return [r["login"] for r in self.q("SELECT login FROM settings WHERE dms = 0")]
+
+    def dms_check(self, login: str, other: str):
+        off = set(self.no_dms())
+        if login in off:
+            raise ChatError(NO_DMS_ME, 403)
+        if other in off:
+            raise ChatError(NO_DMS, 403)
+
     def sees_private(self, login: str) -> bool:
         row = self.one("SELECT private FROM users WHERE login = ?", login)
         return bool(row and row["private"])
@@ -186,6 +204,8 @@ class Chat:
             return self.member(row["id"], login)
         if row["kind"] == "private":
             return login in row["pair"].split("\n")
+        if row["kind"] == "updates":
+            return row["pair"] == login
         if row["kind"] == "person" and row["private"]:
             return self.sees_private(login)
         return True  # the whole family, and conversations about a person
@@ -206,7 +226,7 @@ class Chat:
             "WHERE m.id > COALESCE(r.last, 0) AND m.login != ? AND m.deleted_by IS NULL GROUP BY m.conv", login, login)}
         members = {r["conv"]: r["n"] for r in self.q("SELECT conv, COUNT(*) n FROM members GROUP BY conv")}
         mine = {r["conv"] for r in self.q("SELECT conv FROM members WHERE login = ?", login)}
-        private = self.sees_private(login)
+        private, off = self.sees_private(login), set(self.no_dms())
         out = []
         for c in self.q("SELECT * FROM convs ORDER BY id"):
             kind, cid = c["kind"], c["id"]
@@ -214,10 +234,13 @@ class Chat:
                 continue
             if kind == "person" and (cid not in last or (c["private"] and not private)):
                 continue  # nobody has written about them yet, or a private person this login can't see
+            if kind == "updates" and c["pair"] != login:
+                continue
             item = {"id": cid, "kind": kind, "name": c["name"], "emoji": c["emoji"], "person": c["person"],
                     "count": count.get(cid, 0), "unread": 0, "last": None}
             if kind == "private":
                 item["other"] = next((x for x in c["pair"].split("\n") if x != login), login)
+                item["closed"] = "me" if login in off else "them" if item["other"] in off else None
             if kind == "group":
                 item["joined"], item["members"] = cid in mine, members.get(cid, 0)
             if kind != "group" or cid in mine:
@@ -258,6 +281,7 @@ class Chat:
     def private(self, login: str, other: str) -> int:
         if not other or other == login:
             raise ChatError("Pick someone else to write to.")
+        self.dms_check(login, other)
         pair = "\n".join(sorted((login, other)))
         self.q("INSERT OR IGNORE INTO convs (kind, pair, created) VALUES ('private', ?, ?)", pair, time.time())
         return self.one("SELECT id FROM convs WHERE pair = ?", pair)["id"]
@@ -290,8 +314,11 @@ class Chat:
     @staticmethod
     def _msg(m, login) -> dict:
         deleted = m["deleted_by"] is not None
-        return {"id": m["id"], "conv": m["conv"], "login": m["login"], "text": None if deleted else m["text"],
-                "at": m["at"], "deleted": deleted, "mine": m["login"] == login}
+        out = {"id": m["id"], "conv": m["conv"], "login": m["login"], "text": None if deleted else m["text"],
+               "at": m["at"], "deleted": deleted, "mine": m["login"] == login}
+        if m["extra"]:
+            out.update(json.loads(m["extra"]))  # an update's "ask": {login, name} for its 💬 Message button
+        return out
 
     def messages(self, cid: int, login: str, after: int = 0, limit: int = 200, mark: bool = True) -> list[dict]:
         self.check(cid, login)
@@ -307,12 +334,26 @@ class Chat:
 
     def post(self, cid: int, login: str, text) -> dict:
         text = clean_text(text)
-        self.check(cid, login)
+        row = self.check(cid, login)
+        if row["kind"] == "updates":
+            raise ChatError("Nobody writes here: these are the family tree's own updates.", 403)
+        if row["kind"] == "private":
+            self.dms_check(login, next((x for x in row["pair"].split("\n") if x != login), login))
         with self.lock:
             mid = self.db().execute("INSERT INTO messages (conv, login, text, at) VALUES (?, ?, ?, ?)",
                                     (cid, login, text, time.time())).lastrowid
         self.mark(cid, login, mid)
         return self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
+
+    def update(self, login: str, text: str, ask: dict | None = None) -> tuple[int, dict]:
+        """A message from the family tree itself to `login`, in their own Family tree updates (made with the first)."""
+        self.q("INSERT OR IGNORE INTO convs (kind, name, emoji, pair, created) VALUES ('updates', ?, '🌳', ?, ?)",
+               UPDATES, login, time.time())
+        cid = self.one("SELECT id FROM convs WHERE kind = 'updates' AND pair = ?", login)["id"]
+        with self.lock:
+            mid = self.db().execute("INSERT INTO messages (conv, login, text, at, extra) VALUES (?, '', ?, ?, ?)",
+                                    (cid, text, time.time(), json.dumps({"ask": ask}) if ask else None)).lastrowid
+        return cid, self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
 
     def delete(self, mid: int, login: str, editor: bool) -> dict:
         m = self.one("SELECT * FROM messages WHERE id = ?", mid)
@@ -344,8 +385,9 @@ class Chat:
                 "WHERE m.id > COALESCE(r.last, 0) AND m.id > ? AND m.login != ? AND m.deleted_by IS NULL AND m.at < ? "
                 "AND (c.kind = 'family' OR (c.kind = 'person' AND (NOT COALESCE(c.private, 0) OR ?)) "
                 "  OR (c.kind = 'group' AND EXISTS (SELECT 1 FROM members WHERE conv = c.id AND login = ?)) "
-                "  OR (c.kind = 'private' AND instr(char(10) || c.pair || char(10), char(10) || ? || char(10)) > 0)) "
-                "ORDER BY m.id", login, u["upto"] or 0, login, now - day, u["private"] or 0, login, login)
+                "  OR (c.kind = 'private' AND instr(char(10) || c.pair || char(10), char(10) || ? || char(10)) > 0) "
+                "  OR (c.kind = 'updates' AND c.pair = ?)) "
+                "ORDER BY m.id", login, u["upto"] or 0, login, now - day, u["private"] or 0, login, login, login)
             if rows:
                 out.append({"login": login, "email": u["email"], "name": u["full_name"] or login, "messages": [dict(r) for r in rows]})
         return out

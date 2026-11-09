@@ -17,9 +17,11 @@ relatives who find the full Gramps interface too much.
   🔗 Link a login in their details, or ☰ Menu → Manage → Logins.
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
+  Each person gets their own read-only 🌳 Family tree updates (what happened to their suggestions; after a rejection,
+  a button to message whoever decided), and can turn private chats off in ☰ Menu → You (then none at all, either way).
 - **Invite people** (editors): send the invite message by WhatsApp, email or any app; the owner can also pick their role and their place in the tree,
   given when they sign in with Google.
-- **Waiting to join** (owner, ☰ Menu → Manage): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
+- **Waiting to join** (owner, ☰ Menu → Manage): let new sign-ups in with a role (Guest by default); they get an email saying they're in. **Say no** deletes a sign-up.
 - **Trace relationship** (each person's details, and ☰ Menu → Family for any two people): how two people are related, in Gramps' own words, with a chart of the route through the common ancestor; "Me" is the first choice. Also on each pair in Check the tree → Possible duplicates.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
 - **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes (and profile photos) in the same editor;

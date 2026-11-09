@@ -1,6 +1,7 @@
 // Easy Gramps — Family chat: 💬 Chat in the top bar (with the unread count), a full-screen chat (groups,
 // private messages, conversations about a person) and "Family talk about …" in the details panel.
-// Text only. The page checks for new messages every 15 s (every 5 s in an open conversation).
+// Text only. Each login also has its own read-only 🌳 Family tree updates (what happened to their suggestions), and
+// can turn private chats off (none at all, either way: ☰ Menu → You). The page checks for new messages every 15 s (every 5 s in an open conversation).
 // Opening the chat is a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { api, auth, LoginNeeded } from "./auth.js";
 import { $, APP_NAME, P, S, fmtDate, h, name, photoEl, send, trapTab } from "./common.js";
@@ -9,7 +10,7 @@ import { seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { showLogin } from "./start.js";
 
-let D = null;  // GET /chat: { convs, unread, me, editor, people (login -> person), logins, emoji }
+let D = null;  // GET /chat: { convs, unread, me, editor, people (login -> person), logins, nodms (private chats off), emoji }
 const C = { open: false, cur: null, msgs: [], sure: null, phoneConv: false, back: null, draft: {} };
 const talk = {};  // person -> { at, data } for the details panel
 const talkDraft = {};  // person -> what's typed in their panel box (the panel redraws often)
@@ -24,9 +25,11 @@ function failed(err) {
 
 // ---------- people: the person they found themselves as ("Find me"), else their login name ----------
 const personOf = login => (P[D?.people?.[login]] ? D.people[login] : null);
-const whoName = login => (login === D?.me ? "You" : personOf(login) ? name(P[personOf(login)]) : login);
+const whoName = login => (login === "" ? "Family tree" : login === D?.me ? "You" : personOf(login) ? name(P[personOf(login)]) : login);
+const noDms = login => D?.nodms?.includes(login);
 const first = p => (p.first || name(p)).split(" ")[0];
 function avatar(login) {
+  if (login === "") return h("span", { class: "cico", "aria-hidden": "true" }, "🌳");  // the family tree's own updates
   const p = personOf(login);
   return p ? photoEl(P[p]) : h("span", { class: "ph nologin", "aria-hidden": "true" }, (login[0] || "?").toUpperCase());
 }
@@ -142,7 +145,7 @@ function renderList() {
   if (!D) return;
   const of = test => D.convs.filter(test).map(row);
   const head = (text, btn) => h("h3", {}, h("span", {}, text), btn || "");
-  const groups = of(c => c.kind === "family" || (c.kind === "group" && c.joined));
+  const groups = of(c => c.kind === "family" || c.kind === "updates" || (c.kind === "group" && c.joined));
   const others = of(c => c.kind === "group" && !c.joined);
   const priv = of(c => c.kind === "private");
   const about = of(c => c.kind === "person");
@@ -165,12 +168,14 @@ function dayLabel(t) {
 }
 const timeOf = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 function message(m) {
-  const canDel = m.deleted ? D.editor : m.mine || D.editor;  // editors can also take away a "Message deleted" line
+  const canDel = m.login !== "" && (m.deleted ? D.editor : m.mine || D.editor);  // editors can also take away a "Message deleted" line
   const sure = C.sure === m.id;
   return h("div", { class: `msg${m.mine ? " me" : ""}${sure ? " sure" : ""}` }, avatar(m.login),
     h("div", { class: "mb" },
       h("div", { class: "who" }, h("strong", {}, whoName(m.login)), h("span", { class: "small muted" }, timeOf(m.at))),
       m.deleted ? h("div", { class: "txt gone" }, "Message deleted") : h("div", { class: "txt" }, m.text),
+      m.ask && !noDms(D.me) && !noDms(m.ask.login)  // (an update after a rejection: ask them why)
+        ? h("button", { class: "small", onclick: () => openPrivate({ login: m.ask.login }) }, `💬 Message ${m.ask.name}`) : "",
       sure ? h("div", { class: "msgsure" }, h("span", { class: "small" }, m.deleted ? "Remove “Message deleted” for everyone?"
         : `Delete ${m.mine ? "your" : `${first({ first: whoName(m.login) })}'s`} message? Everyone will see “Message deleted”.`),
         h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: () => deleteMessage(m.id) }, m.deleted ? "Yes, remove it" : "Yes, delete it"),
@@ -186,6 +191,7 @@ function renderConv(toEnd) {
     group: `${c.members} ${c.members === 1 ? "person" : "people"} · everyone in the family can join`,
     private: `Only you and ${whoName(c.other)} can read this`,
     person: "Everyone with a login can read this and write here",
+    updates: "Only you can see this. What happened to your suggestions.",
   }[c.kind];
   const tools = [];
   if (c.kind === "person" && P[c.person]) tools.push(h("button", { class: "pill", onclick: () => { closeChat(); seeTree(c.person); } }, "See their tree →"));
@@ -215,7 +221,11 @@ function renderConv(toEnd) {
     h("div", { class: "cmsgs", role: "log", "aria-live": "polite" },
       joinFirst ? h("div", { class: "cempty" }, h("p", {}, "Join this group to read and write in it."), h("button", { class: "primary", onclick: () => joinGroup(c.id, true) }, "Join the group"))
         : msgs.length ? msgs : h("div", { class: "cempty muted" }, "No messages yet. Say hello!")),
-    joinFirst ? "" : kept || h("div", { class: "cfoot" }, h("div", { class: "cwrite" }, ta, sendBtn)));
+    joinFirst ? "" : c.kind === "updates" ? h("div", { class: "cfoot small muted" }, "Nobody writes here: these are the family tree's own updates.")
+      : c.closed === "me" ? h("div", { class: "cfoot" }, h("p", { class: "small" }, "You've turned off private chats."),
+        h("button", { onclick: () => { closeChat(); setTimeout(() => $("#menubtn").click(), 0); } }, "Go to ☰ Menu → You to turn them on"))
+      : c.closed === "them" ? h("div", { class: "cfoot small" }, `${whoName(c.other)} has turned off private chats, so you can't message them here.`)
+      : kept || h("div", { class: "cfoot" }, h("div", { class: "cwrite" }, ta, sendBtn)));
   const nl = box.querySelector(".cmsgs");
   if (toEnd || atEnd) nl.scrollTop = nl.scrollHeight;
 }
@@ -286,11 +296,12 @@ function newGroup() {
   nameIn.focus();
 }
 function messageSomeone() {
-  const others = D.logins.filter(l => l !== D.me);
+  const others = D.logins.filter(l => l !== D.me && !noDms(l));
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Write to someone"),
-    others.length ? h("div", { class: "picklist" }, others.map(l => h("button", { class: "pickbtn", onclick: () => { hideDlg(); openPrivate({ login: l }); } }, avatar(l), h("span", {}, h("strong", {}, whoName(l))))))
+    noDms(D.me) ? h("p", {}, "You've turned off private chats. Turn them on in ☰ Menu → You to write to someone.")
+    : others.length ? h("div", { class: "picklist" }, others.map(l => h("button", { class: "pickbtn", onclick: () => { hideDlg(); openPrivate({ login: l }); } }, avatar(l), h("span", {}, h("strong", {}, whoName(l))))))
       : h("p", {}, "No one else has opened the family tree here yet."),
-    h("p", { class: "small muted" }, "Everyone who has opened the family tree here is listed."),
+    h("p", { class: "small muted" }, "Everyone who has opened the family tree here is listed, unless they turned off private chats."),
     h("div", { class: "btnrow end" }, h("button", { onclick: hideDlg }, "Cancel")));
   showDlg(false);
   $("#dlg .pickbtn")?.focus();
@@ -306,7 +317,7 @@ async function openPrivate(who) {
 // Under the name, for someone with a login (they found themselves in the tree): 💬 Message …
 export function messageButton(p) {
   const login = loginOf(p.id);
-  if (!login || login === D.me) return "";
+  if (!login || login === D.me || noDms(login) || noDms(D.me)) return "";
   return h("button", { class: "msgbtn small", onclick: () => openPrivate({ person: p.id }) }, `💬 Message ${first(p)}`);
 }
 const talkOpen = new Set();  // people whose Family talk is unfolded (this visit)

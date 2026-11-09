@@ -477,6 +477,12 @@ def test_owner_lets_people_in_and_they_get_an_email(fake, client, monkeypatch):
     assert fake.users[0]["role"] == 1 and client.get("/easy-gramps/joining").json() == []
     (to, subject, body), = sent
     assert to == "ravi@example.com" and subject.startswith("You're in") and body.startswith("Hello Ravi,") and "private details" in body
+    fake.users.append({"name": "spam", "email": "x@example.com", "full_name": "Spam", "role": -1})
+    assert client.delete("/easy-gramps/joining/google_ravi").status_code == 404  # in already: never deleted here
+    assert client.delete("/easy-gramps/joining/spam").status_code == 200 and [u["name"] for u in fake.users] == ["google_ravi", "old"]
+    fake.role = 3
+    main._who_cache.clear()
+    assert client.delete("/easy-gramps/joining/old").status_code == 403  # only the owner
 
 
 def test_site_settings_owner_only(fake, client):  # #145

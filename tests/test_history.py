@@ -104,7 +104,7 @@ def test_approving_claims_each_row_and_tells_once(fake, client):
         assert client.post(f"{E}/suggestions/decide", json={"approve": [k], "quiet": True}).json()["ids"] == [k]
     client.post(f"{E}/suggestions/tell", json={"approved": [a, b]})
     as_user(fake, "ann", 1)
-    texts = [m["text"] for c in client.get(f"{E}/chat").json()["convs"] if c["kind"] == "private" for m in client.get(f"{E}/chat/c/{c['id']}").json()]
+    texts = [m["text"] for c in client.get(f"{E}/chat").json()["convs"] if c["kind"] == "updates" for m in client.get(f"{E}/chat/c/{c['id']}").json()]
     assert len(texts) == 1 and texts[0].count("✓ Added") == 2
 
 

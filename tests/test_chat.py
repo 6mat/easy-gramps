@@ -393,3 +393,42 @@ def test_owner_can_turn_off_talk_about_people(fake, chat):
     as_user(fake, "ann")
     assert chat.post(f"{E}/chat/person/{p}", json={"text": "hi"}).status_code == 403
     assert chat.get(f"{E}/auth/me").json()["site"]["talk"] is False
+
+
+def test_private_chats_off_means_none_either_way(fake, chat):
+    as_user(fake, "ann")
+    chat.get(f"{E}/chat")
+    as_user(fake, "boss", 4)
+    cid = chat.post(f"{E}/chat/private", json={"login": "ann"}).json()["id"]
+    assert chat.post(f"{E}/chat/c/{cid}", json={"text": "hi"}).status_code == 200
+    as_user(fake, "ann")
+    assert chat.put(f"{E}/auth/settings", json={"dms": "no"}).status_code == 400
+    assert chat.put(f"{E}/auth/settings", json={"dms": False}).json()["dms"] is False
+    assert chat.get(f"{E}/chat").json()["nodms"] == ["ann"]
+    assert conv(chat, cid)["closed"] == "me"
+    assert [m["text"] for m in chat.get(f"{E}/chat/c/{cid}").json()] == ["hi"]  # old ones stay readable
+    assert chat.post(f"{E}/chat/c/{cid}", json={"text": "bye"}).status_code == 403  # she can't write
+    assert chat.post(f"{E}/chat/private", json={"login": "boss"}).json()["detail"].startswith("You've turned off")
+    as_user(fake, "boss", 4)  # nor can anyone write to her, the owner too
+    assert conv(chat, cid)["closed"] == "them"
+    assert chat.post(f"{E}/chat/c/{cid}", json={"text": "hello?"}).status_code == 403
+    assert chat.post(f"{E}/chat/private", json={"login": "ann"}).json()["detail"].startswith("They've turned off")
+    assert chat.post(f"{E}/chat/c/1", json={"text": "family chat still works"}).status_code == 200
+    as_user(fake, "ann")
+    chat.put(f"{E}/auth/settings", json={"dms": True})
+    assert conv(chat, cid)["closed"] is None and chat.post(f"{E}/chat/c/{cid}", json={"text": "back"}).status_code == 200
+
+
+def test_family_tree_updates_are_theirs_only_and_read_only(fake, chat):
+    import main
+    as_user(fake, "ann")
+    chat.put(f"{E}/auth/settings", json={"dms": False})  # updates still come
+    cid, _ = main.CHAT.update("ann", "Thomas looked at your suggestions.", {"login": "tom", "name": "Thomas"})
+    c = conv(chat, cid)
+    assert (c["kind"], c["name"], c["unread"]) == ("updates", "Family tree updates", 1)
+    [m] = chat.get(f"{E}/chat/c/{cid}").json()
+    assert m["login"] == "" and m["ask"] == {"login": "tom", "name": "Thomas"} and not m["mine"]
+    assert chat.post(f"{E}/chat/c/{cid}", json={"text": "why?"}).status_code == 403  # nobody writes back
+    as_user(fake, "bob")
+    assert all(x["id"] != cid for x in chat.get(f"{E}/chat").json()["convs"])
+    assert chat.get(f"{E}/chat/c/{cid}").status_code == 404

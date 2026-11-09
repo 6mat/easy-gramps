@@ -69,11 +69,30 @@ def test_approve_some_and_reject_the_rest(fake, client):
     assert [x["id"] for x in left["items"]] == [ids[3]] and left["items"][0]["error"] and left["made"]["new-dad00001"] == dad
     as_user(fake, "ann", 1)
     said = client.get(f"{E}/chat").json()["convs"]
-    assert any(c["kind"] == "private" for c in said)
+    assert [c["name"] for c in said if c["kind"] == "updates"] == ["Family tree updates"] and not any(c["kind"] == "private" for c in said)
     import main
     text = main.CHAT.q("SELECT text FROM messages ORDER BY id DESC LIMIT 1")[0]["text"]
     assert "✓ Added: Kumar as Ravi Kumar's father" in text and "✓ Added: Kumar's date of birth: 1920" in text
     assert "✓ Added: Ravi Kumar's nickname: Ravi anna" in text and "✗ Not added: Meena as Ravi Kumar's wife" in text
+    [upd] = [c for c in said if c["kind"] == "updates"]
+    [msg] = client.get(f"{E}/chat/c/{upd['id']}").json()
+    assert msg["text"].startswith("ed looked at your suggestions") and msg["ask"] == {"login": "ed", "name": "ed"}  # a rejection: ask why
+
+
+def test_no_message_button_for_approvals_or_without_private_chats(fake, client):
+    ravi = fake.person("Ravi", "Kumar", 1)
+    turn_on(fake, client)
+    for field, off, decide in (("nick", None, "approve"), ("phone", "ann", "reject"), ("email", "ed", "reject")):
+        as_user(fake, "ann", 1)
+        client.put(f"{E}/auth/settings", json={"dms": off != "ann"})
+        client.post(f"{E}/suggestions", json={"items": [{"op": "set", "id": ravi, "field": field, "value": "x"}]})
+        as_user(fake, "ed", 3)
+        client.put(f"{E}/auth/settings", json={"dms": off != "ed"})
+        [k] = [x["id"] for x in client.get(f"{E}/suggestions").json()["items"]]
+        client.post(f"{E}/suggestions/decide", json={decide: [k]})
+    as_user(fake, "ann", 1)
+    [upd] = [c for c in client.get(f"{E}/chat").json()["convs"] if c["kind"] == "updates"]
+    assert [m.get("ask") for m in client.get(f"{E}/chat/c/{upd['id']}").json()] == [None, None, None]
 
 
 def test_undo_puts_it_back_on_the_list(fake, client):
@@ -97,7 +116,7 @@ def test_undo_puts_it_back_on_the_list(fake, client):
     assert undo(ids[2]).status_code == 200 and not fake.db["people"][ravi]["primary_name"].get("nick")  # the old value again
     import main
     assert main.CHAT.q("SELECT text FROM messages ORDER BY id DESC LIMIT 1")[0]["text"] == \
-        "I took this back out of the family tree to look at it again: Ravi Kumar's nickname: Ravi anna"
+        "ed took this back out of the family tree to look at it again: Ravi Kumar's nickname: Ravi anna"
     assert undo(ids[0]).status_code == 409  # his nickname (approved) needs him: that one first
     assert undo(ids[1]).status_code == 200 and undo(ids[0]).status_code == 200
     assert "Kumar" not in {p["primary_name"]["first_name"] for p in fake.db["people"].values()}  # the person it made is gone

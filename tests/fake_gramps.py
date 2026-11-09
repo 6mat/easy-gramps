@@ -115,6 +115,12 @@ class FakeGramps:
             return httpx.Response(200, json={"name": self.user, "role": self.role, "email": self.email})
         if path == "/users/" and method == "GET":
             return httpx.Response(200, json=copy.deepcopy(self.users)) if self.role >= 4 else httpx.Response(403, json={})
+        if len(parts) == 2 and parts[0] == "users" and method == "DELETE":
+            u = next((u for u in self.users if u["name"] == urllib.parse.unquote(parts[1])), None)
+            if self.role < 4 or u is None:
+                return httpx.Response(403 if u else 404, json={})
+            self.users.remove(u)
+            return httpx.Response(200, json={})
         if len(parts) == 2 and parts[0] == "users" and method == "PUT":
             u = next((u for u in self.users if u["name"] == urllib.parse.unquote(parts[1])), None)
             if self.role < 4 or u is None:

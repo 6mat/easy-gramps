@@ -119,10 +119,13 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   me.js also sets Gramps Web's browser-side home person (`grampsjs_settings_tree[tree].homePerson`, Gramps ID; always
   on "Yes, this is me", otherwise only if none is set).
 - **Family chat** (`chat.py`, routes `/chat*` in main.py): by Gramps Web login name, for every login (Guests too).
-  `GET /chat` → `{convs, unread, me, editor, people (login → person from Find me), logins, emoji}`. Conversations:
+  `GET /chat` → `{convs, unread, me, editor, people (login → person from Find me), logins, nodms, emoji}`. Conversations:
   `family` (id 1, everyone, can't be left), `group` (editors make them: `POST /chat/groups`; open: `POST /chat/c/{id}/join
   {join}`; only members read/write; editors `DELETE /chat/c/{id}`), `private` (`POST /chat/private {login|person}`; only
-  the two, not even editors), `person` (`GET/POST /chat/person/{h}`, starts with the first message; every login; a
+  the two, not even editors; `closed: me|them` when either turned private chats off: `PUT /auth/settings {dms: false}`
+  → none at all either way, old ones readable, `nodms` lists them), `updates` (one per login, `pair` = the login, read-only:
+  `CHAT.update(login, text, ask)`, written by suggest.py `_tell` with login ""; `ask {login, name}` = 💬 Message button,
+  only after a rejection and when both have private chats on), `person` (`GET/POST /chat/person/{h}`, starts with the first message; every login; a
   person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
   `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays; an editor's second DELETE removes the row
   (`{id, removed: true}`). Daily email: hourly task (started by the
@@ -205,7 +208,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   and `joining` (how many accounts wait, role -1). **Waiting to join** (owner, site.js, ☰ Menu → Manage → People): `GET /joining`
   lists role -1 accounts (role preset: the invite's, else 0 Guest; `before`: the login was used before, i.e. turned off),
   `POST /joining/<login> {role 0–3}` → `admit()`: role, invite's person linked, "You're in" email (Gramps Web sends none
-  on approval). me.js: "✉ Invite to the family tree" in More details (person
+  on approval); `DELETE /joining/<login>` (Say no): Gramps' `DELETE /users/<name>/` (owner's DeleteUser), only for role -1. me.js: "✉ Invite to the family tree" in More details (person
   without a login, editors) → the message first (`inviteText`, same words as main.py `invite_text`: "I approve…" for the
   owner, "Every account is approved…" for editors) with WhatsApp (wa.me), ✉ Email, Share…, Copy. ✉ Email asks the
   address (owner: + role → `POST /invites`), then `POST /invites/send {email}` (fixed text, from DEFAULT_FROM_EMAIL,

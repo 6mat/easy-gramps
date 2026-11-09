@@ -166,6 +166,7 @@ body.fullmode .treepane { border-radius: 0; border: 0; }
 .seg input:focus-visible + span { outline: 3px solid var(--ring); }
 /* on/off switches */
 .menu-pop .swrow { justify-content: space-between; gap: 12px; cursor: pointer; }
+.swrow .block { display: block; margin-top: 2px; }
 input.sw { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 26px; margin: 0; padding: 0; border: 0; border-radius: 13px;
   background: var(--edge); position: relative; cursor: pointer; }
 input.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;

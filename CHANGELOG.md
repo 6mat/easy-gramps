@@ -2,6 +2,19 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.19 — 2026-11-09
+
+### Added
+- Waiting to join: **Say no** next to Let them in. After a second tap to confirm, it deletes their sign-up in Gramps Web
+  (they could sign up again). Only for accounts still waiting.
+- 🌳 **Family tree updates** in Chat: each person's own read-only conversation. What happened to their suggestions
+  goes here now, not as a private message from the editor ("Thomas looked at your suggestions …"). After a rejection
+  it has a **💬 Message Thomas** button to ask why. Earlier notes stay where they were.
+- ☰ Menu → You → **Private chats** (on by default). Off means no private chats at all, either way, the owner included:
+  you're not in Message someone, nobody can write to you privately, and you can't write to anyone privately. Old
+  private chats stay readable but closed, and open again when you turn it back on. Family tree updates, the family
+  chat and groups are not affected.
+
 ## 1.9.18 — 2026-11-09
 
 ### Added
