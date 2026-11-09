@@ -97,6 +97,10 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   `{op: "delete", id, label}` (editors may send these too, even with suggestions off), approved by an editor other than
   who sent it (`blocked` in GET /suggestions says why not). `DELETE /suggestions/{id}`: a suggester deletes their own
   waiting one, with what builds on a new person in it.
+- `POST /suggestions/photo/{h}` (form `photo`, as `read_photo`): a suggested profile photo, sent at once; the file goes to
+  `DATA_DIR/suggested-photos/<random>` and the row is `{op: "photo", id, file, type, label}` (one waiting per person and
+  login: a newer one replaces it). `GET /gapi/suggested/{file}` serves it by the photo cookie (editors and who suggested
+  it). Approve = `set_photo` (main); undo = take that media off them. The file goes when the row is deleted.
 - `POST /tree/merge {keep, absorb, fields}` — writes the chosen field values onto `keep`, then Gramps'
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
   relationships kept; `absorb` deleted). Not covered by Undo.

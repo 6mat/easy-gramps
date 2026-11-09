@@ -22,7 +22,7 @@ relatives who find the full Gramps interface too much.
 - **Waiting to join** (owner, ☰ Menu → Manage): let new sign-ups in with a role (Guest by default); they get an email saying they're in.
 - **Trace relationship** (each person's details, and ☰ Menu → Family for any two people): how two people are related, in Gramps' own words, with a chart of the route through the common ancestor; "Me" is the first choice. Also on each pair in Check the tree → Possible duplicates.
 - **Family documents** (☰ Menu): PDFs and other files from Gramps Media, such as a family book, to read or download.
-- **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes in the same editor;
+- **Suggestions** (if the owner turns them on): members and contributors (or guests too) suggest changes (and profile photos) in the same editor;
   editors see them on a proposed tree, tick what goes in, approve or reject, and can undo a decision later.
 - **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
 - **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.

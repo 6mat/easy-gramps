@@ -204,7 +204,7 @@ export const thumbUrl = (m, size = 192, crop) => `${BASE}/gapi/media/${m}${crop 
 export function photoEl(p, big) {
   const cls = `ph${big ? " big" : ""}`;
   if (p.photo && p.photo !== "ph") {
-    const src = /^(data|blob):/.test(p.photo) ? p.photo
+    const src = /^(data|blob):|\//.test(p.photo) ? p.photo  // (a preview, or a suggested photo's own address)
       : thumbUrl(p.photo, big ? 256 : 96, p.crops?.[p.photo]);
     const img = h("img", { src, alt: `Photo of ${name(p)}` });
     const box = h("span", { class: cls }, img);

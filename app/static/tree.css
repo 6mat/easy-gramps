@@ -616,6 +616,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .sugfam > summary { cursor: pointer; padding: 4px 0; }
 .sugfam .famname { font-weight: 700; text-decoration: underline; text-align: left; display: inline; }
 .sugdone > .btnrow { grid-column: 2; }
+.sugphoto { display: block; width: 96px; height: 96px; object-fit: cover; border-radius: 10px; margin-top: 6px; }
 .sugdone .linkish { text-align: left; }
 .joinrow { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
 .joinrow select { max-width: 100%; }

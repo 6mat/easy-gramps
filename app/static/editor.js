@@ -7,7 +7,7 @@ import { closeMerge, openDelete, openMerge } from "./merge.js";
 import { openViewer } from "./photos.js";
 import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
-import { draftAdd, draftBar, draftSet, suggesting } from "./suggest.js";
+import { draftAdd, draftBar, draftSet, isStandIn, suggestPhoto, suggesting } from "./suggest.js";
 import { bookEditor } from "./docs.js";
 
 // ---------- undo + toast ----------
@@ -347,6 +347,12 @@ function centreCard(p) {
     const f = file.files[0]; if (!f) return;
     file.value = "";
     if (f.size > 20 * 1024 * 1024) return setStatus("Photo not saved: it's too big (20 MB at most)", "failed");
+    if (suggesting()) {
+      setStatus("Sending photo…", "saving");
+      suggestPhoto(p.id, f).then(() => { setStatus("Sent ✓"); toast("Photo sent ✓ An editor will look at it."); })
+        .catch(err => err instanceof LoginNeeded ? showLogin() : setStatus(`Photo not sent: ${err.message}`, "failed"));
+      return;
+    }
     // Show it straight away, then upload it as their main photo (the old one comes back if that fails).
     const old = p.photo, preview = URL.createObjectURL(f);
     p.photo = preview; renderEditor();
@@ -398,7 +404,8 @@ function centreCard(p) {
   const moreWords = layout().filter(r => r.where === "more" && !r.k.startsWith("r:") && r.k !== "burial").map(r => fieldName(r.k).toLowerCase()).join(", ");
   return h("div", { class: "centre" },
     h("div", { class: "photo-row full" }, mainPhoto,
-      canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"), file,
+      canEdit() && h("button", { onclick: () => file.click() }, p.photo ? "Change photo" : "Add photo"),
+      suggesting() && !isStandIn(p.id) && h("button", { onclick: () => file.click() }, p.photo ? "Suggest a new photo" : "Suggest a photo"), file,
       !canChange() && h("span", { class: "small muted" }, "Only editors can change details or link family members. You can add new people from the start screen.")),
     photos,
     field("First name", bindText(p, "first", "ed-first")),

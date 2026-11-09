@@ -169,3 +169,43 @@ def test_deleting_a_new_person_deletes_their_changes(fake, client):
     client.post(f"{E}/suggestions/decide", json={"reject": ids})
     assert client.post(f"{E}/suggestions/delete", json={"ids": [ids[0]]}).json()["deleted"] == 2  # him and his nickname
     assert [x["id"] for x in client.get(f"{E}/suggestions/history").json()["items"]] == [ids[2]]
+
+
+def test_suggest_a_profile_photo(fake, client, monkeypatch, tmp_path):
+    import suggest
+    from starlette.testclient import TestClient
+    import main
+    monkeypatch.setattr(suggest, "PHOTOS", tmp_path / "photos")
+    ravi = fake.person("Ravi", "Kumar", 1)
+    png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
+    url = f"{E}/suggestions/photo/{ravi}"
+    as_user(fake, "ann", 1)
+    assert client.post(url, files=png).status_code == 403  # suggestions off
+    turn_on(fake, client)
+    as_user(fake, "ann", 1)
+    assert client.post(url, files={"photo": ("a.txt", b"hi", "text/plain")}).status_code == 400
+    assert client.post(f"{E}/suggestions/photo/new-aaaaaaaa", files=png).status_code == 400  # not added yet
+    first = client.post(url, files=png).json()["id"]
+    assert client.post(url, files={"photo": ("b.png", b"\x89PNG..2", "image/png")}).json()["id"] == first  # replaces the waiting one
+    assert len(list((tmp_path / "photos").iterdir())) == 1
+    it = client.get(f"{E}/suggestions").json()["items"][0]["item"]
+    assert it["op"] == "photo" and it["label"] == "Ravi Kumar" and not fake.db["people"][ravi].get("media_list")  # not in Gramps yet
+    # The picture, by the photo cookie: who suggested it and editors, nobody else.
+    img = TestClient(main.app)
+    img.cookies.set("eg_photo", "tok", path="/easy-gramps/gapi/")
+    r = img.get(f"{E}/gapi/suggested/{it['file']}")
+    assert r.status_code == 200 and r.content == b"\x89PNG..2" and r.headers["content-type"] == "image/png"
+    as_user(fake, "bob", 1)
+    assert img.get(f"{E}/gapi/suggested/{it['file']}").status_code == 404
+    assert client.post(f"{E}/suggestions", json={"items": [{**it}]}).status_code == 400  # only by upload
+    # Approve: their profile photo in Gramps; undo: off them again; reject and delete: the file goes.
+    as_user(fake, "ed", 3)
+    assert img.get(f"{E}/gapi/suggested/{it['file']}").status_code == 200
+    assert client.post(f"{E}/suggestions/decide", json={"approve": [first]}).json()["approved"] == 1
+    media = fake.db["people"][ravi]["media_list"][0]["ref"]
+    assert "profile photo for Ravi" in main.CHAT.q("SELECT text FROM messages ORDER BY id DESC LIMIT 1")[0]["text"]
+    assert client.post(f"{E}/suggestions/{first}/undo").status_code == 200
+    assert media not in [x["ref"] for x in fake.db["people"][ravi]["media_list"]]
+    client.post(f"{E}/suggestions/decide", json={"reject": [first]})
+    assert client.post(f"{E}/suggestions/delete", json={"ids": [first]}).json()["deleted"] == 1
+    assert list((tmp_path / "photos").iterdir()) == []
