@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.20 — 2026-11-10
+
+### Fixed
+- With family talk about people turned off (Site settings), Chat no longer shows the "About people" section. Old
+  conversations about people are hidden and not counted as unread, and nobody can write in them.
+
+### Changed
+- ☰ Menu → You → Private chats: the explanation is behind an ⓘ button, so the menu is shorter.
+
 ## 1.9.19 — 2026-11-09
 
 ### Added

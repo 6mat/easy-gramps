@@ -4,7 +4,7 @@
 // can turn private chats off (none at all, either way: ☰ Menu → You). The page checks for new messages every 15 s (every 5 s in an open conversation).
 // Opening the chat is a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { api, auth, LoginNeeded } from "./auth.js";
-import { $, APP_NAME, P, S, fmtDate, h, name, photoEl, send, trapTab } from "./common.js";
+import { $, APP_NAME, ME, P, S, fmtDate, h, name, photoEl, send, trapTab } from "./common.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
@@ -154,8 +154,8 @@ function renderList() {
     ...(others.length ? [head("Groups you can join"), ...others] : []),
     head("Private messages", h("button", { class: "small", onclick: messageSomeone }, "+ Message someone")),
     ...(priv.length ? priv : [h("div", { class: "small muted pad" }, "None yet.")]),
-    head("About people"),
-    ...(about.length ? about : [h("div", { class: "small muted pad" }, "Write about someone from their details: tap them in the tree.")]));
+    ...(ME.site?.talk === false ? [] : [head("About people"),  // the owner can turn it off (Site settings)
+      ...(about.length ? about : [h("div", { class: "small muted pad" }, "Write about someone from their details: tap them in the tree.")])]));
 }
 
 // ----- right: one conversation -----
