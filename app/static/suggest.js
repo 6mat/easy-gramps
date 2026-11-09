@@ -2,7 +2,7 @@
 // use the same editor; each change goes to the editors as they make it (Site settings: automatic), or collects in a
 // draft on this device until they press "Send to the editors". Their waiting ones show on their tree. Editors open
 // ☰ Menu → Suggestions: the tree shows what it would look like with the checked ones, the list is in the panel.
-import { api } from "./auth.js";
+import { api, BASE } from "./auth.js";
 import { $, FAMS, ME, P, S, dateProblems, fmtDate, h, loadGraph, name, parentFam, postJSON, relWord, spouseFams, other } from "./common.js";
 import { seeTree } from "./tree.js";
 import { renderAll } from "./start.js";
@@ -49,6 +49,7 @@ function apply(items) {
   const mark = (id, how) => { const p = P[id]; if (p) { p.sug = ["new", "gone"].includes(p.sug) ? p.sug : how; p.sugN = (p.sugN || 0) + 1; } };
   for (const it of items) {
     if (it.op === "delete") { if (P[it.id]) P[it.id].sug = "gone"; continue; }  // (faded, "To delete")
+    if (it.op === "photo") { const p = P[real(it.id)]; if (p) { p.photo = photoUrl(it); mark(p.id, "changed"); } continue; }
     if (it.op === "set") {
       const p = P[real(it.id)];
       if (!p) continue;
@@ -158,6 +159,14 @@ export async function withdraw(sid) {
   if (S.review) return openReview();
   await loadMine();
   if (base) { rebuild(); if (!P[S.focus]) S.focus = S.history.findLast(x => P[x]) || null; if (!P[S.sel]) S.sel = S.focus; renderAll(); }
+}
+// A new profile photo: sent at once, whatever Site settings say (a photo is too big for the draft on this device).
+const photoUrl = it => `${BASE}/gapi/suggested/${it.file}`;
+export async function suggestPhoto(id, file) {
+  const fd = new FormData(); fd.append("photo", file, file.name);
+  await api(`/suggestions/photo/${id}`, { method: "POST", body: fd });
+  await loadMine();
+  if (base && !S.review) { rebuild(); renderAll(); }
 }
 export const addingRow = id => mineRows.find(r => r.item.op === "add" && r.item.as === id);  // someone they suggested adding
 // Asking for someone to be deleted: suggesters (it's on their tree, faded, at once) and editors (someone they didn't add).
@@ -298,6 +307,8 @@ function says(r, decided) {
   if (it.op === "delete") return [h("strong", {}, `${r.type === "c" || r.status === "approved" ? "Deleted" : "Delete"} ${it.label}`), " from the tree"];
   if (it.op === "create") return [h("strong", {}, `New: ${nameOf(it.id, it.label)}`), " (on their own)"];
   if (it.op === "merge") return [h("strong", {}, nameOf(it.id)), ` · merged with ${it.label || "a duplicate"}`];
+  if (it.op === "photo") return [h("strong", {}, nameOf(it.id, it.label)), " · new profile photo",
+    h("img", { class: "sugphoto", src: photoUrl(it), alt: `The photo suggested for ${nameOf(it.id, it.label)}` })];
   if (it.op !== "set") return [h("strong", {}, nameOf(it.id)), ` · ${it.what}`];
   const p = P[real(it.id)];
   const now = GRAPH.has(it.field) && !isStandIn(it.id) && base?.P[real(it.id)]?.[it.field];

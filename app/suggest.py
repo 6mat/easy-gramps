@@ -6,13 +6,15 @@ A suggestion is a list of items, each saved on its own row so an editor can take
   {"op": "set", "id", "field", "value", "label"?, "before"?}    a field, as in PATCH /tree/person/{id}
   {"op": "add", "person", "rel", "famId"?, "new" | "existing", "as"?, "fam"?, "label"?}    as in POST /tree/relative
   {"op": "delete", "id", "label"}    delete them (main.py `delete_mode`: editors suggest it too); the note says why
+  {"op": "photo", "id", "file", "type", "label"}    a new profile photo (POST /suggestions/photo; the picture is in PHOTOS)
 New people and families get a stand-in id ("new-" + 8 letters: `as` for the person, `fam` for a family it makes) that
 later items of the same suggestion may use; approving swaps it for the real one (kept in `made`)."""
 import json
 import re
+import secrets
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 
 import changes as log
 import familytree
@@ -28,6 +30,9 @@ STAND_IN = re.compile(r"new-[a-z0-9]{8}")
 MAX_ITEMS, MAX_WAITING, MAX_BYTES = 200, 500, 100_000
 NEW_FIELDS = {"first", "last", "nick", "gender", "birth"}  # what adding someone new takes: later changes to these go into the add
 router = APIRouter()
+# shortcut: a suggested photo's file stays as long as its row (approved ones too, so Undo can put it back); fine at a
+# family's size, delete approved ones' files if the folder ever gets big.
+PHOTOS = m.DATA / "suggested-photos"
 
 
 def q(sql, *args):
@@ -299,6 +304,7 @@ async def delete(request: Request):
         for r in q("DELETE FROM suggestions WHERE id = ? AND status = 'rejected' RETURNING id, item", k):
             gone.add(r["id"])
             it = json.loads(r["item"])
+            _drop_file(it)
             made = {x for x in (it.get("as"), it.get("fam")) if x}
             ids += [o["id"] for o in q("SELECT id, item FROM suggestions WHERE status != 'approved'") if made & set(_uses(json.loads(o["item"])))]
     return {"deleted": len(gone)}
@@ -336,6 +342,7 @@ async def withdraw(sid: int, request: Request):
     for k in ids:
         for r in q("DELETE FROM suggestions WHERE id = ? AND login = ? AND status = 'waiting' RETURNING item", k, login):
             gone += 1
+            _drop_file(json.loads(r["item"]))
             new = {x for x in (json.loads(r["item"]).get(a) for a in ("as", "fam")) if x}
             ids += [o["id"] for o in q("SELECT id, item FROM suggestions WHERE login = ? AND status = 'waiting'", login)
                     if new & set(_uses(json.loads(o["item"])))]
@@ -386,6 +393,13 @@ async def decide(request: Request):
                         raise
                 m.CHAT.unlink_person(it["id"])
                 back = None
+            elif it["op"] == "photo":
+                try:
+                    data = (PHOTOS / it["file"]).read_bytes()
+                except OSError:
+                    raise gramps.GrampsError("The photo is missing on the server. Ask them to add it again.") from None
+                res = await familytree.set_photo(g, it["id"], (data, it["type"], "photo"), tags)
+                back = {"op": "photo", "id": it["id"], "media": res["added"]}
             elif it["op"] == "set":
                 h = real(it["id"])
                 back = {"op": "set", "id": h, "field": it["field"], "value": (await familytree.fields_now(g, h)).get(it["field"])}
@@ -475,6 +489,8 @@ async def _say(g, ids, most=15, done=None) -> list:
         it = json.loads(r["item"])
         if it["op"] == "delete":
             text = f"deleting {it.get('label') or await who(it['id'])}" if done is None else it.get("label") or "someone"
+        elif it["op"] == "photo":
+            text = f"a new profile photo for {await who(it['id'])}"
         elif it["op"] == "set":
             v = it.get("label") if familytree.is_place(it["field"]) else value(it["field"], it.get("value"))
             text = f"{await who(it['id'])}'s {WORDS.get(it['field']) or familytree.word(it['field'])}: {v or '(none)'}"
@@ -520,6 +536,12 @@ async def undo(sid: int, request: Request):
         u = json.loads(r["undo"])
         if u.get("op") == "set":
             await familytree.update_person(g, u["id"], {u["field"]: u["value"]}, await m.tree_tags(g))
+        elif u.get("op") == "photo":  # off the person again; the picture stays in Gramps, as when an editor takes one off
+            try:
+                await familytree.photo_change(g, u["id"], {"media": u["media"], "do": "remove"})
+            except gramps.GrampsError as e:
+                if e.status != 404:  # (already taken off)
+                    raise
         else:
             await familytree.undo(g, u, await m.tree_tags(g))
         said = await _say(g, [sid])  # (before the row loses `made`: a new person is still named)
@@ -535,3 +557,57 @@ def _same(a, b) -> bool:
 
 def _uses(it: dict) -> list:
     return [x for x in (it.get("id"), it.get("person"), it.get("famId"), it.get("existing")) if x and STAND_IN.fullmatch(x)]
+
+
+def _drop_file(it: dict):
+    if it.get("op") == "photo":
+        (PHOTOS / it["file"]).unlink(missing_ok=True)
+
+
+@router.post("/suggestions/photo/{handle}")
+async def suggest_photo(handle: str, request: Request):
+    """A new profile photo, sent at once (too big for the draft on their device). A newer one for the same person
+    replaces the one waiting."""
+    user = await m.who(request)
+    if not can_suggest(user):
+        raise HTTPException(403, "Editors change the tree directly." if user.get("can_edit") else "Suggestions are turned off.")
+    if STAND_IN.fullmatch(handle):
+        raise HTTPException(400, "You can suggest their photo once an editor has added them.")
+    if not handle.replace("-", "").replace("_", "").isalnum():
+        raise HTTPException(400, "Something was missing. Please try again.")
+    _, (data, kind, _) = await m.read_photo(request)
+    if kind not in m.PHOTO_TYPES or kind == "application/json":
+        raise HTTPException(400, "Please use a JPEG, PNG, GIF or WebP photo.")
+    g = gramps.Gramps(m.GRAMPS_URL, m.bearer(request))
+    await g.get(f"/people/{handle}", keys="handle")  # only people they can see
+    login, file = user["name"], secrets.token_hex(16)
+    item = {"op": "photo", "id": handle, "file": file, "type": kind, "label": await log.name_of(g, handle)}
+    PHOTOS.mkdir(parents=True, exist_ok=True)
+    (PHOTOS / file).write_bytes(data)
+    old = q("SELECT id, item FROM suggestions WHERE login = ? AND status = 'waiting' AND json_extract(item, '$.op') = 'photo' "
+            "AND json_extract(item, '$.id') = ?", login, handle)
+    if old:
+        _drop_file(json.loads(old[0]["item"]))
+        q("UPDATE suggestions SET item = ?, at = ?, error = NULL WHERE id = ?", json.dumps(item), time.time(), old[0]["id"])
+        return {"id": old[0]["id"]}
+    if q("SELECT count(*) n FROM suggestions WHERE login = ? AND status = 'waiting'", login)[0]["n"] >= MAX_WAITING:
+        (PHOTOS / file).unlink(missing_ok=True)
+        raise HTTPException(429, "You have many suggestions waiting. Please wait until an editor has looked at them.")
+    batch = (q("SELECT max(batch) b FROM suggestions")[0]["b"] or 0) + 1
+    r = q("INSERT INTO suggestions (batch, login, at, item) VALUES (?, ?, ?, ?) RETURNING id", batch, login, time.time(), json.dumps(item))
+    return {"id": r[0]["id"]}
+
+
+@router.get("/gapi/suggested/{file}")
+async def suggested_photo(file: str, request: Request):
+    """The picture of a suggested photo, for an <img> (the photo cookie is its login): editors, and who suggested it."""
+    user = await m.who(request, request.cookies.get(m.PHOTO_COOKIE) or "")
+    row = q("SELECT login, item FROM suggestions WHERE json_extract(item, '$.op') = 'photo' AND json_extract(item, '$.file') = ?", file)
+    if not row or not (user.get("can_edit") or row[0]["login"] == user.get("name")):
+        raise HTTPException(404, "No such photo.")
+    it = json.loads(row[0]["item"])
+    try:
+        data = (PHOTOS / it["file"]).read_bytes()
+    except OSError:
+        raise HTTPException(404, "No such photo.") from None
+    return Response(data, media_type=it["type"], headers={"Cache-Control": "private, max-age=3600"})

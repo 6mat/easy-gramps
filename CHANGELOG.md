@@ -2,6 +2,14 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.18 — 2026-11-09
+
+### Added
+- People who suggest can suggest a profile photo (Edit person → Suggest a photo). It goes to the editors at once, even
+  when suggestions are sent by hand. Editors see the photo in Suggestions and on the proposed tree. Approve makes it
+  the profile photo, and Undo takes it off again. A newer photo for the same person replaces the waiting one. The
+  photos wait in `DATA_DIR/suggested-photos/`.
+
 ## 1.9.17 — 2026-11-08
 
 ### Removed

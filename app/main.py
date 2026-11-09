@@ -152,8 +152,8 @@ def bearer(request: Request) -> str:
 NO_ACCESS = "Your account can't open the family tree yet. Ask the family tree's owner to let you in."
 
 
-async def who(request: Request) -> dict:
-    token = bearer(request)
+async def who(request: Request, token: str = "") -> dict:
+    token = token or bearer(request)  # (a photo's <img> sends its login as the photo cookie instead)
     key = hashlib.sha256(token.encode()).hexdigest()  # don't keep raw tokens in memory
     hit = _who_cache.get(key)
     if hit and hit[0] > time.time():
@@ -859,15 +859,13 @@ async def tree_update_person(handle: str, request: Request):
 PHOTO_MAX_MB = 20
 
 
-@easy.post("/tree/person/{handle}/photo")
-async def tree_set_photo(handle: str, request: Request):
-    # Check rights and size before reading the upload, so nobody can make the server hold big files.
-    await need_edit(request, "Only editors can change photos.")
+async def read_photo(request: Request):
+    """The uploaded "photo": (form, (bytes, type, file name)). Call it after checking rights, so nobody can make the
+    server hold big files."""
     too_big = HTTPException(413, f"That photo is too big ({PHOTO_MAX_MB} MB at most).")
     if int(request.headers.get("content-length") or 0) > PHOTO_MAX_MB * 1024 * 1024 + 10_000:
         raise too_big
     form = await request.form(max_files=1, max_fields=5)
-    main = form.get("main") != "0"  # main=0: one more photo, after the others
     f = form.get("photo")
     if not hasattr(f, "read"):
         raise HTTPException(400, "Please choose a photo")
@@ -875,8 +873,16 @@ async def tree_set_photo(handle: str, request: Request):
         raise HTTPException(400, "That file isn't a photo.")
     if (f.size or 0) > PHOTO_MAX_MB * 1024 * 1024:
         raise too_big
+    return form, (await f.read(), f.content_type, f.filename)
+
+
+@easy.post("/tree/person/{handle}/photo")
+async def tree_set_photo(handle: str, request: Request):
+    await need_edit(request, "Only editors can change photos.")
+    form, photo = await read_photo(request)
+    main = form.get("main") != "0"  # main=0: one more photo, after the others
     g = await gramps_as(request)
-    res = await familytree.set_photo(g, handle, (await f.read(), f.content_type, f.filename), await tree_tags(g), main)
+    res = await familytree.set_photo(g, handle, photo, await tree_tags(g), main)
     log.add((await who(request))["name"], {"op": "other", "id": handle, "what": "added a photo"})
     return res
 
