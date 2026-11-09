@@ -425,9 +425,9 @@ async def decide(request: Request):
 
 
 async def _thank(g, editor, done):
-    for login, (yes, no) in done.items():  # tell them what, in a private message from the editor
+    for login, (yes, no) in done.items():  # tell them what, in their Family tree updates
         lines = await _say(g, yes, done=True) + await _say(g, no, done=False)
-        _tell(editor, login, "I looked at your suggestions. Thank you!\n" + "\n".join(lines))
+        _tell(editor, login, f"{_who(editor)} looked at your suggestions. Thank you!\n" + "\n".join(lines), ask=bool(no))
 
 
 @router.post("/suggestions/tell")
@@ -510,11 +510,19 @@ def _label(it: dict) -> str:
     return it.get("label") or " ".join(str(n.get(k) or "") for k in ("first", "last")).strip() or "someone new"
 
 
-def _tell(editor: str, login: str, text: str):
-    if login != editor:
-        cid = m.CHAT.private(editor, login)
-        msg = m.CHAT.post(cid, editor, text)
-        m.notify(cid, editor, msg["text"])
+def _who(login: str) -> str:
+    return m.CHAT.full_names().get(login) or login
+
+
+def _tell(editor: str, login: str, text: str, ask: bool = False):
+    """In their Family tree updates (not a private message from the editor). `ask`: a 💬 Message button to the editor
+    (after a rejection), when both of them have private chats on."""
+    if login == editor:
+        return
+    off = set(m.CHAT.no_dms())
+    ask = ask and not {editor, login} & off
+    cid, msg = m.CHAT.update(login, text, {"login": editor, "name": _who(editor).split()[0]} if ask else None)
+    m.notify(cid, "", msg["text"])
 
 
 @router.post("/suggestions/{sid}/undo")
@@ -546,7 +554,7 @@ async def undo(sid: int, request: Request):
             await familytree.undo(g, u, await m.tree_tags(g))
         said = await _say(g, [sid])  # (before the row loses `made`: a new person is still named)
         editor, _ = await m.chat_user(request)
-        _tell(editor, r["login"], f"I took this back out of the family tree to look at it again: {said[0]}")
+        _tell(editor, r["login"], f"{_who(editor)} took this back out of the family tree to look at it again: {said[0]}")
     q("UPDATE suggestions SET status = 'waiting', by = NULL, decided = NULL, error = NULL, made = NULL, undo = NULL WHERE id = ?", sid)
     return {"ok": True}
 

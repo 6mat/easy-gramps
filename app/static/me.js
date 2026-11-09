@@ -6,6 +6,7 @@ import { hitRows, searchKeys } from "./search.js";
 import { hideDlg, showDlg, toast } from "./editor.js";
 import { seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
+import { refresh as refreshChat } from "./chat.js";
 import { showLogin } from "./start.js";
 
 const LATER = "eg_findme_later";  // "Not now" on the start screen, this device only
@@ -110,6 +111,14 @@ export function renderMenuMe() {
     };
     box.append(h("label", { class: "swrow" }, "Email me when a chat message waits for me a day", sw));
   }
+  // Private chats: on unless they turn them off; off means none at all, either way (Family tree updates still come).
+  const dm = h("input", { type: "checkbox", class: "sw", checked: ME.settings?.dms !== false });
+  dm.onchange = async () => {
+    try { ME.settings = { ...ME.settings, ...(await send("PUT", "/auth/settings", { dms: dm.checked })) }; refreshChat(); }
+    catch (err) { dm.checked = !dm.checked; failed(err); }
+  };
+  box.append(h("label", { class: "swrow" }, h("span", {}, "Private chats",
+    h("span", { class: "small muted block" }, "Turn off to have no private chats with anyone. You still get Family tree updates, and the family and group chats stay as they are.")), dm));
   if (canPush()) box.append(pushSwitch());
 }
 

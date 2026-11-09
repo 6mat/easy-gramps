@@ -613,6 +613,25 @@ async def let_them_in(login: str, request: Request):
         raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
 
 
+@easy.delete("/joining/{login}")
+async def say_no(login: str, request: Request):
+    """Say no: their waiting account is deleted in Gramps Web (they can sign up again). Only accounts still waiting."""
+    await need_owner(request, LET_IN)
+    u = next((x for x in await owner_users(request) if x["name"] == login), None)
+    if not u or u.get("role") != ROLE_DISABLED:
+        raise HTTPException(404, "They're not waiting any more.")
+    try:
+        r = await upstream.delete(f"/users/{urllib.parse.quote(login, safe='')}/", headers={"Authorization": f"Bearer {bearer(request)}"})
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 403:
+            raise HTTPException(403, "The family tree's server didn't let you delete this account. Remove it in Full Gramps.") from None
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    except httpx.HTTPError:
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    return {"ok": True}
+
+
 @easy.post("/invites")
 async def invite(request: Request):
     user = await who(request)
@@ -688,10 +707,11 @@ def login_name(user: dict) -> str:
 async def save_settings(request: Request):
     name = login_name(await who(request))
     body = await json_body(request)
-    if not ("dates" in body or "emails" in body) or body.get("dates", chat.DATE_FORMATS[0]) not in chat.DATE_FORMATS \
-            or not isinstance(body.get("emails", True), bool):
+    keys = [k for k in ("dates", "emails", "dms") if k in body]
+    if not keys or body.get("dates", chat.DATE_FORMATS[0]) not in chat.DATE_FORMATS \
+            or not all(isinstance(body.get(k, True), bool) for k in ("emails", "dms")):
         raise HTTPException(400, "Something was missing. Please try again.")
-    return CHAT.save_settings(name, {k: body[k] for k in ("dates", "emails") if k in body})
+    return CHAT.save_settings(name, {k: body[k] for k in keys})
 
 
 # ---------- "Find me": each login linked to its own person in the tree ----------
@@ -1111,7 +1131,7 @@ def waiting_email(u: dict, names: dict) -> tuple[str, str]:
         lines.append(title)
         for m in ms[:5]:
             text = " ".join(m["text"].split())
-            lines.append(f"  {names.get(m['login'], m['login'])}: {text[:300]}{'…' if len(text) > 300 else ''}")
+            lines.append(f"  {names.get(m['login'], m['login']) or '🌳'}: {text[:300]}{'…' if len(text) > 300 else ''}")
         if len(ms) > 5:
             lines.append(f"  … and {len(ms) - 5} more")
         lines.append("")
@@ -1161,9 +1181,9 @@ async def push_new(cid: int, login: str, text: str):
         if not devices:
             return
         c, writer = CHAT.conv(cid), CHAT.full_names().get(login, login)
-        title = {"family": "Whole family", "group": c["name"], "private": writer,
+        title = {"family": "Whole family", "group": c["name"], "private": writer, "updates": f"🌳 {chat.UPDATES}",
                  "person": f"About {c['name'] or 'someone in the tree'}"}[c["kind"]]
-        body = text[:200] if c["kind"] == "private" else f"{writer}: {text[:200]}"
+        body = text[:200] if c["kind"] in ("private", "updates") else f"{writer}: {text[:200]}"
         data = json.dumps({"title": title, "body": body, "conv": cid}).encode()
         for url in await PUSH.send(devices, data, push_contact()):
             CHAT.remove_device(url)  # switched off in the browser, or the app was removed
@@ -1213,7 +1233,7 @@ async def chat_push_off(request: Request):
 async def chat_list(request: Request):
     login, editor = await chat_user(request)
     out = CHAT.summary(login)
-    out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), emoji=chat.EMOJI)
+    out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), nodms=CHAT.no_dms(), emoji=chat.EMOJI)
     return out
 
 

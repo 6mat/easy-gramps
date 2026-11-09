@@ -162,16 +162,26 @@ async function joining() {
       try {
         const r = await postJSON(`/joining/${encodeURIComponent(u.login)}`, { role: Number(role.value) });
         say.textContent = r.emailed ? `Let in ✓ We emailed ${u.email} that they're in.` : "Let in ✓ No email was sent, so let them know yourself.";
-        role.disabled = true; go.hidden = true;
+        role.disabled = true; go.hidden = true; no.hidden = true;
         ME.joining = Math.max(0, (ME.joining || 1) - 1); applySite();
       } catch (err) { go.disabled = false; say.textContent = err.message; }
     } }, "Let them in");
+    const no = h("button", { onclick: async () => {
+      if (no.dataset.sure !== "1") { no.dataset.sure = "1"; no.textContent = "Yes, delete their sign-up"; return; }
+      no.disabled = true;
+      try {
+        await api(`/joining/${encodeURIComponent(u.login)}`, { method: "DELETE" });
+        say.textContent = "Deleted ✓ They're not in the family tree. They could sign up again.";
+        role.disabled = true; go.hidden = true; no.hidden = true;
+        ME.joining = Math.max(0, (ME.joining || 1) - 1); applySite();
+      } catch (err) { no.disabled = false; say.textContent = err.message; }
+    } }, "Say no");
     return h("div", { class: "joinrow" }, h("div", {}, h("strong", {}, u.name), u.email ? ` · ${u.email}` : "",
       u.person ? h("div", { class: "small muted" }, "Invited: their place in the tree is linked when they're in.") : "",
       u.before ? h("div", { class: "small warn" }, "This login was used before and then turned off.") : ""),
-      h("div", { class: "btnrow" }, role, go), say);
+      h("div", { class: "btnrow" }, role, go, no), say);
   });
-  return [h("p", { class: "small muted" }, "People who signed up and are waiting for you. Pick what they can do and let them in; they get an email saying they're in. To say no, leave them here or remove them in Full Gramps."),
+  return [h("p", { class: "small muted" }, "People who signed up and are waiting for you. Pick what they can do and let them in; they get an email saying they're in. Say no deletes their sign-up."),
     ...(rows.length ? rows : [h("p", { class: "muted" }, "Nobody is waiting ✓")])];
 }
 
