@@ -386,6 +386,8 @@ def test_phone_notifications(fake, chat, monkeypatch, tmp_path):  # #133
 def test_owner_can_turn_off_talk_about_people(fake, chat):
     import main
     p = fake.person("George")
+    as_user(fake, "bob")
+    cid = chat.post(f"{E}/chat/person/{p}", json={"text": "before"}).json()["id"]  # written while it was on
     fake.role = 4
     main._who_cache.clear()
     assert chat.put(f"{E}/site", json={"talk": "no"}).status_code == 400
@@ -393,6 +395,9 @@ def test_owner_can_turn_off_talk_about_people(fake, chat):
     as_user(fake, "ann")
     assert chat.post(f"{E}/chat/person/{p}", json={"text": "hi"}).status_code == 403
     assert chat.get(f"{E}/auth/me").json()["site"]["talk"] is False
+    d = chat.get(f"{E}/chat").json()
+    assert all(c["kind"] != "person" for c in d["convs"]) and d["unread"] == 0  # not listed, not counted
+    assert chat.post(f"{E}/chat/c/{cid}", json={"text": "hi"}).status_code == 403
 
 
 def test_private_chats_off_means_none_either_way(fake, chat):

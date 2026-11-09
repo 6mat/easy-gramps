@@ -117,8 +117,11 @@ export function renderMenuMe() {
     try { ME.settings = { ...ME.settings, ...(await send("PUT", "/auth/settings", { dms: dm.checked })) }; refreshChat(); }
     catch (err) { dm.checked = !dm.checked; failed(err); }
   };
-  box.append(h("label", { class: "swrow" }, h("span", {}, "Private chats",
-    h("span", { class: "small muted block" }, "Turn off to have no private chats with anyone. You still get Family tree updates, and the family and group chats stay as they are.")), dm));
+  const what = "Turn off to have no private chats with anyone. You still get Family tree updates, and the family and group chats stay as they are.";
+  const note = h("div", { id: "dm-note", class: "small muted", hidden: true }, what);
+  const info = h("button", { class: "info", "aria-expanded": "false", "aria-controls": note.id, "aria-label": "About private chats", title: what }, "ⓘ");
+  info.onclick = e => { e.preventDefault(); note.hidden = !note.hidden; info.setAttribute("aria-expanded", String(!note.hidden)); };
+  box.append(h("label", { class: "swrow" }, h("span", { class: "swlabel" }, "Private chats", info), dm), note);
   if (canPush()) box.append(pushSwitch());
 }
 

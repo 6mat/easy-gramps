@@ -1233,6 +1233,9 @@ async def chat_push_off(request: Request):
 async def chat_list(request: Request):
     login, editor = await chat_user(request)
     out = CHAT.summary(login)
+    if not site()["talk"]:  # family talk about people turned off (Site settings): not listed, not counted
+        out["convs"] = [c for c in out["convs"] if c["kind"] != "person"]
+        out["unread"] = sum(c["unread"] for c in out["convs"])
     out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), nodms=CHAT.no_dms(), emoji=chat.EMOJI)
     return out
 
@@ -1246,6 +1249,8 @@ async def chat_messages(cid: int, request: Request, after: int = 0):
 @easy.post("/chat/c/{cid}")
 async def chat_post(cid: int, request: Request):
     login, _ = await chat_user(request)
+    if not site()["talk"] and CHAT.conv(cid)["kind"] == "person":
+        raise HTTPException(403, "The owner has turned off family talk about people.")
     m = CHAT.post(cid, login, (await json_body(request)).get("text"))
     notify(cid, login, m["text"])
     return m
