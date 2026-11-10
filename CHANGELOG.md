@@ -2,6 +2,16 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.23 — 2026-11-10
+
+### Changed
+- **Guide mode** (👉 Show me) is easier to see: everything except the button to tap is blurred and dimmed, the bubble
+  says "👉 Guide · 2 of 4" with **Exit**, and the steps are shorter. A tap on the blur only makes the ring pulse.
+  "Tap the person" isn't blurred, so anyone can be picked. At the end, "Done ✓" goes by itself or with any tap.
+
+### Fixed
+- The guide could skip a step when the next screen opened quickly (the editor).
+
 ## 1.9.22 — 2026-11-10
 
 ### Changed

@@ -738,4 +738,10 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
   color: var(--ink); border: 2px solid var(--accent); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
 .tour.free { left: 0; right: 0; margin-inline: auto; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
 .tour p { margin: 4px 0 10px; line-height: 1.4; }
-.tour .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Guide mode: blur and dim all but the button to tap (help.js: four panes around it) */
+.tourveil > div { position: fixed; z-index: 64; background: color-mix(in srgb, var(--ink) 22%, transparent);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.tourhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 700; color: var(--accent); }
+.tourhead .tourexit { min-height: 32px; padding: 4px 14px; }
+.tour > .primary { margin-top: 2px; }
+.tourdone { margin: 0; font-weight: 700; }
