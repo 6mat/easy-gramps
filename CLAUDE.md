@@ -45,7 +45,8 @@ app/gramps.py       Gramps Web API client (`Gramps`) + helpers (dates, notes, ne
 app/static/         tree.html + tree.css, and the page's ES modules (no build step):
                     main.js (entry) · common.js (data + helpers; imports only auth.js) · tree.js (tree, zoom,
                     map, menu, keys, search) · panel.js · editor.js (toast/Undo, autosave, editor, Add dialog)
-                    · help.js + helptext.js (? Help → How to…: tasks per screen, filtered by role and Site settings; helptext.js has no imports, tested in tests/checks.test.mjs)
+                    · help.js + helptext.js (? Help → How to…: tasks per screen, filtered by role and Site settings; 👉 Show me walks the
+                    steps (`go`: selector + words). **Renamed a button, a class or an id it points at? Update helptext.js**: tests/checks.test.mjs fails until then)
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
                     (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites, Logins), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api())

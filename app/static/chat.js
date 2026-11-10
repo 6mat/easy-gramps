@@ -150,9 +150,9 @@ function renderList() {
   const priv = of(c => c.kind === "private");
   const about = of(c => c.kind === "person");
   $("#chat .clist").replaceChildren(
-    head("Groups", D.editor && h("button", { class: "small", onclick: newGroup }, "+ New group")), ...groups,
+    head("Groups", D.editor && h("button", { class: "small newgroup", onclick: newGroup }, "+ New group")), ...groups,
     ...(others.length ? [head("Groups you can join"), ...others] : []),
-    head("Private messages", h("button", { class: "small", onclick: messageSomeone }, "+ Message someone")),
+    head("Private messages", h("button", { class: "small msgsome", onclick: messageSomeone }, "+ Message someone")),
     ...(priv.length ? priv : [h("div", { class: "small muted pad" }, "None yet.")]),
     ...(ME.site?.talk === false ? [] : [head("About people"),  // the owner can turn it off (Site settings)
       ...(about.length ? about : [h("div", { class: "small muted pad" }, "Write about someone from their details: tap them in the tree.")])]));

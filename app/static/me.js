@@ -257,7 +257,7 @@ function inviteLine(p) {
   return h("div", { class: "small loginline" }, inv
     ? [h("span", { class: "muted" }, `✉ Invited as ${ROLES[inv.role][1]} on ${fmtDate({ y: when.getFullYear(), m: when.getMonth() + 1, d: when.getDate() })}, waiting for them to sign in · `),
       h("button", { class: "linkish", onclick: () => openInvite(p) }, "Invite again")]
-    : h("span", { class: "btnrow" }, h("button", { onclick: () => openInvite(p) }, "✉ Invite to the family tree"),
+    : h("span", { class: "btnrow" }, h("button", { class: "invite", onclick: () => openInvite(p) }, "✉ Invite to the family tree"),
       isOwner() ? h("button", { onclick: () => openLinkLogin(p) }, "🔗 Link a login") : ""));
 }
 // ---------- the owner: link someone's login to their person (here, and ☰ Menu → Manage → Logins) ----------

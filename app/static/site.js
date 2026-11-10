@@ -116,7 +116,7 @@ $("#manage").addEventListener("keydown", e => {
 function nav() {
   $("#manage .mnav").replaceChildren(...mine().flatMap(([k, label, , , group], i, all) => [
     group && group !== all[i - 1]?.[4] ? h("h3", {}, group) : "",
-    h("button", { "aria-current": k === M.at ? "page" : null, class: group ? "sub" : "",
+    h("button", { "aria-current": k === M.at ? "page" : null, class: group ? "sub" : "", "data-sec": k,
       onclick: () => { M.at = k; show(); $("#manage .msec h2")?.focus(); } }, label())]));
 }
 async function show(top = 0) {
