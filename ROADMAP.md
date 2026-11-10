@@ -71,6 +71,19 @@ share the browser's `localStorage`, where Gramps Web keeps its login (password *
 - **Translations** — all text is English today.
 - **Accent colour / theme choices** beyond light/dark.
 
+## Later, once there are more people and data (owner, Nov 2026)
+- **Birthdays and anniversaries:** "This week" on the start screen, plus an optional notification or email on the day.
+- **"What's new" weekly email:** new people, photos and approved suggestions, with links.
+- **"Can you help?" list** for suggesters: people missing a birth year, photo or parents (see "Could use some details" above).
+- **Printable tree:** a one-page PDF of someone's tree for gatherings.
+- **Memories per person:** a few lines and an old photo, kept apart from the chat.
+- **Who's in this photo:** tap faces in a group photo to tag people (builds on the crops).
+- **Family map:** where people were born or lived.
+- **Second Google account:** people sign up again with another Gmail. The waiting screen can't know who they are (no
+  token), so: a hint line there ("Already in with another Google account? Sign in with that one"); Waiting to join
+  flags a same-name sign-up; Say no → "They already have a login: [person]" emails them the account to use (address
+  partly hidden) and remembers the email, so a repeat sign-up shows up flagged.
+
 ## Under discussion (Oct 2026), owner to pick
 Researched, nothing built yet: details and numbered options in `docs/research/`.
 - **"Find me" / My tree:** each login linked to its person in the tree. Needed by the two items below.

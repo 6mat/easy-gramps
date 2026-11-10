@@ -23,6 +23,7 @@
       <div id="results" class="results" hidden></div>
     </div>
     <button id="chatbtn" class="chatbtn" hidden aria-label="Family chat">💬<span class="lbl"> Chat</span> <span id="chatbadge" class="badge" hidden></span></button>
+    <button id="helpbtn" data-help aria-label="Help: how to…">?<span class="lbl"> Help</span></button>
     <div class="menuwrap">
       <button id="menubtn" aria-haspopup="true" aria-expanded="false" aria-label="Menu">☰<span class="lbl"> Menu</span></button>
       <div class="menu-pop" id="menupop" hidden>
@@ -45,6 +46,7 @@
           <a class="menulink" id="menu-gramps" target="_blank" rel="noopener" hidden>Full Gramps ↗</a>
           <button id="menu-manage" hidden>⚙️ Manage</button></div>
         <div class="mgroup"><h3 id="h-help">Help</h3>
+          <button id="menu-howto" data-help>❓ How to…</button>
           <button id="tips-again" data-item="tips">Show tips</button>
           <button id="menu-keys" data-item="keys">Keyboard keys</button>
           <button id="menu-install" data-item="install">📲 Install as an app</button></div>
@@ -102,6 +104,7 @@
     <button id="ed-back" class="pill">← Back to tree</button>
     <button id="ed-home" class="pill" title="Back to the start, to choose someone else">⌂ Home</button>
     <div class="titles"><div class="crumbs" id="crumbs"></div><h2 id="ed-title"></h2></div>
+    <button class="pill" data-help>? Help</button>
     <span id="ed-glink"></span>
     <span id="ed-status" class="status" role="status"></span>
   </div>
@@ -113,6 +116,7 @@
     <button id="chat-back" class="pill">← Back</button>
     <button id="chat-home" class="pill" title="Back to the start, to choose someone else">⌂ Home</button>
     <div class="titles"><h2>Family chat</h2></div>
+    <button class="pill" data-help>? Help</button>
   </div>
   <div class="cbody"><div class="clist"></div><div class="cconv"></div></div>
 </div>
@@ -121,6 +125,7 @@
   <div class="ed-head">
     <button id="manage-back" class="pill">← Back</button>
     <div class="titles"><h2>Manage</h2></div>
+    <button class="pill" data-help>? Help</button>
   </div>
   <div class="mbody"><nav class="mnav" aria-label="Sections"></nav><section class="msec"></section></div>
 </div>
