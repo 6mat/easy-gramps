@@ -101,7 +101,8 @@ test("How to… and Show me still match the app's buttons and words", async () =
   const tasks = ["editor", "suggest", "contributor", "guest"].flatMap(role => tasksFor({ ...HELP, ...ALL, role, dms: true }, "tree"));
   const hasClass = c => new RegExp(String.raw`class(Name)?\s*[:=]\s*["\`][^"\`]*(?<![\w-])${c}(?![\w-])`).test(src);
   const hasId = id => src.includes(`id="${id}"`) || src.includes(`id: "${id}"`);
-  for (const t of tasks) for (const [sel] of t.tour || []) {
+  for (const t of tasks) for (const [sel, , mode] of t.tour || []) {
+    assert.ok([undefined, "tap", "read", "any"].includes(mode), `${t.title}: mode ${mode}`);
     if (!sel) continue;
     const bare = sel.replace(/:not\([^)]*\)/g, "");
     for (const [, kind, name] of bare.matchAll(/([#.])([\w-]+)/g)) assert.ok(kind === "#" ? hasId(name) : hasClass(name), `${t.title}: ${kind}${name} is gone`);

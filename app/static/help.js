@@ -38,24 +38,30 @@ export function openHelp() {
   q.focus();
 }
 
-// ---------- 👉 Show me: one step at a time ----------
-// The bubble says what to do and rings the button; tapping it moves on, and a later step that's already showing is
-// skipped to (the editor already open, say). It never taps anything itself. ✕ Stop or Esc ends it.
-let T = null;  // {steps, at, el, shown: the step drawn, bubble, timer}
+// ---------- 👉 Show me: a guide, one step at a time ----------
+// Everything but the button to tap is blurred (the veil: four panes around it, so it stays tappable); the bubble says
+// what to do. Tapping that button moves on; with a screen open (the editor, chat, a pop-up), a later step already showing
+// there is skipped to. A tap on the blur only nudges the ring. It never taps anything itself. Exit or Esc ends it; at the end,
+// "Done ✓" goes by itself or with any tap. Steps: [selector, words, mode, what to do when it isn't on screen].
+let T = null;  // {steps, at, el, shown: the step drawn, lost, done, bubble, veil, timer}
 const layer = () => ["#dlg-wrap", "#manage", "#chat", "#editor"].map(x => $(x)).find(x => !x.hidden);  // what's on top
 const showing = el => el.getClientRects().length > 0 && (!layer() || layer().contains(el));
 const find = sel => (sel && [...document.querySelectorAll(sel)].find(showing)) || null;
 
 function tour(steps) {
   stopTour(); hideDlg();
-  T = { steps, at: 0, el: null, shown: -1, bubble: h("div", { class: "tour", role: "status" }) };
-  document.body.append(T.bubble);
+  const veil = h("div", { class: "tourveil", "aria-hidden": "true" }, ...[0, 1, 2, 3].map(() => h("div")));
+  veil.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); nudge(); });  // (not to the page: it'd close the menu)
+  T = { steps, at: 0, el: null, shown: -1, lost: null, veil, bubble: h("div", { class: "tour", role: "status" }) };
+  document.body.append(veil, T.bubble);
   T.timer = setInterval(tick, 300);  // the next button may take a moment (the editor opening, the menu)
+  T.watch = new MutationObserver(() => { if (!T.queued) T.queued = requestAnimationFrame(() => { if (T) { T.queued = 0; if (!T.done) tick(); } }); });
+  T.watch.observe(document.body, { childList: true, subtree: true });  // a redrawn panel: ring its new button at once
   tick();
 }
 function stopTour() {
   if (!T) return;
-  clearInterval(T.timer); T.el?.classList.remove("helpglow"); T.bubble.remove(); T = null;
+  clearInterval(T.timer); T.watch.disconnect(); T.el?.classList.remove("helpglow"); T.bubble.remove(); T.veil.remove(); T = null;
 }
 function next() {
   if (T.at === T.steps.length - 1) return finish();
@@ -63,45 +69,66 @@ function next() {
 }
 function finish() {
   const was = T;
-  clearInterval(T.timer); T.el?.classList.remove("helpglow"); T.el = null;
-  T.bubble.replaceChildren(h("p", {}, "That's it ✓"), h("div", { class: "btnrow" }, h("button", { onclick: stopTour }, "Close")));
+  clearInterval(T.timer); T.el?.classList.remove("helpglow"); T.el = null; T.done = true;
+  T.bubble.replaceChildren(h("p", { class: "tourdone" }, "Done ✓"));
   place();
-  setTimeout(() => { if (T === was) stopTour(); }, 3000);
+  setTimeout(() => { if (T === was) stopTour(); }, 2500);
+}
+function nudge() {
+  if (!T.el) return;
+  T.el.classList.remove("helpglow"); void T.el.offsetWidth; T.el.classList.add("helpglow");  // the ring pulses again
 }
 function tick() {
-  for (let i = T.steps.length - 1; i > T.at; i--) if (find(T.steps[i][0])) { T.at = i; break; }
-  const el = find(T.steps[T.at][0]);
+  if (layer()) for (let i = T.steps.length - 1; i > T.at; i--) if (find(T.steps[i][0])) { T.at = i; break; }
+  const [sel, , mode] = T.steps[T.at], el = mode === "any" ? null : find(sel);
   if (el !== T.el) {
     T.el?.classList.remove("helpglow");
     T.el = el;
-    if (el) { el.classList.add("helpglow"); el.scrollIntoView({ block: "nearest" }); }
+    if (el) { el.classList.add("helpglow"); el.scrollIntoView({ block: "nearest" }); el.focus?.({ preventScroll: true }); }
   }
-  if (T.shown !== T.at || !el !== T.lost) draw();  // (the "Can't see it?" line comes and goes)
+  const lost = !!sel && !(mode === "any" ? find(sel) : el);
+  if (T.shown !== T.at || lost !== T.lost) { T.lost = lost; draw(); }  // (the "not on screen" line comes and goes)
   place();
 }
 function draw() {
-  const [sel, say, mode] = T.steps[T.at], last = T.at === T.steps.length - 1;
-  T.shown = T.at; T.lost = !T.el;
-  T.bubble.replaceChildren(h("div", { class: "small muted" }, `Step ${T.at + 1} of ${T.steps.length}`), h("p", {}, ...words(say)),
-    sel && !T.el && layer() ? h("p", { class: "small muted" }, "Can't see it? Go back first, with ← Back at the top.") : "",
-    h("div", { class: "btnrow" }, (mode === "read" || !sel) && h("button", { class: "primary", onclick: next }, last ? "Done" : "Next ›"),
-      h("button", { onclick: stopTour }, "✕ Stop")));
+  const [sel, say, mode, hint] = T.steps[T.at], last = T.at === T.steps.length - 1;  // (T.lost: from tick)
+  T.shown = T.at;
+  T.bubble.replaceChildren(
+    h("div", { class: "tourhead" }, h("span", {}, `👉 Guide · ${T.at + 1} of ${T.steps.length}`), h("button", { class: "tourexit", onclick: stopTour }, "Exit")),
+    h("p", {}, ...words(say)),
+    sel && T.lost ? h("p", { class: "small muted" }, hint || (layer() ? "Not here. Go back first (← Back)." : "Not on screen yet.")) : "",
+    mode === "read" || !sel ? h("button", { class: "primary", onclick: next }, last ? "Done" : "Next ›") : "");
 }
-// Beside the ringed button (below, or above when there's no room), else at the bottom of the screen.
+// The bubble beside the ringed button (below, or above when there's no room), else at the bottom; the veil around it.
+// No button on screen: no veil, so you can go and find it.
 function place() {
-  const b = T.bubble, r = T.el?.getBoundingClientRect(), gap = 12;
+  const b = T.bubble, r = T.el?.getBoundingClientRect(), gap = 12, pad = 8;
   b.classList.toggle("free", !r);
-  if (!r) { b.style.top = b.style.left = ""; return; }
-  const below = r.bottom + gap + b.offsetHeight < innerHeight;
-  b.style.top = `${Math.max(8, below ? r.bottom + gap : r.top - gap - b.offsetHeight)}px`;
-  b.style.left = `${Math.min(Math.max(8, r.left), innerWidth - b.offsetWidth - 8)}px`;
+  if (r) {
+    const below = r.bottom + pad + gap + b.offsetHeight < innerHeight;
+    b.style.top = `${Math.max(8, below ? r.bottom + pad + gap : r.top - pad - gap - b.offsetHeight)}px`;
+    b.style.left = `${Math.min(Math.max(8, r.left), innerWidth - b.offsetWidth - 8)}px`;
+  } else b.style.top = b.style.left = "";
+  T.veil.hidden = T.done || (!!T.steps[T.at][0] && !T.el);  // (and "any": nothing to single out)
+  if (T.veil.hidden) return;
+  const x1 = r ? r.left - pad : 0, y1 = r ? r.top - pad : 0, x2 = r ? r.right + pad : 0, y2 = r ? r.bottom + pad : 0;
+  const [top, bottom, left, right] = T.veil.children;  // around the hole; no hole (a step with words only): top covers all
+  Object.assign(top.style, { left: "0", top: "0", width: "100%", height: r ? `${Math.max(0, y1)}px` : "100%" });
+  Object.assign(bottom.style, { left: "0", top: `${y2}px`, width: "100%", height: r ? `${Math.max(0, innerHeight - y2)}px` : "0" });
+  Object.assign(left.style, { left: "0", top: `${y1}px`, width: `${Math.max(0, x1)}px`, height: r ? `${y2 - y1}px` : "0" });
+  Object.assign(right.style, { left: `${x2}px`, top: `${y1}px`, width: `${Math.max(0, innerWidth - x2)}px`, height: r ? `${y2 - y1}px` : "0" });
 }
 // Tapping the ringed button (any that matches: any person's box) moves on, once the page has done what the tap does.
 document.addEventListener("click", e => {
-  if (!T || e.target.closest(".tour")) return;
+  if (!T) return;
+  if (T.done) return stopTour();  // "Done ✓": any tap closes it
+  if (e.target.closest(".tour")) return;
   const [sel, , mode] = T.steps[T.at];
-  if (sel && mode !== "read" && e.target.closest(sel)) setTimeout(() => T && next());
+  const at = T.at;  // (unless it has moved on by itself meanwhile: the screen it opened has the next button)
+  if (sel && mode !== "read" && e.target.closest(sel)) setTimeout(() => T?.at === at && next());
 }, true);
 document.addEventListener("keydown", e => { if (e.key === "Escape") stopTour(); }, true);
+addEventListener("scroll", () => T && place(), { capture: true, passive: true });  // keep the hole on the button
+addEventListener("resize", () => T && place());
 
 document.addEventListener("click", e => { if (e.target.closest("[data-help]")) openHelp(); });
