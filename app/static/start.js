@@ -29,7 +29,7 @@ export function renderStart() {
   if (canAddNew()) {
     const form = newPersonForm();
     form.hidden = true;
-    const open = h("button", { class: "pill", onclick: () => addForm() }, "+ Add a new person");
+    const open = h("button", { id: "start-add", class: "pill", onclick: () => addForm() }, "+ Add a new person");
     addForm = text => {
       open.hidden = true; form.hidden = false;
       if (text) form.fill(text);

@@ -1,5 +1,5 @@
 // Easy Gramps — "? Help": How to… for the screen you're on (its tasks first), as the login and Site settings allow
-// (the words are in helptext.js). "Show me" closes it and rings the button to tap for a few seconds.
+// (the words are in helptext.js). "👉 Show me" walks you through it: a bubble rings each button to tap, in turn.
 import { $, ME, S, closeMenu, dateFormat, dateHint, fmtDate, h, named } from "./common.js";
 import { hideDlg, showDlg } from "./editor.js";
 import { isOwner } from "./me.js";
@@ -16,7 +16,7 @@ const screen = () => (!$("#manage").hidden ? "manage" : !$("#chat").hidden ? "ch
 const words = s => s.split(/\*\*(.+?)\*\*/).map((x, i) => (i % 2 ? h("b", {}, x) : x));
 
 export function openHelp() {
-  closeMenu();
+  closeMenu(); stopTour();
   const here = screen(), all = tasksFor(ctx(), here);
   const list = h("div", { class: "howto" });
   const q = h("input", { type: "search", placeholder: "What do you want to do?", "aria-label": "Search the help", autocomplete: "off" });
@@ -25,7 +25,7 @@ export function openHelp() {
     const hits = all.filter(t => !w || `${t.title} ${t.steps.join(" ")}`.toLowerCase().includes(w));
     const group = (title, items) => items.length ? [h("h4", {}, title), ...items.map(t => h("details", { open: !!w && hits.length < 4 },
       h("summary", {}, t.title), h("ol", {}, ...t.steps.map(s => h("li", {}, ...words(s)))),
-      t.show && h("button", { class: "pill", onclick: () => setTimeout(() => showMe(t.show)) }, "👉 Show me")))] : [];
+      t.tour && h("button", { class: "pill", onclick: () => setTimeout(() => tour(t.tour)) }, "👉 Show me")))] : [];  // (after this click: it would close the menu)
     list.replaceChildren(...group(`On this screen: ${SCREENS[here]}`, hits.filter(t => t.at === here)),
       ...group(here === "tree" ? "Elsewhere" : "Everything else", hits.filter(t => t.at !== here)),
       hits.length ? "" : h("p", { class: "muted" }, "Nothing found. Try another word, or ask in the family chat."));
@@ -38,17 +38,70 @@ export function openHelp() {
   q.focus();
 }
 
-// Open what it's in (the menu, the chat), then ring the first one that's showing. (Run after the click that asked: a click
-// outside the menu closes it.)
-function showMe({ sel, menu, chat }) {
-  hideDlg();
-  if (chat && $("#chat").hidden) $("#chatbtn").click();
-  if (menu && $("#menupop").hidden) $("#menubtn").click();
-  const el = [...document.querySelectorAll(sel)].find(x => x.offsetParent || x.getClientRects().length);
-  if (!el) return;
-  el.scrollIntoView({ block: "nearest" });
-  el.classList.add("helpglow");
-  setTimeout(() => el.classList.remove("helpglow"), 4000);
+// ---------- 👉 Show me: one step at a time ----------
+// The bubble says what to do and rings the button; tapping it moves on, and a later step that's already showing is
+// skipped to (the editor already open, say). It never taps anything itself. ✕ Stop or Esc ends it.
+let T = null;  // {steps, at, el, shown: the step drawn, bubble, timer}
+const layer = () => ["#dlg-wrap", "#manage", "#chat", "#editor"].map(x => $(x)).find(x => !x.hidden);  // what's on top
+const showing = el => el.getClientRects().length > 0 && (!layer() || layer().contains(el));
+const find = sel => (sel && [...document.querySelectorAll(sel)].find(showing)) || null;
+
+function tour(steps) {
+  stopTour(); hideDlg();
+  T = { steps, at: 0, el: null, shown: -1, bubble: h("div", { class: "tour", role: "status" }) };
+  document.body.append(T.bubble);
+  T.timer = setInterval(tick, 300);  // the next button may take a moment (the editor opening, the menu)
+  tick();
 }
+function stopTour() {
+  if (!T) return;
+  clearInterval(T.timer); T.el?.classList.remove("helpglow"); T.bubble.remove(); T = null;
+}
+function next() {
+  if (T.at === T.steps.length - 1) return finish();
+  T.at++; tick();
+}
+function finish() {
+  const was = T;
+  clearInterval(T.timer); T.el?.classList.remove("helpglow"); T.el = null;
+  T.bubble.replaceChildren(h("p", {}, "That's it ✓"), h("div", { class: "btnrow" }, h("button", { onclick: stopTour }, "Close")));
+  place();
+  setTimeout(() => { if (T === was) stopTour(); }, 3000);
+}
+function tick() {
+  for (let i = T.steps.length - 1; i > T.at; i--) if (find(T.steps[i][0])) { T.at = i; break; }
+  const el = find(T.steps[T.at][0]);
+  if (el !== T.el) {
+    T.el?.classList.remove("helpglow");
+    T.el = el;
+    if (el) { el.classList.add("helpglow"); el.scrollIntoView({ block: "nearest" }); }
+  }
+  if (T.shown !== T.at || !el !== T.lost) draw();  // (the "Can't see it?" line comes and goes)
+  place();
+}
+function draw() {
+  const [sel, say, mode] = T.steps[T.at], last = T.at === T.steps.length - 1;
+  T.shown = T.at; T.lost = !T.el;
+  T.bubble.replaceChildren(h("div", { class: "small muted" }, `Step ${T.at + 1} of ${T.steps.length}`), h("p", {}, ...words(say)),
+    sel && !T.el && layer() ? h("p", { class: "small muted" }, "Can't see it? Go back first, with ← Back at the top.") : "",
+    h("div", { class: "btnrow" }, (mode === "read" || !sel) && h("button", { class: "primary", onclick: next }, last ? "Done" : "Next ›"),
+      h("button", { onclick: stopTour }, "✕ Stop")));
+}
+// Beside the ringed button (below, or above when there's no room), else at the bottom of the screen.
+function place() {
+  const b = T.bubble, r = T.el?.getBoundingClientRect(), gap = 12;
+  b.classList.toggle("free", !r);
+  if (!r) { b.style.top = b.style.left = ""; return; }
+  const below = r.bottom + gap + b.offsetHeight < innerHeight;
+  b.style.top = `${Math.max(8, below ? r.bottom + gap : r.top - gap - b.offsetHeight)}px`;
+  b.style.left = `${Math.min(Math.max(8, r.left), innerWidth - b.offsetWidth - 8)}px`;
+}
+// Tapping the ringed button (any that matches: any person's box) moves on, once the page has done what the tap does.
+document.addEventListener("click", e => {
+  if (!T || e.target.closest(".tour")) return;
+  const [sel, , mode] = T.steps[T.at];
+  if (sel && mode !== "read" && e.target.closest(sel)) setTimeout(() => T && next());
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") stopTour(); }, true);
 
 document.addEventListener("click", e => { if (e.target.closest("[data-help]")) openHelp(); });

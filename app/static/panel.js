@@ -67,7 +67,7 @@ export function renderPanel() {
           life && h("div", { class: "small life" }, life),  // full dates and places: More details
           p.nick && h("div", { class: "muted" }, `Called “${p.nick}”`), meTag(p),
           h("div", { class: "pacts" }, messageButton(p), !isStandIn(p.id) && !ME.site?.hide?.includes("trace")
-            && h("button", { class: "msgbtn small", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
+            && h("button", { class: "msgbtn small trace", onclick: () => openRelate(p.id) }, named("trace", "🔗 Trace relationship"))))),
       p.photos.length > 1 ? h("div", { class: "phstrip", role: "group", "aria-label": "Photos" },
         p.photos.map((m, i) => h("button", { title: "Show it bigger", "aria-label": `Photo ${i + 1} of ${p.photos.length}`, onclick: () => openViewer(p.photos, i, name(p)) },
           h("img", { src: thumbUrl(m, 96, p.crops?.[m]), alt: "", loading: "lazy" })))) : "",  // ("" not false: replaceChildren would print it)

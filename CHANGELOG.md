@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.22 — 2026-11-10
+
+### Changed
+- **👉 Show me** in How to… now walks you through the whole task: a bubble says "Step 2 of 4: Tap ✎ Edit person" beside the
+  ringed button and moves on when you tap it, skipping steps you've already done (the editor already open, say). It never
+  taps anything for you; ✕ Stop or Esc ends it.
+- A test (tests/checks.test.mjs) fails when a button the help points at, or a button name it quotes, changes in the app,
+  so the help is updated with it.
+
 ## 1.9.21 — 2026-11-10
 
 ### Added

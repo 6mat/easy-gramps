@@ -733,3 +733,9 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .helpglow { outline: 4px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
 @media (prefers-reduced-motion: no-preference) { .helpglow { animation: helpglow 1s ease-in-out 4; } }
 @keyframes helpglow { 50% { outline-offset: 7px; } }
+/* 👉 Show me (help.js): the bubble beside the ringed button */
+.tour { position: fixed; z-index: 65; width: max-content; max-width: min(340px, calc(100vw - 32px)); background: var(--card);
+  color: var(--ink); border: 2px solid var(--accent); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+.tour.free { left: 0; right: 0; margin-inline: auto; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+.tour p { margin: 4px 0 10px; line-height: 1.4; }
+.tour .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
