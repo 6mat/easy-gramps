@@ -64,3 +64,34 @@ test("dates are typed and shown in the chosen format", async () => {
   assert.equal(parseTyped("31 Feb 1950"), null);
   assert.equal(parseTyped("12 Foo 1950"), null);
 });
+
+test("How to… follows who may do what, the owner's names and hidden items, and Show me finds real buttons", async () => {
+  const { tasksFor, TASK_COUNT } = await import("../app/static/helptext.js");
+  const fs = await import("node:fs");
+  const base = { owner: false, admin: false, history: false, reviews: false, check: false, auto: true, talk: true, email: false, dms: true,
+    hide: new Set(), label: (k, d) => d, date: "DD/MM/YYYY", eg: "12/03/1950", digits: "12031950" };
+  const titles = c => tasksFor({ ...base, ...c }, "tree").map(t => t.title);
+  const steps = c => tasksFor({ ...base, ...c }, "tree").flatMap(t => t.steps).join(" ");
+  assert.ok(!titles({ role: "guest" }).includes("Change someone's details"));
+  assert.ok(titles({ role: "guest" }).includes("Change or add things in the tree"));
+  assert.match(steps({ role: "suggest" }), /✎ Suggest a change.*Family tree updates/);
+  assert.match(steps({ role: "suggest", auto: false }), /Send to the editors/);
+  assert.match(steps({ role: "editor" }), /✎ Edit person/);
+  assert.doesNotMatch(steps({ role: "editor" }), /Suggest a change|Family tree updates/);
+  assert.ok(titles({ role: "contributor" }).includes("Add a person who has no relatives in the tree yet"));
+  assert.ok(!titles({ role: "suggest" }).includes("Add a person who has no relatives in the tree yet"));
+  assert.ok(!titles({ role: "editor", hide: new Set(["docs"]) }).includes("Old family papers"));
+  assert.match(steps({ role: "guest", label: (k, d) => (k === "menu" ? "More" : d) }), /☰ More/);
+  assert.ok(!titles({ role: "guest" }).includes("Go back to the tree"));  // guests never open Edit person
+  assert.ok(!titles({ role: "editor" }).includes("Someone is waiting to join"));
+  assert.ok(titles({ role: "editor", owner: true }).includes("Someone is waiting to join"));
+  assert.equal(tasksFor({ ...base, role: "editor" }, "chat")[0].at, "chat");  // this screen's first
+  const all = tasksFor({ ...base, role: "editor", owner: true, admin: true, history: true, reviews: true, check: true }, "tree");
+  assert.equal(all.length, TASK_COUNT - 2);  // all but the note for guests and contributors, and suggesters' updates
+  for (const t of all) assert.ok(t.title && t.steps.length && t.steps.every(s => s && !s.includes("undefined")), t.title);
+  const src = fs.readdirSync("app/static").filter(f => /\.(js|html)$/.test(f)).map(f => fs.readFileSync(`app/static/${f}`, "utf8")).join("\n");
+  for (const t of all.filter(x => x.show)) for (const s of t.show.sel.split(",")) {
+    const name = s.trim().match(/[#.]([\w-]+)/g).at(-1).slice(1);  // the id or class it ends on
+    assert.ok(src.includes(name), `${t.title}: ${s}`);
+  }
+});

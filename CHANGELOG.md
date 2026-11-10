@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.21 — 2026-11-10
+
+### Added
+- **? Help → How to…**: a **? Help** button in the top bar, Edit person, Chat and Manage (and ☰ Menu → Help → How to…)
+  lists what you can do, the screen you're on first, in a few steps each, with a search box. It follows who may do
+  what: editors read "✎ Edit person", people who suggest read "✎ Suggest a change" and where the answer comes, guests
+  that they can look; the owner's Manage tasks only for the owner. It uses the owner's names for menu items, leaves out
+  hidden ones and gives date examples in the chosen date style. **👉 Show me** opens the menu or chat and rings the button.
+
 ## 1.9.20 — 2026-11-10
 
 ### Fixed
