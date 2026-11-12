@@ -187,7 +187,7 @@ async function unlinkMe() {
 }
 
 // ---------- the dialog: find yourself, then "Is this you?" ----------
-export function openFindMe() {
+function openFindMe() {
   showDlg(false);
   findStep(ME.full_name || "");
 }

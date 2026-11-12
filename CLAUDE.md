@@ -16,6 +16,7 @@ one vanilla-JS page. Read `README.md` for what it is and `ROADMAP.md` for **what
   **Actions → Release image → Run workflow** on main: it builds the image, then tags `vX.Y.Z` from `VERSION`
   and publishes the release with that version's CHANGELOG notes. A hand-made tag must match `VERSION`.
   Changes merged without a release go under `## Unreleased` in CHANGELOG; rename it to the version when releasing.
+  Before a release, check whether PDF.js (app/static/pdfjs, version 4.10.38) has a newer security release: pip-audit doesn't see copied files.
   The release passes `VERSION=vX.Y.Z` into the image (Dockerfile ARG → `APP_VERSION`), shown at the bottom of ☰ Menu.
 
 ## Run and check
@@ -31,7 +32,7 @@ Without Docker: `pip install -r app/requirements.txt`, then from `app/`:
 
 ## Layout
 ```
-app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png (from ICON_FILE), /sw.js,
+app/main.py         FastAPI, mounted under BASE_PATH (/easy-gramps). Routes: /auth/{login,refresh,me,session,options,settings,me/person}, /manifest.webmanifest, /icon-{32,180,192,512}.png[?maskable=1] (DATA_DIR/icons, else static/icons), /sw.js,
                     /tree/* (incl. /tree/logins), /chat/*, /gapi/media/{h}[/cropped/x1/y1/x2/y2]/thumbnail/{size} (the person's region of a picture: graph `crops` {media: rect}; login from the HttpOnly eg_photo cookie), / = the page
 app/chat.py         Easy Gramps' own data (SQLite in DATA_DIR/chat.sqlite3): each login's settings and Find me link, the chat's
                     conversations, messages, reads, daily-email query, notification devices
@@ -50,7 +51,7 @@ app/static/         tree.html + tree.css, and the page's ES modules (no build st
                     · merge.js · start.js (start screen, login) · search.js (both searches' results) · photos.js
                     (the big photo view) · book.js (a book page in our own PDF viewer, PDF.js in static/pdfjs; editors mark the paragraph) · site.js (☰ Menu → Manage, grouped: Changes (Suggestions, History), People (Waiting to join, Invites, Logins), Check the tree, Settings) · suggest.js (suggestions: draft, proposed tree, review, history) · relate.js (🔗 Trace relationship) · me.js ("Find me") · chat.js (family chat) · auth.js
                     (tokens + api())
-                    · sw.js (service worker: installable app, "No internet" page, caches nothing) · icon.png (app icon)
+                    · sw.js (service worker: installable app, "No internet" page, caches nothing) · icons/ (default app icons) · queue.js (the save queue: `enqueue`, `queueIdle`; tests/queue.test.mjs)
 deploy/             compose.traefik.yaml — install next to Gramps Web on the same domain
 LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added dependency compatible
 ```
@@ -62,7 +63,7 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   never "log in again".
 - **Shared login** when the page and `GRAMPS_PUBLIC_URL` (`data-gramps`) are the same origin: auth.js uses
   Gramps Web's own `localStorage` keys (`access_token`, `refresh_token`, plus `access_token_expires`,
-  `id_token`); old `eg_*` keys carry over once. Gramps Web's refresh doesn't rotate the refresh token, so
+  `id_token`); other origins keep their own `eg_*` keys. Gramps Web's refresh doesn't rotate the refresh token, so
   both apps renew independently. Log out clears both apps' keys; a `storage` event from Gramps Web
   logs this page in or out. `GET /auth/options` (no login) relays Gramps Web's `/api/oidc/config/`:
   sign-in buttons (opened in a pop-up at `/api/oidc/login/?provider=…`; Gramps Web then shows its own
@@ -107,8 +108,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   native `POST /api/people/{keep}/merge/{absorb}` with `family_merger: true` (both sets of
   relationships kept; `absorb` deleted). Not covered by Undo.
 - `GET /auth/me` also returns the person's `settings` and `push_key`; `PUT /auth/settings {dates|emails}` saves them
-  in chat.sqlite3's `settings` table by Gramps Web user name (follows them to every device; a 1.8.0 `settings.json` is
-  imported once and kept as `settings.json.imported`). Storage errors (sqlite3.Error) are one 503 "data folder isn't
+  in chat.sqlite3's `settings` table by Gramps Web user name (follows them to every device). Storage errors (sqlite3.Error) are one 503 "data folder isn't
   writable" (an exception handler, like GrampsError and ChatError); `/auth/me` still works without them.
 - **Find me:** `PUT /auth/me/person {person}` links the login to a person (anyone with a login, no approval;
   409 "Already linked to another login" — one login per person); `DELETE /auth/me/person` unlinks it. Kept as
@@ -146,7 +146,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   (postMessage) or opens `?chat=<id>`.
 - **Site settings** (owner): `PUT /site {name ≤ 40, hide ⊆ MENU_ITEMS, gramps: nobody|owner|editors|everyone}`, chat.sqlite3
   `site` (key → JSON, defaults `chat.SITE`); `/auth/me` → `site`, and drops `gramps_link` below `GRAMPS_FOR[gramps]`.
-  `PUT /site/icon` (raw picture → square PNG ≤ 1024 px in `DATA_DIR/icon.png`, wins over `ICON_FILE`), `DELETE` = default.
+  `PUT /site/icon` (JSON `{32, 180, 192, 512, 192m, 512m: base64 PNG}` drawn by site.js `iconSet`; checked sizes, saved together in `DATA_DIR/icons`; an old `DATA_DIR/icon.png` is served for every size until then), `DELETE` = default.
   The name goes into tree.html (`__NAME__`: title, apple title, brand, `data-name` → `APP_NAME`) and the manifest.
   `talk` (bool, default true): off hides "Family talk about …" (panel.js) and `POST /chat/person/{h}` is a 403.
   `labels` {key → text ≤ 40}: renames (main.py `LABELS` and `MENU_ITEMS` = site.js `MENU`: rename key, selector, default, hide key; Manage → Settings → Menu and buttons shows and renames in one list; `.lbl` gets a
@@ -185,7 +185,7 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   use (`giver`). History: `GET /suggestions/history?before=<time>:<s|c>:<id>&login=&kind=` (PAGE = 100, `more`, `who`), same grouping;
   `POST /suggestions/delete {ids}` or `{rejected: "all"}` removes rejected rows only, with the rejected rows that use the
   stand-ins they made. 1.9.4: a resent add (its `fam` stand-in is known) is skipped, not refused; a set on a waiting new
-  person's stand-in for `NEW_FIELDS` folds into the add row's `new` (`_fold`; `_tidy` once at start for old rows); `_can_link`
+  person's stand-in for `NEW_FIELDS` folds into the add row's `new` (`_fold`); `_can_link`
   refuses at send what Gramps would refuse at approval (second father/mother, own waiting one, child with parents, couple
   twice). decide claims each row (`status = 'working'`, reset at start) so a second Approve can't add it twice; the page
   approves one at a time with `quiet` (progress bar) and then `POST /suggestions/tell {approved}` sends one message.

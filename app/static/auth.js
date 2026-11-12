@@ -16,14 +16,6 @@ export const GRAMPS = document.documentElement.dataset.gramps || "";
 export const SHARED = (() => { try { return new URL(GRAMPS).origin === location.origin; } catch { return false; } })();
 const K = SHARED ? { access: "access_token", refresh: "refresh_token" } : { access: "eg_access", refresh: "eg_refresh" };
 const LIFETIME = 15 * 60 * 1000;  // how long Gramps Web's page counts a new access token as good
-if (SHARED) {
-  // A login from before the login was shared carries over once (and so also logs in to Gramps Web).
-  if (!store.get(K.refresh) && store.get("eg_refresh")) {
-    store.set(K.access, store.get("eg_access")); store.set(K.refresh, store.get("eg_refresh"));
-    store.set("access_token_expires", String(Date.now()));  // may be old: let Gramps Web renew it
-  }
-  store.set("eg_access", null); store.set("eg_refresh", null);
-}
 
 export const auth = {
   get access() { return store.get(K.access); },

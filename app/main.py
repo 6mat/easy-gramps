@@ -4,16 +4,19 @@ Users log in with their Gramps Web account; every read and write goes to Gramps 
 with that user's own token, so Gramps permissions still apply.
 """
 import asyncio
+import base64
+import binascii
 import hashlib
 import html
-import io
 import json
 import os
 import pathlib
 import re
 import secrets
+import shutil
 import smtplib
 import sqlite3
+import struct
 import time
 import urllib.parse
 from email.message import EmailMessage
@@ -23,7 +26,6 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from PIL import Image, ImageOps
 from starlette.background import BackgroundTask
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -117,6 +119,8 @@ async def chat_error(_, e: chat.ChatError):
 
 @easy.exception_handler(sqlite3.Error)
 async def storage_error(_, e: sqlite3.Error):  # e.g. no writable volume at DATA_DIR (the container runs as user 1000)
+    if isinstance(e, sqlite3.OperationalError) and ("locked" in str(e) or "busy" in str(e)):
+        return JSONResponse({"detail": "Busy just now. Please try again."}, status_code=503)
     gramps.log.error("Storage in %s failed: %s. Give the container a writable volume there.", DATA, e)
     return JSONResponse({"detail": NOT_WRITABLE}, status_code=503)
 
@@ -409,7 +413,7 @@ async def save_site(request: Request):
             raise HTTPException(400, "The name needs 1 to 40 letters.")
         changes["name"] = name
     if "hide" in body:
-        if not isinstance(body["hide"], list) or not set(body["hide"]) <= set(MENU_ITEMS):
+        if not isinstance(body["hide"], list) or not all(x in MENU_ITEMS for x in body["hide"]):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["hide"] = [x for x in MENU_ITEMS if x in body["hide"]]
     if "gramps" in body:
@@ -450,7 +454,7 @@ async def save_site(request: Request):
             raise HTTPException(400, "A field is in the list twice.")
         changes["layout"] = [{"k": r["k"], "where": r["where"], "see": r["see"]} for r in rows]
     if "box" in body:
-        if not isinstance(body["box"], list) or len(body["box"]) not in (2, 4) or not set(body["box"]) <= set(BOX_LINES):
+        if not isinstance(body["box"], list) or len(body["box"]) not in (2, 4) or not all(x in BOX_LINES for x in body["box"]):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["box"] = body["box"]
     if "labels" in body:
@@ -466,35 +470,41 @@ async def save_site(request: Request):
 
 
 @easy.put("/site/icon")
-async def save_icon(request: Request):
+async def save_icon(request: Request):  # every size at once, drawn by the owner's browser (site.js iconSet)
     await need_owner(request)
-    body = await request.body()
-    if len(body) > 10_000_000:
+    if len(await request.body()) > 10_000_000:
         raise HTTPException(413, "That picture is too big (10 MB at most).")
-    await asyncio.to_thread(store_icon, body)
-    return {"version": icon_master()["version"]}
-
-
-def store_icon(body: bytes):
     try:
-        with Image.open(io.BytesIO(body)) as im:
-            im = ImageOps.exif_transpose(im).convert("RGBA")
-            im = ImageOps.fit(im, (min(min(im.size), 1024),) * 2)  # a square from the middle, at most 1024 px
-            buf = io.BytesIO()
-            im.save(buf, "PNG", optimize=True)  # stored as a fresh PNG: nothing of the upload but its pixels
-    except (OSError, ValueError, Image.DecompressionBombError):
-        raise HTTPException(400, "That isn't a picture this app can read. Try a PNG or JPG.") from None
-    DATA.mkdir(parents=True, exist_ok=True)
-    tmp = ICON_UPLOAD.with_suffix(".tmp")
-    tmp.write_bytes(buf.getvalue())
-    tmp.replace(ICON_UPLOAD)
+        got = await request.json()
+        pngs = {n: base64.b64decode(v, validate=True) for n, v in got.items()} if got.keys() == ICON_NAMES.keys() else None
+    except (ValueError, AttributeError, TypeError, binascii.Error):
+        pngs = None
+    if not pngs or any(len(b) > 1_000_000 or png_size(b) != (ICON_NAMES[n],) * 2 for n, b in pngs.items()):
+        raise HTTPException(400, "That isn't a picture this app can read. Try a PNG or JPG.")
+    await asyncio.to_thread(store_icons, pngs)
+    return {"version": icon_files()["version"]}
+
+
+def png_size(b: bytes):
+    """(width, height) from a PNG's first chunk, or None if it isn't a PNG."""
+    return struct.unpack(">II", b[16:24]) if b[:8] == b"\x89PNG\r\n\x1a\n" and b[12:16] == b"IHDR" else None
+
+
+def store_icons(pngs: dict):
+    ICON_DIR.mkdir(parents=True, exist_ok=True)
+    for n, b in pngs.items():  # every file written before any is replaced: a failure leaves the old set
+        (ICON_DIR / f"{n}.tmp").write_bytes(b)
+    for n in pngs:
+        (ICON_DIR / f"{n}.tmp").replace(ICON_DIR / f"{n}.png")
+    ICON_OLD.unlink(missing_ok=True)
 
 
 @easy.delete("/site/icon")
 async def default_icon(request: Request):
     await need_owner(request)
-    await asyncio.to_thread(ICON_UPLOAD.unlink, missing_ok=True)
-    return {"version": icon_master()["version"]}
+    await asyncio.to_thread(shutil.rmtree, ICON_DIR, True)
+    await asyncio.to_thread(ICON_OLD.unlink, missing_ok=True)
+    return {"version": icon_files()["version"]}
 
 
 # ---------- invites: editors send the link; the owner can also give an email a role and person ----------
@@ -566,7 +576,7 @@ async def let_in(token: str, users: list[dict], owner: dict) -> list[dict]:
         out = []
         for u in users:
             inv = waiting.get((u.get("email") or "").strip().lower())
-            if not inv or u.get("role", 0) >= 0:  # only accounts still waiting for approval
+            if not inv or u.get("role") != ROLE_DISABLED:  # only accounts still waiting for approval
                 continue
             await admit(token, u, inv["role"], owner, inv["person"], wait=False)
             out.append({"name": u.get("full_name") or u["name"], "person": inv["person"], "role": inv["role"]})
@@ -722,7 +732,7 @@ async def save_settings(request: Request):
 async def claim_person(request: Request):
     name = login_name(await who(request))
     handle = (await json_body(request)).get("person")
-    if not isinstance(handle, str) or not handle.replace("-", "").isalnum():
+    if not familytree.ok_handle(handle):
         raise HTTPException(400, "Something was missing. Please try again.")
     await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="handle")  # 404 if not in the tree
     return CHAT.link(name, handle)  # (a new link replaces their old one)
@@ -735,9 +745,8 @@ async def unclaim_person(request: Request):
 
 @easy.get("/tree/logins")
 async def tree_logins(request: Request):
-    """Who is linked to a login: the login names for editors, only who has one for everyone else."""
-    editor = (await who(request)).get("can_edit")
-    return {p: (n if editor else "") for n, p in CHAT.linked().items()}
+    """Who is linked to a login: person -> login name (every login may see the names, as in /chat)."""
+    return {p: n for n, p in CHAT.linked().items()}  # (the same names GET /chat gives every login)
 
 
 @easy.get("/logins")
@@ -755,7 +764,7 @@ async def tree_link_login(handle: str, request: Request):
     """The owner links a login to this person; a login linked elsewhere moves here (`was`: where it was)."""
     await need_owner(request)
     login = (await json_body(request)).get("login")
-    if not isinstance(login, str) or not login or not handle.replace("-", "").isalnum():
+    if not isinstance(login, str) or not login or not familytree.ok_handle(handle):
         raise HTTPException(400, "Something was missing. Please try again.")
     if not any(u["name"] == login and u.get("role", 0) >= 0 for u in await owner_users(request)):
         raise HTTPException(404, "That login isn't there any more.")
@@ -819,7 +828,7 @@ async def tree_places(request: Request):
 
 @easy.get("/tree/relation/{a}/{b}")
 async def tree_relation(a: str, b: str, request: Request):  # Related to… (relate.js): everyone; Gramps hides private people
-    if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x) for x in (a, b)):
+    if not (familytree.ok_handle(a) and familytree.ok_handle(b)):
         raise HTTPException(400, "Something was missing. Please try again.")
     return await familytree.relations(await gramps_as(request), a, b)
 
@@ -883,7 +892,9 @@ async def read_photo(request: Request):
     """The uploaded "photo": (form, (bytes, type, file name)). Call it after checking rights, so nobody can make the
     server hold big files."""
     too_big = HTTPException(413, f"That photo is too big ({PHOTO_MAX_MB} MB at most).")
-    if int(request.headers.get("content-length") or 0) > PHOTO_MAX_MB * 1024 * 1024 + 10_000:
+    if "content-length" not in request.headers:  # else a chunked upload is read in full before the size check
+        raise HTTPException(411, "The photo couldn't be sent. Please try again.")
+    if int(request.headers["content-length"] or 0) > PHOTO_MAX_MB * 1024 * 1024 + 10_000:
         raise too_big
     form = await request.form(max_files=1, max_fields=5)
     f = form.get("photo")
@@ -1103,7 +1114,12 @@ def send_waiting(now: float | None = None) -> int:
     now = now or time.time()
     names = CHAT.full_names()
     sent = 0
+    talk = site()["talk"]
     for u in CHAT.waiting(now):
+        if not talk:  # family talk about people turned off: not in the email either
+            u["messages"] = [m for m in u["messages"] if m["kind"] != "person"]
+            if not u["messages"]:
+                continue
         subject, body = waiting_email(u, names)
         try:
             send_mail(u["email"], subject, body)
@@ -1241,9 +1257,9 @@ async def chat_list(request: Request):
 
 
 @easy.get("/chat/c/{cid}")
-async def chat_messages(cid: int, request: Request, after: int = 0):
+async def chat_messages(cid: int, request: Request, after: int = 0, before: int = 0):
     login, _ = await chat_user(request)
-    return CHAT.messages(cid, login, after)
+    return CHAT.messages(cid, login, after, before=before)
 
 
 @easy.post("/chat/c/{cid}")
@@ -1320,11 +1336,11 @@ async def chat_about_post(handle: str, request: Request):
     if not site()["talk"]:
         raise HTTPException(403, "The owner has turned off family talk about people.")
     text = chat.clean_text((await json_body(request)).get("text"))
-    if not handle.replace("-", "").isalnum():
+    if not familytree.ok_handle(handle):
         raise HTTPException(400, "Something was missing. Please try again.")
     p = await gramps.Gramps(GRAMPS_URL, bearer(request)).get(f"/people/{handle}", keys="primary_name,private")  # 404 if not in the tree
     pn = (p or {}).get("primary_name") or {}
-    person_name = " ".join(x for x in (pn.get("first_name"), *(s.get("surname") for s in pn.get("surname_list") or [])) if x)
+    person_name = familytree.full_name(pn)
     cid = CHAT.person_conv(handle, True, person_name, bool((p or {}).get("private")))
     m = CHAT.post(cid, login, text)
     notify(cid, login, m["text"])
@@ -1350,7 +1366,7 @@ async def cropped_thumbnail(handle: str, x1: int, y1: int, x2: int, y2: int, siz
 
 
 async def gramps_thumb(handle: str, crop: str, size: int, request: Request) -> Response:
-    if not handle.isalnum() or not 16 <= size <= 1024:
+    if not familytree.ok_handle(handle) or not 16 <= size <= 1024:
         raise HTTPException(400, "Bad thumbnail request")
     params = {k: v for k, v in request.query_params.items() if k == "square"}
     token = request.cookies.get(PHOTO_COOKIE)
@@ -1367,7 +1383,7 @@ async def gramps_thumb(handle: str, crop: str, size: int, request: Request) -> R
 async def media_file(handle: str, request: Request, ticket: str = "", name: str = "", download: int = 0):
     """A family document (☰ Menu → Family documents), passed through as it comes, for a ticket from /tree/documents. Only a PDF opens in the browser
     (its own viewer); anything else is a download, never a page that could run here (HTML, SVG)."""
-    if not handle.isalnum():
+    if not familytree.ok_handle(handle):
         raise HTTPException(400, "Bad file request")
     t = TICKETS.get(ticket)
     if not t or t[0] != handle or t[2] < time.time():
@@ -1395,54 +1411,38 @@ async def media_file(handle: str, request: Request, ticket: str = "", name: str 
 
 
 # ---------- install as an app (phone / tablet home screen) ----------
-# One square picture makes every icon (ICON_FILE; default the bundled tree). Replace it and the icons
-# follow: their addresses carry a version of the picture, so installed phones pick up the new one.
-ICON_FILE = pathlib.Path(os.environ.get("ICON_FILE") or STATIC / "icon.png")
-ICON_UPLOAD = DATA / "icon.png"  # the owner's own, from Site settings: wins over ICON_FILE
-ICON_SIZES = (32, 180, 192, 512)  # browser tab, iPhone, and the two Android asks for
+# The owner's icons (DATA/icons, made in their browser from Site settings), else the bundled ones. Their addresses
+# carry a version of the files served, so installed phones pick up a new icon.
+ICON_DIR = DATA / "icons"
+ICON_OLD = DATA / "icon.png"  # the old upload: one square PNG, from before the browser made the icons
+ICON_NAMES = {"32": 32, "180": 180, "192": 192, "512": 512, "192m": 192, "512m": 512}  # tab, iPhone, Android; m = maskable
 _icons: dict = {}
 
 
-def icon_master() -> dict:
-    path = ICON_UPLOAD if ICON_UPLOAD.exists() else ICON_FILE
-    st = path.stat()
-    if _icons.get("key") != (path, st.st_mtime_ns, st.st_size):
-        data = path.read_bytes()
+def icon_files() -> dict:
+    src = {n: ICON_DIR / f"{n}.png" for n in ICON_NAMES}
+    if not all(p.exists() for p in src.values()):
+        # shortcut: an old DATA/icon.png is served as it is for every size (no resizing), until the owner uploads again
+        src = dict.fromkeys(ICON_NAMES, ICON_OLD) if ICON_OLD.exists() else {n: STATIC / "icons" / f"{n}.png" for n in ICON_NAMES}
+    key = [(p, p.stat().st_mtime_ns, p.stat().st_size) for p in src.values()]
+    if _icons.get("key") != key:
+        data = {n: p.read_bytes() for n, p in src.items()}
         _icons.clear()
-        _icons.update(key=(path, st.st_mtime_ns, st.st_size), data=data, version=hashlib.sha256(data).hexdigest()[:12])
+        _icons.update(key=key, data=data, version=hashlib.sha256(b"".join(data.values())).hexdigest()[:12])
     return _icons
-
-
-def icon_png(size: int, maskable: bool) -> bytes:
-    m = icon_master()
-    if (size, maskable) not in m:
-        with Image.open(io.BytesIO(m["data"])) as im:
-            im = ImageOps.exif_transpose(im).convert("RGBA")
-            im = ImageOps.fit(im, (min(im.size),) * 2)  # a square from the middle
-            if maskable:  # Android crops to a circle or rounded square: keep the picture in the middle 80%
-                corner = im.getpixel((0, 0))
-                out = Image.new("RGBA", (size, size), corner if corner[3] == 255 else (255, 255, 255, 255))
-                inner = round(size * 0.8)
-                out.alpha_composite(im.resize((inner, inner), Image.LANCZOS), ((size - inner) // 2,) * 2)
-            else:
-                out = im.resize((size, size), Image.LANCZOS)
-        buf = io.BytesIO()
-        out.save(buf, "PNG", optimize=True)
-        m[(size, maskable)] = buf.getvalue()
-    return m[(size, maskable)]
 
 
 @easy.get("/icon-{size}.png")
 async def icon(size: int, maskable: int = 0):
-    if size not in ICON_SIZES:
+    data = icon_files()["data"].get(f"{size}{'m' if maskable else ''}")
+    if not data:
         raise HTTPException(404, "No such icon")
-    return Response(icon_png(size, bool(maskable)), media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
+    return Response(data, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @easy.get("/manifest.webmanifest")
 async def manifest():
-    v = icon_master()["version"]
+    v = icon_files()["version"]
     icons = [{"src": f"{BASE_PATH}/icon-{s}.png?{q}v={v}", "sizes": f"{s}x{s}", "type": "image/png", "purpose": purpose}
              for purpose, q in (("any", ""), ("maskable", "maskable=1&")) for s in (192, 512)]
     # Its own id and scope (BASE_PATH), so it's an app of its own next to Gramps Web's (which claims "/").
@@ -1462,7 +1462,7 @@ async def service_worker():  # served from BASE_PATH (not /static) so it may loo
 APP_VERSION = os.environ.get("APP_VERSION") or "dev"  # set by the release build (Dockerfile ARG VERSION), shown in the Menu
 
 def page(name: str) -> HTMLResponse:
-    text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH).replace("__ICONV__", icon_master()["version"])
+    text = (STATIC / name).read_text().replace("__BASE__", BASE_PATH).replace("__ICONV__", icon_files()["version"])
     text = text.replace("__GRAMPS__", html.escape(GRAMPS_PUBLIC_URL, quote=True)).replace("__NAME__", html.escape(site()["name"], quote=True))
     text = text.replace("__VERSION__", html.escape(APP_VERSION))
     return HTMLResponse(text.replace("__SOURCE__", html.escape(SOURCE_URL, quote=True)))

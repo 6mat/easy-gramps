@@ -4,6 +4,7 @@ Reads go through the viewer's own Gramps Web token, so Gramps decides what they 
 (private records and private addresses/emails are left out for roles without "view private").
 """
 import asyncio
+import re
 
 from gramps import GENDER, MOD_ABOUT, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
 
@@ -23,6 +24,15 @@ def surname_of(name):
     sl = name.get("surname_list") or []
     primary = next((s for s in sl if s.get("primary")), sl[0] if sl else None)
     return (primary or {}).get("surname", "")
+
+
+def full_name(name):
+    return " ".join(x for x in ((name.get("first_name") or "").strip(), surname_of(name)) if x)
+
+
+def ok_handle(x):
+    """Safe to put in a Gramps URL."""
+    return isinstance(x, str) and bool(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", x))
 
 
 async def graph(g: Gramps) -> dict:
@@ -416,10 +426,18 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
     fresh = {o["handle"] for o in new_objs}
     if new_objs:
         await g.add_objects(new_objs)
-    for h, ev in dirty_events.items():
-        if h not in fresh:
-            await g.put(f"/events/{h}", ev)
-    await g.put(f"/people/{handle}", p)
+    try:
+        for h, ev in dirty_events.items():
+            if h not in fresh:
+                await g.put(f"/events/{h}", ev)
+        await g.put(f"/people/{handle}", p)
+    except BaseException:  # don't leave the new places/events behind: "Try again" would make them twice
+        for o in new_objs:
+            try:
+                await g.delete(f"/{o['_class'].lower()}s/{o['handle']}")
+            except Exception:
+                pass
+        raise
     for h in dropped:  # an event can be shared (e.g. a witness): delete it only if no one else uses it
         if not await g.in_use("events", h):
             await g.delete(f"/events/{h}")
@@ -434,6 +452,7 @@ async def set_photo(g: Gramps, handle: str, photo, tags: list, main=True) -> dic
     p = await g.get(f"/people/{handle}")
     name = (p["primary_name"].get("first_name") or "").strip()
     mh = await upload_photo(g, photo, tags, False, desc=f"Photo of {name}".strip())
+    p = await g.get(f"/people/{handle}")  # again: someone may have saved during the upload
     rest = [m for m in p.get("media_list") or [] if m["ref"] != mh]
     ref = {"_class": "MediaRef", "ref": mh}
     p["media_list"] = [ref] + rest if main else rest + [ref]
@@ -527,7 +546,7 @@ async def add_relative(g: Gramps, body: dict, tags: list) -> dict:
     parent_fam = await _family_parent_of(g, person) if rel in ("father", "mother") else None
     if parent_fam and parent_fam.get(f"{rel}_handle"):
         had = await g.get(f"/people/{parent_fam[f'{rel}_handle']}", keys="primary_name")
-        who = " ".join(x for x in ((had["primary_name"].get("first_name") or "").strip(), surname_of(had["primary_name"])) if x)
+        who = full_name(had["primary_name"])
         raise GrampsError(f"They already have a {rel}{f': {who}' if who else ''}. Remove that link first.")
     if rel == "child" and fam_id and fam_id not in (person.get("family_list") or []):
         raise GrampsError("That family isn't theirs. Please reload and try again.")
@@ -734,7 +753,7 @@ async def merge(g: Gramps, body: dict, tags: list) -> dict:
     await g.post(f"/people/{keep}/merge/{absorb}", {"family_merger": True})
     p = await g.get(f"/people/{keep}", keys="primary_name")
     nm = p["primary_name"]
-    name = " ".join(x for x in [(nm.get("first_name") or "").strip(), surname_of(nm)] if x)
+    name = full_name(nm)
     return {"merged": keep, "name": name or "this person"}
 
 
@@ -826,7 +845,7 @@ async def books(g: Gramps, handle: str) -> list:
 async def add_book_page(g: Gramps, handle: str, body: dict, tags: list) -> dict:
     """{media, page, area?}: cite that document (its Source, made the first time) on the person."""
     media, page = body.get("media"), str(body.get("page") or "").strip()[:50]
-    if not isinstance(media, str) or not media.isalnum() or not page:
+    if not ok_handle(media) or not page:
         raise GrampsError("Pick the book and type the page.")
     area = clean_area(body.get("area"))
     med = await g.get(f"/media/{media}", keys="handle,mime,desc,path")
@@ -854,7 +873,7 @@ async def add_book_page(g: Gramps, handle: str, body: dict, tags: list) -> dict:
 async def remove_book_page(g: Gramps, handle: str, body: dict) -> dict:
     """{id}: take that citation off the person; it's deleted when nothing else uses it (the book stays)."""
     cid = body.get("id")
-    if not isinstance(cid, str) or not cid.isalnum():
+    if not ok_handle(cid):
         raise GrampsError("Something was missing. Please try again.")
     p = await g.get(f"/people/{handle}")
     if cid not in (p.get("citation_list") or []):
@@ -869,7 +888,7 @@ async def remove_book_page(g: Gramps, handle: str, body: dict) -> dict:
 async def mark_book_page(g: Gramps, handle: str, body: dict) -> dict:
     """{id, page, area}: the page and the paragraph marked on it (area None: no box, just the page)."""
     cid, page = body.get("id"), str(body.get("page") or "").strip()[:50]
-    if not isinstance(cid, str) or not cid.isalnum() or not page:
+    if not ok_handle(cid) or not page:
         raise GrampsError("Something was missing. Please try again.")
     area = clean_area(body.get("area"))
     if cid not in ((await g.get(f"/people/{handle}", keys="citation_list")).get("citation_list") or []):

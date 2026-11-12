@@ -72,7 +72,7 @@ const SECTIONS = [
 ];
 let M = null;  // the open page: { at (the section shown), back }
 const mine = () => SECTIONS.filter(([, , may]) => may());
-export function openManage(at, top = 0) {  // top: the list's scroll, coming back to it
+function openManage(at, top = 0) {  // top: the list's scroll, coming back to it
   const list = mine();
   if (!list.length) return;
   C = null;  // (Check the tree: worked out again from the tree as it is now)
@@ -95,7 +95,7 @@ function hide() {
   $("#manage").hidden = true; $("#manage .msec").replaceChildren();
   back?.isConnected && back.focus();
 }
-export function closeManage() { if (M) { hide(); history.back(); } }  // (its history step goes too)
+function closeManage() { if (M) { hide(); history.back(); } }  // (its history step goes too)
 window.addEventListener("popstate", () => { if (M && !history.state?.manage) hide(); });
 $("#manage-back").onclick = closeManage;
 $("#menu-manage").onclick = () => { closeMenu(); openManage(); };
@@ -336,16 +336,42 @@ function saver(body, after) {
   } }, "Save");
   return [say, h("div", { class: "btnrow" }, save)];
 }
+// The app's icons, drawn here from the owner's picture (upright, the middle square) and sent as one set; the server
+// only checks and keeps them. Maskable (m): Android crops to a circle, so the picture fills the middle 80%.
+const ICONS = { 32: 32, 180: 180, 192: 192, 512: 512, "192m": 192, "512m": 512 };
+async function iconSet(file) {
+  const pic = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => new Promise((ok, no) => {
+    const im = new Image(), url = URL.createObjectURL(file);
+    im.onload = () => { URL.revokeObjectURL(url); ok(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error("That isn't a picture this app can read. Try a PNG or JPG.")); };
+    im.src = url;
+  }));
+  const w = pic.naturalWidth || pic.width, ht = pic.naturalHeight || pic.height, side = Math.min(w, ht), sx = (w - side) / 2, sy = (ht - side) / 2;
+  const canvas = (n, draw) => {
+    const c = document.createElement("canvas"); c.width = c.height = n;
+    const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; draw(g); return c;
+  };
+  const [r, gr, b, a] = canvas(1, g => g.drawImage(pic, sx, sy, 1, 1, 0, 0, 1, 1)).getContext("2d").getImageData(0, 0, 1, 1).data;
+  const bg = a === 255 ? `rgb(${r}, ${gr}, ${b})` : "#fff";  // the corner's colour, white if it's see-through
+  return Object.fromEntries(Object.entries(ICONS).map(([k, n]) => [k, canvas(n, g => {
+    if (!k.endsWith("m")) return g.drawImage(pic, sx, sy, side, side, 0, 0, n, n);
+    const inner = Math.round(n * 0.8), at = Math.floor((n - inner) / 2);
+    g.fillStyle = bg; g.fillRect(0, 0, n, n); g.drawImage(pic, sx, sy, side, side, at, at, inner, inner);
+  }).toDataURL("image/png").split(",")[1]]));
+}
 function general() {
   const s = ME.site || {};
   const nameIn = h("input", { id: "site-name", value: s.name || APP_NAME, maxlength: 40, autocomplete: "off" });
   const iconImg = h("img", { class: "siteicon", src: `${BASE}/icon-192.png?t=${Date.now()}`, alt: "The app's icon now" });
   const say = h("div", { role: "status" });
   const file = h("input", { type: "file", accept: "image/*", hidden: true });
-  const icon = async (method, body) => {
+  const icon = async (method, file) => {
     say.replaceChildren("Saving the icon…");
-    try { await api("/site/icon", { method, body }); iconImg.src = `${BASE}/icon-192.png?t=${Date.now()}`; say.replaceChildren("Icon saved ✓"); }
-    catch (err) { say.replaceChildren(h("div", { class: "warn" }, err.message)); }
+    try {
+      const body = file && JSON.stringify(await iconSet(file));
+      await api("/site/icon", { method, headers: { "Content-Type": "application/json" }, body });
+      iconImg.src = `${BASE}/icon-192.png?t=${Date.now()}`; say.replaceChildren("Icon saved ✓");
+    } catch (err) { say.replaceChildren(h("div", { class: "warn" }, err.message)); }
   };
   file.onchange = () => file.files[0] && icon("PUT", file.files[0]);
   return [h("p", { class: "muted small" }, "For everyone who uses the family tree."),

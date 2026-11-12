@@ -603,7 +603,6 @@ function showTip(on) { $("#tipbar").hidden = !on; renderTree(); }
 $("#tip-close").onclick = () => { store.set("eg_tip_on", null); showTip(false); };
 $("#tips-again").onclick = () => { store.set("eg_tip_on", "1"); closeMenu(); showTip(true); };
 $("#tipbar").hidden = !store.get("eg_tip_on");
-store.set("eg_tip_done", null);  // the old "closed it" setting isn't needed any more
 
 // ----- date format: kept with the login, so it follows the person to every device (and on this
 // device too, so the page starts with it before the login is checked) -----
@@ -664,7 +663,7 @@ export const KEYS = [
   ["H", "Home: choose someone else"],
   ["?", "This list"],
 ];
-export function showKeys() {
+function showKeys() {
   $("#dlg").replaceChildren(h("h3", { id: "dlg-title" }, "Keyboard keys"),
     h("table", { class: "keys" }, ...KEYS.map(([k, what]) => h("tr", {}, h("th", {}, h("kbd", {}, k)), h("td", {}, what)))),
     h("div", { class: "btnrow" }, h("button", { class: "primary", onclick: hideDlg }, "Close")));

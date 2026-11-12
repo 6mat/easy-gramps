@@ -23,7 +23,7 @@ function hide() {
   $("#viewer").hidden = true; $("#viewer").replaceChildren();
   back?.isConnected && back.focus();
 }
-export function closeViewer() { if (V) { hide(); history.back(); } }  // (its history step goes too)
+function closeViewer() { if (V) { hide(); history.back(); } }  // (its history step goes too)
 window.addEventListener("popstate", () => { if (V && !history.state?.photo) hide(); });
 
 function step(by) {

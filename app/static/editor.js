@@ -9,6 +9,7 @@ import { hitRows, searchKeys } from "./search.js";
 import { renderAll, showLogin } from "./start.js";
 import { draftAdd, draftBar, draftSet, isStandIn, suggestPhoto, suggesting } from "./suggest.js";
 import { bookEditor } from "./docs.js";
+import { enqueue, queueIdle } from "./queue.js";
 
 // ---------- undo + toast ----------
 let toastTimer, undoToken = null;
@@ -55,7 +56,7 @@ export async function refresh() {
 }
 // ---------- autosave: typing is saved when you leave the box or stop for 2 s; ticks and buttons at once ----------
 const pending = {};          // person id -> fields waiting to be saved
-let saveTimer, saveChain = Promise.resolve(), saveFailed = null;
+let saveTimer, saveFailed = null;
 let sentSaves = false;  // anything saved since the editor opened: closing it then reloads the tree
 function setStatus(text, cls = "") {
   if (suggesting() && text === "Saved ✓") text = "Not in the tree yet";  // it's a suggestion until an editor approves it
@@ -74,14 +75,14 @@ export function flushSaves(keepalive = false) {  // keepalive: the page is closi
   clearTimeout(saveTimer);
   const work = Object.entries(pending);
   for (const [id] of work) delete pending[id];
-  if (!work.length) return saveChain;
+  if (!work.length) return queueIdle();
   if (suggesting()) {  // kept in the draft until they send it (suggest.js)
     for (const [id, patch] of work) draftSet(id, patch);
     setStatus("Kept in your suggestion");
-    return saveChain;
+    return queueIdle();
   }
   sentSaves = true;
-  saveChain = saveChain.then(async () => {
+  enqueue(async () => {
     for (const [id, patch] of work) {
       try {
         await api(`/tree/person/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch), keepalive });
@@ -93,7 +94,7 @@ export function flushSaves(keepalive = false) {  // keepalive: the page is closi
     if (Object.keys(pending).length && saveFailed) setStatus(`Not saved: ${saveFailed.message}`, "failed");
     else if (!Object.keys(pending).length) setStatus("Saved ✓");
   });
-  return saveChain;
+  return queueIdle();
 }
 window.addEventListener("beforeunload", e => { if (Object.keys(pending).length) { flushSaves(true); e.preventDefault(); } });
 // Phones and tablets often close a hidden tab without any unload event: save when the page is hidden.
@@ -306,17 +307,17 @@ function dateInputs(prefix, label, get, set) {
 function addPhotos(p, files) {
   const ok = files.filter(f => f.size <= 20 * 1024 * 1024);
   if (ok.length < files.length) setStatus("A photo was too big (20 MB at most) and wasn't added", "failed");
-  if (ok.length) sentSaves = true;
-  ok.forEach((f, i) => {
-    saveChain = saveChain.then(async () => {
+  if (!ok.length) return;
+  sentSaves = true;
+  enqueue(async () => {  // one after another; the first that fails stops the rest
+    for (const [i, f] of ok.entries()) {
       setStatus(ok.length > 1 ? `Saving photo ${i + 1} of ${ok.length}…` : "Saving photo…", "saving");
       const fd = new FormData(); fd.append("photo", f, f.name); fd.append("main", "0");
       const res = await api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd });
       p.photos = [...p.photos, res.added]; p.photo = res.photo;
       if (!$("#editor").hidden) renderEditor();
-    });
-  });
-  if (ok.length) saveChain = saveChain.then(() => { setStatus("Saved ✓"); renderTree(); renderPanel(); }, err => {
+    }
+  }).then(() => { setStatus("Saved ✓"); renderTree(); renderPanel(); }, err => {
     if (err instanceof LoginNeeded) return showLogin();
     setStatus(`Photo not saved: ${err.message}`, "failed");
   });
@@ -359,7 +360,7 @@ function centreCard(p) {
     const fd = new FormData(); fd.append("photo", f, f.name);
     setStatus("Saving photo…", "saving");
     sentSaves = true;
-    saveChain = saveChain.then(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
+    enqueue(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
       .then(res => { p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)]; setStatus("Saved ✓"); })
       .catch(err => {
         p.photo = old; URL.revokeObjectURL(preview);

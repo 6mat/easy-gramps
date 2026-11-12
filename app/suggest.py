@@ -27,7 +27,7 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY, batc
 SENDS = ("auto", "manual")  # site `suggest_send`: each change goes as it's made, or they press "Send to the editors"
 WHO = {"off": None, "members": (m.ROLE_MEMBER, m.ROLE_CONTRIBUTOR), "everyone": (0, m.ROLE_CONTRIBUTOR)}  # roles that suggest
 STAND_IN = re.compile(r"new-[a-z0-9]{8}")
-MAX_ITEMS, MAX_WAITING, MAX_BYTES = 200, 500, 100_000
+MAX_ITEMS, MAX_WAITING, MAX_BYTES, MAX_PHOTOS = 200, 500, 100_000, 20
 NEW_FIELDS = {"first", "last", "nick", "gender", "birth"}  # what adding someone new takes: later changes to these go into the add
 router = APIRouter()
 # shortcut: a suggested photo's file stays as long as its row (approved ones too, so Undo can put it back); fine at a
@@ -42,27 +42,7 @@ def q(sql, *args):
         c.q("CREATE INDEX IF NOT EXISTS suggestions_decided ON suggestions (status, decided, id)")
         c.q("UPDATE suggestions SET status = 'waiting' WHERE status = 'working'")  # an approval cut short by a restart
         c._suggestions = True
-        _tidy()
     return c.q(sql, *args)
-
-
-def _tidy():
-    """Once at start: waiting rows that say the same thing twice (sent before 1.9.4) become one."""
-    rows = [(r["id"], r["login"], json.loads(r["item"])) for r in m.CHAT.q("SELECT id, login, item FROM suggestions WHERE status = 'waiting' ORDER BY id")]
-    seen, steps = set(), []
-    for k, login, it in rows:
-        key = (login, json.dumps(it, sort_keys=True))
-        if key in seen:
-            steps.append(("DELETE FROM suggestions WHERE id = ?", k))
-            continue
-        seen.add(key)
-        add = it["op"] == "set" and it["field"] in NEW_FIELDS and next(
-            (a for a in rows if a[1] == login and a[2]["op"] == "add" and a[2].get("as") == it["id"] and a[2].get("new")), None)
-        if add:
-            _fold(add[2], it)
-            steps += [("UPDATE suggestions SET item = ? WHERE id = ?", json.dumps(add[2]), add[0]), ("DELETE FROM suggestions WHERE id = ?", k)]
-    if steps:
-        m.CHAT.tx(*steps)
 
 
 def _fold(add: dict, it: dict):
@@ -103,7 +83,7 @@ def _check(items, known=(), role=0) -> set:
         if STAND_IN.fullmatch(x):
             if x not in made:
                 raise bad
-        elif not x.replace("-", "").replace("_", "").isalnum():
+        elif not familytree.ok_handle(x):
             raise bad
         elif person:
             real.add(x)
@@ -415,6 +395,9 @@ async def decide(request: Request):
             q("UPDATE suggestions SET status = 'waiting', error = ? WHERE id = ?", msg, k)
             failed.append({"id": k, "error": msg})
             continue
+        except BaseException:  # a network failure etc.: back to waiting, or it vanishes from the list
+            q("UPDATE suggestions SET status = 'waiting', error = ? WHERE id = ?", "The tree didn't answer. Check the tree before approving again.", k)
+            raise
         q("UPDATE suggestions SET status = 'approved', by = ?, decided = ?, error = NULL, made = ?, undo = ? WHERE id = ?",
           editor, now, json.dumps(new) if new else None, json.dumps(back) if back else None, k)
         done.setdefault(row[0]["login"], [[], []])[0].append(k)
@@ -470,7 +453,7 @@ async def _say(g, ids, most=15, done=None) -> list:
             try:
                 p = await g.get(f"/people/{h}", keys="primary_name,gender")
                 n = p["primary_name"]
-                names[h] = " ".join(x for x in (n.get("first_name"), (n.get("surname_list") or [{}])[0].get("surname")) if x) or "someone"
+                names[h] = familytree.full_name(n) or "someone"
                 genders[h] = p.get("gender")
             except (gramps.GrampsError, HTTPException, KeyError, IndexError, TypeError):
                 names[h] = "someone"
@@ -581,7 +564,7 @@ async def suggest_photo(handle: str, request: Request):
         raise HTTPException(403, "Editors change the tree directly." if user.get("can_edit") else "Suggestions are turned off.")
     if STAND_IN.fullmatch(handle):
         raise HTTPException(400, "You can suggest their photo once an editor has added them.")
-    if not handle.replace("-", "").replace("_", "").isalnum():
+    if not familytree.ok_handle(handle):
         raise HTTPException(400, "Something was missing. Please try again.")
     _, (data, kind, _) = await m.read_photo(request)
     if kind not in m.PHOTO_TYPES or kind == "application/json":
@@ -601,6 +584,9 @@ async def suggest_photo(handle: str, request: Request):
     if q("SELECT count(*) n FROM suggestions WHERE login = ? AND status = 'waiting'", login)[0]["n"] >= MAX_WAITING:
         (PHOTOS / file).unlink(missing_ok=True)
         raise HTTPException(429, "You have many suggestions waiting. Please wait until an editor has looked at them.")
+    if q("SELECT count(*) n FROM suggestions WHERE login = ? AND status = 'waiting' AND json_extract(item, '$.op') = 'photo'", login)[0]["n"] >= MAX_PHOTOS:
+        (PHOTOS / file).unlink(missing_ok=True)
+        raise HTTPException(429, "You have many photos waiting. Please wait until an editor has looked at them.")
     batch = (q("SELECT max(batch) b FROM suggestions")[0]["b"] or 0) + 1
     r = q("INSERT INTO suggestions (batch, login, at, item) VALUES (?, ?, ?, ?) RETURNING id", batch, login, time.time(), json.dumps(item))
     return {"id": r[0]["id"]}

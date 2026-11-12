@@ -59,7 +59,7 @@ $("#chatbtn").onclick = () => openChat();
 navigator.serviceWorker?.addEventListener("message", e => { if (e.data?.chat && auth.access) openChat(e.data.chat); });
 
 // ---------- the chat screen ----------
-export async function openChat(cid) {
+async function openChat(cid) {
   if (!C.open) {
     C.open = true; C.back = document.activeElement;
     history.pushState({ ...history.state, eg: (history.state?.eg || 0) + 1, chat: 1 }, "");
@@ -76,7 +76,7 @@ function hide() {
   $("#chat").hidden = true;
   C.back?.isConnected && C.back.focus();
 }
-export function closeChat() { if (C.open) { hide(); history.back(); } }  // (its history step goes too)
+function closeChat() { if (C.open) { hide(); history.back(); } }  // (its history step goes too)
 window.addEventListener("popstate", () => { if (C.open && !history.state?.chat) hide(); });
 $("#chat-back").onclick = () => (narrow() && C.phoneConv ? (C.phoneConv = false, renderAll()) : closeChat());
 $("#chat-home").onclick = () => { closeChat(); setTimeout(() => $("#brand").click(), 0); };
@@ -91,7 +91,7 @@ window.addEventListener("keydown", e => {
 
 async function show(cid) {
   const c = D?.convs.find(x => x.id === cid);
-  if (C.cur !== cid) { C.msgs = []; C.sure = null; }
+  if (C.cur !== cid) { C.msgs = []; C.sure = null; C.more = false; }
   C.cur = cid;
   renderAll();
   if (c && (c.kind !== "group" || c.joined)) await load();
@@ -107,9 +107,22 @@ async function load(quiet) {
     if (cid !== C.cur) return;
     if (quiet && !got.length) return;
     C.msgs = quiet ? [...C.msgs, ...got] : got;
+    if (!quiet) C.more = got.length === 200;  // a full batch: there may be older ones
     renderConv(true);
     if (got.some(m => !m.mine)) refresh();  // read now: the unread count drops
   } catch (err) { if (!quiet) failed(err); }
+}
+async function earlier(btn) {
+  const cid = C.cur;
+  btn.disabled = true;
+  try {
+    const got = await api(`/chat/c/${cid}?before=${C.msgs[0].id}`);
+    if (cid !== C.cur) return;
+    const list = $("#chat .cmsgs"), fromEnd = list.scrollHeight - list.scrollTop;
+    C.msgs = [...got, ...C.msgs]; C.more = got.length === 200;
+    renderConv();
+    const nl = $("#chat .cmsgs"); nl.scrollTop = nl.scrollHeight - fromEnd;  // keep the place they were reading
+  } catch (err) { btn.disabled = false; failed(err); }
 }
 function renderAll() {
   $("#chat .cbody").classList.toggle("phone-conv", C.phoneConv);
@@ -200,7 +213,7 @@ function renderConv(toEnd) {
     ? h("span", { class: "btnrow" }, h("span", { class: "small" }, "Delete the group and all its messages?"),
       h("button", { class: "danger", onclick: deleteGroup }, "Yes, delete it"), h("button", { onclick: () => { C.sure = null; renderConv(); } }, "Cancel"))
     : h("button", { onclick: () => { C.sure = "group"; renderConv(); } }, "Delete group"));
-  const msgs = [];
+  const msgs = C.more && C.msgs.length ? [h("button", { class: "pill cearlier", onclick: e => earlier(e.currentTarget) }, "Earlier messages")] : [];
   let day = null;
   for (const m of C.msgs) {
     const d = dayLabel(m.at);

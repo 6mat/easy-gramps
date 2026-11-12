@@ -74,21 +74,6 @@ def test_sending_again_and_changes_to_someone_new(fake, client):
     assert r.status_code == 400 and "already has a father: Phili" in r.json()["detail"]
 
 
-def test_old_duplicates_are_tidied_at_start(fake, client):
-    import json
-    import main
-    import suggest
-    ravi = fake.person("Ravi", "Kumar", 1)
-    dad = {"op": "add", "person": ravi, "rel": "father", "new": {"first": "Phili"}, "as": "new-dad00001", "fam": "new-fam00001"}
-    rows = [dad, dad, {"op": "set", "id": "new-dad00001", "field": "birth", "value": {"y": 1970}}]
-    main.CHAT.q(suggest.SCHEMA)
-    for it in rows:
-        main.CHAT.q("INSERT INTO suggestions (batch, login, at, item) VALUES (1, 'ann', 0, ?)", json.dumps(it))
-    main.CHAT._suggestions = False
-    [left] = [json.loads(r["item"]) for r in suggest.q("SELECT item FROM suggestions")]
-    assert left["new"] == {"first": "Phili", "birth": {"y": 1970}}
-
-
 def test_approving_claims_each_row_and_tells_once(fake, client):
     import suggest
     ravi = fake.person("Ravi", "Kumar", 1)

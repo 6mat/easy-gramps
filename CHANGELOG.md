@@ -2,6 +2,35 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.25 — 2026-11-12
+
+### Security
+- **An invited email** is let in by itself only once the sign-up's email is confirmed (before, an unconfirmed sign-up
+  with an invited address got in).
+- A photo upload must state its size, so the size limit can no longer be skipped.
+- Private chats only with real logins.
+- At most 10 notification devices per login and 20 waiting photo suggestions per login.
+- The release actions are pinned to commits.
+
+### Fixed
+- A suggestion no longer disappears when the tree doesn't answer during Approve.
+- A save that fails halfway no longer leaves a spare place or event in Gramps.
+- The daily email leaves out "About a person" talk when it's turned off.
+- A busy database says "Busy just now" instead of "data folder isn't writable".
+- An odd answer from Gramps Web shows the usual message instead of a server error.
+- A photo upload no longer overwrites someone else's change made meanwhile.
+
+### Changed
+- **Chat** has "Earlier messages" (before, only the newest 200 could be seen).
+- The app icons are made in the owner's browser when they upload a picture, and Pillow is no longer in the image
+  (about 23 MB smaller).
+- `/tree/logins` gives login names to every login, as chat already did.
+
+### Removed
+- The `ICON_FILE` setting: upload the icon in ☰ Menu → ⚙️ Manage → Settings. An icon uploaded before 1.9.25 keeps
+  working, but upload it again for sharp small sizes and the Android shape.
+- One-time upgrade steps from before 1.8.0 / 1.9.4 (upgrade from older versions through 1.9.24 first).
+
 ## 1.9.24 — 2026-11-12
 
 ### Changed

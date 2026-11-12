@@ -12,6 +12,7 @@ import asyncio
 import json
 import time
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 
 import familytree
@@ -43,7 +44,7 @@ async def name_of(g, h) -> str:
     try:
         p = await g.get(f"/people/{h}", keys="primary_name")
         n = p["primary_name"]
-        return " ".join(x for x in (n.get("first_name"), familytree.surname_of(n)) if x) or "someone"
+        return familytree.full_name(n) or "someone"
     except (gramps.GrampsError, HTTPException, KeyError, TypeError):
         return "someone"
 
@@ -82,7 +83,7 @@ async def fields(g, login: str, handle: str, before: dict, names):
                 back["ev"] = now["_ev"].get(f.rsplit(".", 1)[0])
             add(login, {"op": "set", "id": handle, "field": f, "value": label, "label": label, "before": await _shown(g, f, before.get(f))},
                 back, now.get(f))
-    except (gramps.GrampsError, HTTPException) as e:
+    except (gramps.GrampsError, HTTPException, httpx.HTTPError) as e:
         gramps.log.error("Couldn't log the change to %s: %s", handle, e)
 
 
