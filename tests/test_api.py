@@ -284,9 +284,18 @@ def test_page_knows_where_gramps_web_is(fake, client):  # same site → shared l
     assert 'data-gramps="http://gramps.test"' in client.get("/easy-gramps/").text
 
 
+def png(size, rgb=(200, 30, 30)) -> bytes:  # a tiny one-colour PNG, standard library only
+    import struct
+    import zlib
+    def chunk(t, d):
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+    rows = b"".join(b"\0" + bytes(rgb) * size for _ in range(size))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
 def test_installable_as_an_app(fake, client):  # home-screen app: manifest, icons, service worker
-    import io
-    from PIL import Image
+    import main
     m = client.get("/easy-gramps/manifest.webmanifest")
     assert m.headers["content-type"].startswith("application/manifest+json")
     j = m.json()
@@ -295,7 +304,7 @@ def test_installable_as_an_app(fake, client):  # home-screen app: manifest, icon
     for i in j["icons"]:
         r = client.get(i["src"])
         assert r.headers["content-type"] == "image/png"
-        assert Image.open(io.BytesIO(r.content)).size == tuple(map(int, i["sizes"].split("x")))
+        assert main.png_size(r.content) == tuple(map(int, i["sizes"].split("x")))
     assert client.get("/easy-gramps/icon-77.png").status_code == 404
     sw = client.get("/easy-gramps/sw.js")
     assert sw.headers["content-type"].startswith("text/javascript") and "No internet" in sw.text
@@ -303,19 +312,33 @@ def test_installable_as_an_app(fake, client):  # home-screen app: manifest, icon
     assert 'rel="manifest" href="/easy-gramps/manifest.webmanifest"' in page and "__ICONV__" not in page
 
 
-def test_own_icon_picture_replaces_every_icon(fake, client, monkeypatch, tmp_path):  # ICON_FILE
-    import io
-    from PIL import Image
+def test_owners_icons_replace_every_icon(fake, client, tmp_path):  # made in the owner's browser (site.js), sent as one set
+    import base64
+
     import main
+    sizes = {"32": 32, "180": 180, "192": 192, "512": 512, "192m": 192, "512m": 512}
+    good = {k: base64.b64encode(png(n)).decode() for k, n in sizes.items()}
     before = client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"]
-    pic = tmp_path / "mine.png"
-    Image.new("RGB", (900, 600), (200, 30, 30)).save(pic)  # not square: the middle is used
-    monkeypatch.setattr(main, "ICON_FILE", pic)
+    assert client.put("/easy-gramps/site/icon", json=good).status_code == 403  # an editor
+    fake.role = 4
+    main._who_cache.clear()
+    for bad in ({**good, "192": base64.b64encode(png(100)).decode()}, {**good, "32": base64.b64encode(b"GIF89a" + b"x" * 40).decode()},
+                {k: v for k, v in good.items() if k != "512m"}, {**good, "64": good["32"]}, {**good, "32": "not base64!"}, [1, 2]):
+        assert client.put("/easy-gramps/site/icon", json=bad).status_code == 400, bad
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] == before  # nothing half-saved
+    assert client.put("/easy-gramps/site/icon", json=good).status_code == 200
     after = client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"]
     assert after != before  # a new address, so installed phones fetch the new picture
-    im = Image.open(io.BytesIO(client.get(after).content)).convert("RGB")
-    assert im.size == (192, 192) and im.getpixel((96, 96)) == (200, 30, 30)
+    assert client.get("/easy-gramps/icon-512.png?maskable=1").content == png(512)
     assert f"icon-180.png?v={after.split('v=')[1]}" in client.get("/easy-gramps/").text
+    client.delete("/easy-gramps/site/icon")
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] == before
+    assert client.get("/easy-gramps/icon-192.png").content == (main.STATIC / "icons" / "192.png").read_bytes()
+    (tmp_path / "icon.png").write_bytes(png(64))  # an older install's one picture: served as it is for every size
+    main._icons.clear()
+    assert client.get("/easy-gramps/icon-32.png").content == client.get("/easy-gramps/icon-512.png").content == png(64)
+    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] != before
+    assert client.delete("/easy-gramps/site/icon").status_code == 200 and not (tmp_path / "icon.png").exists()
 
 
 def test_no_tag_unless_one_is_set(fake, client, monkeypatch):
@@ -386,7 +409,7 @@ def test_find_me_links_one_login_to_one_person(fake, client):  # owner's picks: 
     assert client.put("/easy-gramps/auth/me/person", json={"person": other}).status_code == 200
     assert client.put("/easy-gramps/auth/me/person", json={"person": me}).status_code == 409
     as_user(fake, "ann", 1)
-    assert client.get("/easy-gramps/tree/logins").json() == {me: "", other: ""}  # not the login names
+    assert client.get("/easy-gramps/tree/logins").json() == {me: "ann", other: "bob"}  # the same names /chat gives every login
     assert client.delete(f"/easy-gramps/tree/logins/{other}").status_code == 403
     assert client.delete("/easy-gramps/auth/me/person").json() == {}
     as_user(fake, "ed", 3)
@@ -486,10 +509,7 @@ def test_owner_lets_people_in_and_they_get_an_email(fake, client, monkeypatch):
 
 
 def test_site_settings_owner_only(fake, client):  # #145
-    import io
-
     import main
-    from PIL import Image
     assert client.put("/easy-gramps/site", json={"name": "Ours"}).status_code == 403  # an editor
     me = client.get("/easy-gramps/auth/me").json()
     assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
@@ -511,16 +531,6 @@ def test_site_settings_owner_only(fake, client):  # #145
     assert "gramps_link" not in client.get("/easy-gramps/auth/me").json()  # editors don't, now
     fake.role = 4
     main._who_cache.clear()
-    before = client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"]
-    assert client.put("/easy-gramps/site/icon", content=b"not a picture").status_code == 400
-    buf = io.BytesIO()
-    Image.new("RGB", (300, 200), "red").save(buf, "JPEG")
-    assert client.put("/easy-gramps/site/icon", content=buf.getvalue()).status_code == 200
-    with Image.open(io.BytesIO(client.get("/easy-gramps/icon-192.png").content)) as im:
-        assert im.size == (192, 192) and im.getpixel((96, 96))[0] > 200  # the red picture, square
-    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] != before
-    client.delete("/easy-gramps/site/icon")
-    assert client.get("/easy-gramps/manifest.webmanifest").json()["icons"][0]["src"] == before
 
 
 def test_invite_sent_by_email(fake, client, monkeypatch):  # #147
@@ -637,3 +647,66 @@ def test_work_and_education(fake, client):  # Gramps' Occupation / Education eve
     ev = next(iter(fake.db["events"].values()))
     ev["date"] = {"sortval": 2440000, "text": ""}  # a date set in Full Gramps stays
     assert patch(education="")["education"] == "" and len(fake.db["events"]) == 1
+
+
+def test_invite_is_not_applied_to_an_unconfirmed_email(fake, client):  # role -2
+    from test_chat import as_user
+    p = fake.person("Asha")
+    as_user(fake, "boss", 4)
+    assert client.post("/easy-gramps/invites", json={"email": "asha@example.com", "person": p, "role": 3}).status_code == 200
+    fake.users = [{"name": "stranger", "email": "asha@example.com", "full_name": "Asha", "role": -2}]
+    assert client.get("/easy-gramps/auth/me").json()["joined"] == [] and fake.users[0]["role"] == -2
+
+
+def test_site_settings_with_a_list_inside_are_a_400(fake, client):
+    from test_chat import as_user
+    as_user(fake, "boss", 4)
+    assert client.put("/easy-gramps/site", json={"hide": [["a"]]}).status_code == 400
+    as_user(fake, "boss", 5)  # (the box is for admins)
+    assert client.put("/easy-gramps/site", json={"box": [["a"], "years"]}).status_code == 400
+
+
+def test_photo_upload_without_a_length_is_refused(fake, client):
+    p = fake.person("Ravi")
+    b = "----x"
+    def body():
+        yield f'--{b}\r\nContent-Disposition: form-data; name="photo"; filename="a.jpg"\r\nContent-Type: image/jpeg\r\n\r\n'.encode()
+        yield b"0" * 1000
+        yield f"\r\n--{b}--\r\n".encode()
+    r = client.post(f"/easy-gramps/tree/person/{p}/photo", content=body(), headers={"Content-Type": f"multipart/form-data; boundary={b}"})
+    assert r.status_code == 411
+
+
+def test_a_locked_database_says_busy(fake, client, tmp_path):
+    import sqlite3
+    import main
+    from test_chat import as_user
+    as_user(fake, "ann", 1)
+    assert client.get("/easy-gramps/chat").status_code == 200
+    main.CHAT.con.execute("PRAGMA busy_timeout = 200")
+    other = sqlite3.connect(tmp_path / "chat.sqlite3", isolation_level=None)
+    other.execute("BEGIN EXCLUSIVE")
+    r = client.post("/easy-gramps/chat/c/1", json={"text": "hello"})
+    other.execute("ROLLBACK")
+    assert r.status_code == 503 and "Busy" in r.json()["detail"]
+
+
+def test_gramps_answers_that_are_not_json(fake, client):
+    import asyncio
+    import gramps
+    class R:  # a 200 that is not JSON, and an error whose JSON is not an object
+        status_code, content, text = 200, b"<html>", "<html>"
+        def json(self): raise ValueError
+    class E2(R):
+        status_code = 500
+        def json(self): return ["x"]
+    assert gramps.Gramps._error("GET", "/x", E2()).status == 502
+    g = gramps.Gramps("http://x", "t")
+    async def call():
+        async def req(*a, **k): return R()
+        g.http = type("H", (), {"request": staticmethod(req)})()
+        await g.get("/x")
+    import pytest
+    with pytest.raises(gramps.GrampsError) as e:
+        asyncio.run(call())
+    assert e.value.status == 502

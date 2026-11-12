@@ -45,9 +45,6 @@ Environment=FORWARDED_ALLOW_IPS=*
 # Secret=gramps_email_password,type=env,target=EMAIL_HOST_PASSWORD
 # Environment=DEFAULT_FROM_EMAIL=Family Tree <tree@example.com>
 # Phone notifications for the chat need no settings: the key is made in the volume above (back it up too).
-# Your own app icon (a square picture, PNG or JPG): every icon size is made from it.
-# Volume=%h/easy-gramps/icon.png:/icon/icon.png:ro,Z
-# Environment=ICON_FILE=/icon/icon.png
 
 Label=traefik.enable=true
 # Quoted because the rule has spaces: Quadlet splits an unquoted Label= line at whitespace.

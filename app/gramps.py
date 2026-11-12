@@ -46,13 +46,16 @@ class Gramps:
         r = await self.http.request(method, path, headers={**self.auth, **kw.pop("headers", {})}, **kw)
         if r.status_code >= 400:
             raise self._error(method, path, r)
-        return r.json() if r.content else None
+        try:
+            return r.json() if r.content else None
+        except ValueError:
+            raise GrampsError("Gramps couldn't do that. Please try again.", 502) from None
 
     @staticmethod
     def _error(method, path, r):
         try:
-            msg = r.json().get("error", {}).get("message") or r.text
-        except ValueError:
+            msg = str(r.json()["error"]["message"] or r.text)
+        except (ValueError, KeyError, TypeError):
             msg = r.text
         log.warning("Gramps %s %s -> %s: %s", method, path, r.status_code, msg[:300])
         if r.status_code in PLAIN:

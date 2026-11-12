@@ -15,7 +15,7 @@ const screen = () => (!$("#manage").hidden ? "manage" : !$("#chat").hidden ? "ch
 // "Tap **X**" → text with X in bold
 const words = s => s.split(/\*\*(.+?)\*\*/).map((x, i) => (i % 2 ? h("b", {}, x) : x));
 
-export function openHelp() {
+function openHelp() {
   closeMenu(); stopTour();
   const here = screen(), all = tasksFor(ctx(), here);
   const list = h("div", { class: "howto" });

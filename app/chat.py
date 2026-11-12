@@ -18,6 +18,7 @@ EMOJI = ("🏠", "🎉", "🍲", "📷", "⛪", "🎂", "✈️", "⚽")
 FAMILY = 1  # the "Whole family" conversation's id
 DATE_FORMATS = ("d mon y", "d/m/y", "m/d/y", "y-m-d", "mon d, y")
 ACTIVE = 30 * 86400  # a login not seen for this long (e.g. disabled in Gramps Web) gets no emails or notifications
+MAX_DEVICES = 10  # push devices kept per login (the oldest go first)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS convs (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, name TEXT, emoji TEXT,
@@ -85,25 +86,8 @@ class Chat:
                     con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {kind}")
             con.execute("INSERT OR IGNORE INTO convs (id, kind, name, emoji, created) VALUES (?, 'family', 'Whole family', '🏠', ?)",
                         (FAMILY, time.time()))
-            self._import_settings(con)
             self.con = con
         return self.con
-
-    def _import_settings(self, con):
-        """Before 1.8.5 the settings were in settings.json next to this file: brought in once, the file kept as .imported."""
-        old = self.path.with_name("settings.json")
-        try:
-            data = json.loads(old.read_text())
-        except (OSError, ValueError):
-            return
-        for login, v in (data.items() if isinstance(data, dict) else ()):
-            if isinstance(v, dict):
-                emails = v.get("emails")
-                con.execute("INSERT OR IGNORE INTO settings (login, dates, emails, person) VALUES (?, ?, ?, ?)",
-                            (login, v.get("dates") if v.get("dates") in DATE_FORMATS else None,
-                             int(emails) if isinstance(emails, bool) else None,
-                             v.get("person") if isinstance(v.get("person"), str) else None))
-        old.replace(old.with_name("settings.json.imported"))
 
     def q(self, sql, *args):
         with self.lock:
@@ -281,6 +265,8 @@ class Chat:
     def private(self, login: str, other: str) -> int:
         if not other or other == login:
             raise ChatError("Pick someone else to write to.")
+        if not self.one("SELECT 1 FROM users WHERE login = ?", other):  # (anyone who has ever been in, not only the last weeks)
+            raise ChatError("They aren't signed up here yet.", 404)
         self.dms_check(login, other)
         pair = "\n".join(sorted((login, other)))
         self.q("INSERT OR IGNORE INTO convs (kind, pair, created) VALUES ('private', ?, ?)", pair, time.time())
@@ -320,11 +306,11 @@ class Chat:
             out.update(json.loads(m["extra"]))  # an update's "ask": {login, name} for its 💬 Message button
         return out
 
-    def messages(self, cid: int, login: str, after: int = 0, limit: int = 200, mark: bool = True) -> list[dict]:
+    def messages(self, cid: int, login: str, after: int = 0, limit: int = 200, mark: bool = True, before: int = 0) -> list[dict]:
         self.check(cid, login)
-        rows = self.q("SELECT * FROM (SELECT * FROM messages WHERE conv = ? AND id > ? ORDER BY id DESC LIMIT ?) ORDER BY id",
-                      cid, after, limit)
-        if mark and rows:
+        rows = self.q("SELECT * FROM (SELECT * FROM messages WHERE conv = ? AND id > ? AND id < ? ORDER BY id DESC LIMIT ?) ORDER BY id",
+                      cid, after, before or 2**62, limit)
+        if mark and rows and not before:  # an older batch says nothing about what was read since
             self.mark(cid, login, rows[-1]["id"])
         return [self._msg(m, login) for m in rows]
 
@@ -437,6 +423,8 @@ class Chat:
     def add_device(self, login: str, endpoint: str, keys: dict):
         self.q("INSERT INTO push (endpoint, login, keys) VALUES (?, ?, ?) ON CONFLICT (endpoint) DO UPDATE "
                "SET login = excluded.login, keys = excluded.keys", endpoint, login, json.dumps(keys))
+        self.q("DELETE FROM push WHERE login = ? AND rowid NOT IN (SELECT rowid FROM push WHERE login = ? ORDER BY rowid DESC LIMIT ?)",
+               login, login, MAX_DEVICES)
 
     def remove_device(self, endpoint: str, login: str | None = None):
         if login is None:  # (the push service says the device is gone)

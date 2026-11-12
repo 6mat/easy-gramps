@@ -124,3 +124,16 @@ def test_place_by_name_still_reuses_an_exact_match(fake, g):  # merge sends name
     p = fake.person("Ann", "", 0)
     run(familytree.update_person(g, p, {"birthPlace": "ashford"}, []))
     assert birth_place(fake, p)["handle"] == a and len(fake.db["places"]) == 1
+
+
+def test_failed_save_leaves_no_new_place_or_event_behind(fake, client):
+    from test_chat import E, as_user
+    p = fake.person("Ann")
+    as_user(fake, "ed", 3)
+    patch = {"birth": {"y": 1950}, "birthPlace": {"new": "Chennai"}}
+    fake.fail[("PUT", f"/people/{p}")] = 500
+    assert client.patch(f"{E}/tree/person/{p}", json=patch).status_code >= 400
+    assert (len(fake.db["places"]), len(fake.db["events"])) == (0, 0)
+    fake.fail.clear()
+    assert client.patch(f"{E}/tree/person/{p}", json=patch).status_code == 200
+    assert (len(fake.db["places"]), len(fake.db["events"])) == (1, 1)

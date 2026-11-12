@@ -48,7 +48,7 @@ function hide(result = null) {
   back?.isConnected && back.focus();
   resolve(result);
 }
-export function closeBook(result = null) { if (B) { hide(result); history.back(); } }  // (its history step goes too)
+function closeBook(result = null) { if (B) { hide(result); history.back(); } }  // (its history step goes too)
 window.addEventListener("popstate", () => { if (B && !history.state?.book) hide(); });
 
 function frame() {

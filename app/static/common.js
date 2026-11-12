@@ -33,7 +33,7 @@ export function closeMenu() { $("#menupop").hidden = true; $("#menubtn").setAttr
 // #/p/<tree's person>[/s/<selected>][/edit/<editor's person>[/add/<whose relative>/<relation>[/<family>]]]
 // Opening the editor or the Add pop-up is a step the browser's Back (or a phone's back gesture) undoes.
 const editing = () => !$("#editor").hidden && S.stack.at(-1);
-export function viewHash() {
+function viewHash() {
   if (!S.focus) return "";
   let v = `#/p/${encodeURIComponent(S.focus)}`;
   if (S.sel && S.sel !== S.focus) v += `/s/${encodeURIComponent(S.sel)}`;

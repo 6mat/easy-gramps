@@ -144,7 +144,6 @@ read-only screen check weekly.
 | `GRAMPS_LINK_LABEL` | Label of the menu link to Gramps Web. |
 | `SOURCE_URL` | Where the menu's "Source code" link points. Defaults to this repository; if you run a changed version, point it at your own copy (the AGPL asks you to offer users the source). |
 | `FORWARDED_ALLOW_IPS` | Proxy addresses whose `X-Forwarded-For` is trusted, so the login limit (3 failed tries a minute, 5 an hour, 7 a day) counts each visitor separately. The Traefik example sets it. |
-| `ICON_FILE` | Your own app icon: a square picture (PNG or JPG) inside the container. Every icon size is made from it, and installed phones pick up a new one. Defaults to the bundled tree. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` | The family chat's daily email: anyone with chat messages unread for a day gets one email listing them (at most one a day; each person can switch it off in ☰ Menu → You). The same names and values as Gramps Web's own email settings; Gramps Web's `GRAMPSWEB_EMAIL_HOST`, `GRAMPSWEB_EMAIL_HOST_USER` and the rest are read too, so both containers can share one env file. Port 465 uses SSL, 587 STARTTLS (required when there's a login, so the password never goes unencrypted). No `EMAIL_HOST`: no emails. Logins not seen for 30 days (e.g. disabled in Gramps Web) get none. |
 | `APP_URL` | This page's address for the link in those emails. Defaults to `GRAMPS_PUBLIC_URL` + `BASE_PATH`. |
 | `PASSWORD_LOGIN` | `off` hides the name-and-password form on this page only, leaving Gramps Web's sign-in buttons (e.g. Continue with Google). Gramps Web keeps its own password login, and with a shared login (see below) logging in there logs you in here too. On by default. |
@@ -157,8 +156,8 @@ on an iPhone, Safari's **Share → Add to Home Screen**). It then opens from its
 without the browser's address bar. It's an app of its own, separate from Gramps Web's. Nothing is kept on
 the phone: with no internet it says so ("No internet", with Try again) instead of showing old data.
 
-To use your own icon, the owner can upload one in ☰ Menu → ⚙️ Manage → Settings → App name and icon (it wins over `ICON_FILE`), or point `ICON_FILE` at a square picture (see the commented lines in the deploy
-files). After changing it, an installed app shows the new icon once the phone next checks (it can take
+To use your own icon, the owner uploads a picture in ☰ Menu → ⚙️ Manage → Settings → App name and icon: their
+browser makes every icon size from the middle square of it (kept in the data folder). After changing it, an installed app shows the new icon once the phone next checks (it can take
 a day); removing and re-installing the app shows it at once.
 
 ## Signing in

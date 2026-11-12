@@ -228,3 +228,62 @@ def test_suggest_a_profile_photo(fake, client, monkeypatch, tmp_path):
     client.post(f"{E}/suggestions/decide", json={"reject": [first]})
     assert client.post(f"{E}/suggestions/delete", json={"ids": [first]}).json()["deleted"] == 1
     assert list((tmp_path / "photos").iterdir()) == []
+
+
+def test_a_network_failure_while_approving_keeps_the_suggestion(fake, client, monkeypatch):
+    import httpx
+    import familytree
+    p = fake.person("Ravi")
+    turn_on(fake, client)
+    as_user(fake, "ann", 1)
+    client.post(f"{E}/suggestions", json={"items": [{"op": "set", "id": p, "field": "nick", "value": "R"}]})
+    as_user(fake, "ed", 3)
+    sid = client.get(f"{E}/suggestions").json()["items"][0]["id"]
+
+    async def slow(*a, **k):
+        raise httpx.ReadTimeout("slow")
+    with monkeypatch.context() as mp:
+        mp.setattr(familytree, "update_person", slow)
+        r = client.post(f"{E}/suggestions/decide", json={"approve": [sid]})
+    assert r.status_code == 502
+    left = client.get(f"{E}/suggestions").json()["items"]
+    assert [x["id"] for x in left] == [sid] and "didn't answer" in left[0]["error"]
+
+
+def test_suggestion_limits_and_bad_input(fake, client, monkeypatch, tmp_path):
+    import suggest
+    monkeypatch.setattr(suggest, "PHOTOS", tmp_path / "photos")
+    p, q2 = fake.person("Ravi"), fake.person("Sita")
+    turn_on(fake, client)
+    as_user(fake, "ann", 1)
+    def one(i):
+        return {"op": "set", "id": i, "field": "nick", "value": "R"}
+    assert client.post(f"{E}/suggestions", json={"items": [one("a/b")]}).status_code == 400  # the person id
+    assert client.post(f"{E}/suggestions", json={"items": [one("a.b")]}).status_code == 400
+    monkeypatch.setattr(suggest, "MAX_WAITING", 1)
+    assert client.post(f"{E}/suggestions", json={"items": [one(p), one(q2)]}).status_code == 429
+    assert client.post(f"{E}/suggestions", json={"items": [one(p)]}).status_code == 200
+    png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
+    assert client.post(f"{E}/suggestions/photo/{q2}", files=png).status_code == 429  # one is already waiting
+    monkeypatch.setattr(suggest, "MAX_WAITING", 500)
+    assert client.post(f"{E}/suggestions/photo/{p}", files={"photo": ("a.svg", b"<svg/>", "image/svg+xml")}).status_code == 400
+
+
+def test_waiting_photos_are_limited(fake, client, monkeypatch, tmp_path):
+    import suggest
+    monkeypatch.setattr(suggest, "PHOTOS", tmp_path / "photos")
+    monkeypatch.setattr(suggest, "MAX_PHOTOS", 1)
+    p, q2 = fake.person("Ravi"), fake.person("Sita")
+    turn_on(fake, client)
+    as_user(fake, "ann", 1)
+    png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
+    assert client.post(f"{E}/suggestions/photo/{p}", files=png).status_code == 200
+    assert client.post(f"{E}/suggestions/photo/{p}", files=png).status_code == 200  # replacing one is fine
+    assert client.post(f"{E}/suggestions/photo/{q2}", files=png).status_code == 429
+    assert len(list((tmp_path / "photos").iterdir())) == 1
+
+
+def test_thumbnail_handle_with_a_dot_is_refused(fake, client):
+    from test_chat import as_user as au
+    au(fake, "ann", 1)
+    assert client.get(f"{E}/gapi/media/a.b/thumbnail/200").status_code == 400

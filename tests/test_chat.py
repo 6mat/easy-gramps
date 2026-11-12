@@ -78,6 +78,8 @@ def test_groups_editors_make_them_anyone_joins(fake, chat):
 
 def test_private_messages_only_for_the_two(fake, chat):
     import main
+    as_user(fake, "bob")
+    chat.get(f"{E}/chat")  # (a login is known once it has opened the chat)
     as_user(fake, "ann")
     pid = chat.post(f"{E}/chat/private", json={"login": "bob"}).json()["id"]
     assert chat.post(f"{E}/chat/private", json={"login": "bob"}).json()["id"] == pid
@@ -306,19 +308,6 @@ def test_several_writes_are_all_or_nothing(fake, chat):  # #128
     assert main.CHAT.conv(gid)["name"] == "Reunion"
 
 
-def test_settings_json_is_brought_in_once(tmp_path):  # #126
-    import json
-    import chat as chatmod
-    (tmp_path / "settings.json").write_text(json.dumps({"ann": {"dates": "m/d/y", "emails": False, "person": "p1"},
-                                                        "bob": {"dates": "<b>"}, "x": "junk"}))
-    c = chatmod.Chat(tmp_path / "chat.sqlite3")
-    assert c.settings("ann") == {"dates": "m/d/y", "emails": False, "person": "p1"} and c.settings("bob") == {}
-    assert c.linked() == {"ann": "p1"}
-    assert not (tmp_path / "settings.json").exists() and (tmp_path / "settings.json.imported").exists()
-    with pytest.raises(chatmod.ChatError):
-        c.link("bob", "p1")  # one login per person
-
-
 def device():
     """A browser's push subscription, with the key to read what's sent to it."""
     import os
@@ -367,6 +356,9 @@ def test_phone_notifications(fake, chat, monkeypatch, tmp_path):  # #133
     assert json.loads(http_ece.decrypt(r.content, private_key=k, auth_secret=auth, version="aes128gcm")) == \
         {"title": "Whole family", "body": "bob: Lunch on Sunday?", "conv": 1}
     got.clear()
+    as_user(fake, "cat")
+    chat.get(f"{E}/chat")
+    as_user(fake, "bob")
     pid = chat.post(f"{E}/chat/private", json={"login": "cat"}).json()["id"]
     asyncio.run(main.push_new(pid, "bob", "psst"))
     assert not got  # a private message: only the two
@@ -437,3 +429,46 @@ def test_family_tree_updates_are_theirs_only_and_read_only(fake, chat):
     as_user(fake, "bob")
     assert all(x["id"] != cid for x in chat.get(f"{E}/chat").json()["convs"])
     assert chat.get(f"{E}/chat/c/{cid}").status_code == 404
+
+
+def test_private_chat_needs_a_known_login(fake, chat):
+    as_user(fake, "ann", 1)
+    r = chat.post(f"{E}/chat/private", json={"login": "x" * 5000})
+    assert r.status_code == 404 and chat.get(f"{E}/chat").json()["convs"] == [c for c in chat.get(f"{E}/chat").json()["convs"] if c["kind"] != "private"]
+
+
+def test_daily_email_leaves_out_person_talk_when_it_is_off(fake, chat, monkeypatch):
+    import time
+    import main
+    sent = []
+    monkeypatch.setattr(main, "send_mail", lambda to, subject, body: sent.append(to))
+    p = fake.person("Ravi")
+    as_user(fake, "ann", 1)
+    chat.get(f"{E}/chat")
+    main.CHAT.q("UPDATE users SET email = 'ann@example.com' WHERE login = 'ann'")
+    as_user(fake, "bob", 1)
+    assert chat.post(f"{E}/chat/person/{p}", json={"text": "Who is this?"}).status_code == 200
+    as_user(fake, "boss", 4)
+    assert chat.put(f"{E}/site", json={"talk": False}).status_code == 200
+    assert main.send_waiting(time.time() + 2 * 86400) == 0 and sent == []
+
+
+def test_push_devices_are_limited_per_login(fake, chat):
+    import main
+    for i in range(main.chat.MAX_DEVICES + 3):
+        main.CHAT.add_device("ann", f"https://x/{i}", {})
+    rows = [r["endpoint"] for r in main.CHAT.q("SELECT endpoint FROM push WHERE login = 'ann' ORDER BY rowid")]
+    assert len(rows) == main.chat.MAX_DEVICES and rows[-1] == f"https://x/{main.chat.MAX_DEVICES + 2}"
+
+
+def test_earlier_messages_reach_past_the_newest_200(fake, chat):
+    as_user(fake, "ann")
+    ids = [chat.post(f"{E}/chat/c/1", json={"text": f"m{i}"}).json()["id"] for i in range(205)]
+    as_user(fake, "bob")
+    got = chat.get(f"{E}/chat/c/1").json()
+    assert len(got) == 200 and got[0]["id"] == ids[5] and conv(chat, 1)["unread"] == 0
+    old = chat.get(f"{E}/chat/c/1?before={got[0]['id']}").json()
+    assert [m["text"] for m in old] == [f"m{i}" for i in range(5)]
+    as_user(fake, "cat")  # an older batch alone doesn't mark the newest as read
+    chat.get(f"{E}/chat/c/1?before={ids[5]}")
+    assert conv(chat, 1)["unread"] == 205
