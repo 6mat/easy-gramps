@@ -15,12 +15,12 @@ const sent = c => (c.role !== "suggest" ? [] : c.auto
 const edit = c => (c.role === "suggest" ? "✎ Suggest a change" : "✎ Edit person");
 
 // Steps several tours share.
-const PERSON = ["#rows .node", "Tap the person.", "any", "No tree open? Search a name first."];  // any: no ring or blur, anyone will do
-const EDIT = c => [".panel .edit", `Tap **${edit(c)}**.`];
-const MENU = c => ["#menubtn", `Tap **☰ ${c.label("menu", "Menu")}**.`];
-const CHAT = c => ["#chatbtn", `Tap **💬 ${c.label("chat", "Chat")}**.`];
-const MANAGE = c => [MENU(c), ["#menu-manage", `Tap **${c.label("manage", "⚙️ Manage")}**.`]];
-const MORE = [".panel .moretoggle", "Tap **More details ▾**."];
+const PERSON = ["#rows .node", "In the tree, tap the box of the person you want.", "any", "No tree on screen? Type a name in the search box at the top first."];  // any: no ring or blur, anyone will do
+const EDIT = c => [".panel .edit", `Tap **${edit(c)}** in their details. This opens the page where you change them.`];
+const MENU = c => ["#menubtn", `Tap **☰ ${c.label("menu", "Menu")}** at the top of the screen.`];
+const CHAT = c => ["#chatbtn", `Tap **💬 ${c.label("chat", "Chat")}** at the top to open the family chat.`];
+const MANAGE = c => [MENU(c), ["#menu-manage", `Tap **${c.label("manage", "⚙️ Manage")}** in the menu.`]];
+const MORE = [".panel .moretoggle", "Tap **More details ▾** to see the rest."];
 const TYPE = "#ed-body input:not([type=checkbox]):not([type=radio]):not([type=file])";
 
 export const SCREENS = { tree: "The family tree", editor: "Changing a person", chat: "Family chat", manage: "Manage" };
@@ -29,138 +29,138 @@ const TASKS = [
   // ---------- the tree ----------
   { at: "tree", t: "Find someone", steps: () => ["Type part of their name in the **Search a name** box at the top.",
     "Tap their name. The ⓘ beside a name shows who they are first."],
-  go: () => [["#q, #start-q", "Type a name, then tap them.", "read"]] },
+  go: () => [["#q, #start-q", "Type part of their name here, then tap the right person in the list.", "read"]] },
   { at: "tree", t: "Move around the tree", steps: () => ["Drag to move. Pinch, or use **−** and **+** at the bottom, to zoom.",
     "**Fit** shows the whole tree. Double-tap someone to centre on them."],
-  go: () => [[".zoomgrp", "**−** **+** zoom, **Fit** shows all. Drag to move.", "read"]] },
+  go: () => [[".zoomgrp", "Use **−** and **+** to zoom, and **Fit** to see everyone. Drag the tree to move around.", "read"]] },
   { at: "tree", t: "See someone's details", steps: () => ["Tap their box. Their details open on the right (on a phone, at the bottom).",
     "Tap **More details** for the rest. Tap a parent, wife, husband or child there to go to them."],
-  go: () => [PERSON, [".panel .moretoggle", "Tap **More details ▾**.", "read"]] },
+  go: () => [PERSON, [".panel .moretoggle", "Their details are open. Tap **More details ▾** to see everything.", "read"]] },
   { at: "tree", t: "See someone else's family tree", steps: () => ["Tap their box, then **See …'s tree →** at the top.",
     "**⌂** at the top left goes back to the start, to choose anyone."],
-  go: () => [PERSON, ["#tree-see", "Tap **See …'s tree →**."]] },
+  go: () => [PERSON, ["#tree-see", "Tap **See …'s tree →** to put them in the middle of the tree."]] },
   { at: "tree", t: "Find yourself in the tree", who: c => !c.hide.has("you"), steps: c => [`Open ${menu(c, c.label("you", "You"))}.`,
     "Tap **Claim your place in the tree**, search your name and tap **Yes, this is me**. Then the family can message you in the chat."],
-  go: c => [MENU(c), ["#menu-me button", "Tap **Claim your place in the tree** (or **Change**)."]] },
+  go: c => [MENU(c), ["#menu-me button", "Tap **Claim your place in the tree** (or **Change**), then search for your own name."]] },
   { at: "tree", t: "How are two people related?", who: c => !c.hide.has("trace"), steps: c => [
     `Tap one of them, then **${c.label("trace", "🔗 Trace relationship")}** under their name.`,
     `Or open ${menu(c, c.label("family", "Family"), c.label("trace", "🔗 Trace relationship"))} and pick both.`],
-  go: c => [PERSON, [".panel .trace", `Tap **${c.label("trace", "🔗 Trace relationship")}**.`]] },
+  go: c => [PERSON, [".panel .trace", `Tap **${c.label("trace", "🔗 Trace relationship")}**, then pick the other person.`]] },
   { at: "tree", t: "Change someone's details", who: changer, steps: c => [`Tap them, then **${edit(c)}**.`,
     "Type in the box. It's saved by itself when you leave the box: no Save button.", ...sent(c)],
-  go: c => [PERSON, EDIT(c), [TYPE, "Type in a box. It saves by itself.", "read"]] },
+  go: c => [PERSON, EDIT(c), [TYPE, "Tap a box and type. It saves by itself when you leave the box; there's no Save button.", "read"]] },
   { at: "tree", t: "Add a father, mother, husband, wife or child", who: changer, steps: c => [`Tap the person, then **${edit(c)}**.`,
     "Tap a dotted box such as **Add father** or **Add child**.",
     "Type the new person's name, or tap **Pick someone already in the tree** if they're already in it.", ...sent(c)],
-  go: c => [PERSON, EDIT(c), [".ed-slot", "Tap a dotted box, like **Add father**."],
-    ["#dlg input", "Type their name, or **Pick someone already in the tree**.", "read"]] },
+  go: c => [PERSON, EDIT(c), [".ed-slot", "Tap a dotted box, like **Add father** or **Add child**."],
+    ["#dlg input", "Type the new person's name. Already in the tree? Tap **Pick someone already in the tree**.", "read"]] },
   { at: "tree", t: "Add a person who has no relatives in the tree yet", who: c => c.role === "editor" || c.role === "contributor",
     steps: () => ["Tap **⌂** at the top left to go to the start.", "Tap **+ Add a new person**, fill in the name, and add."],
-    go: () => [["#brand", "Tap **⌂** to go to the start."], ["#start-add", "Tap **+ Add a new person**."]] },
+    go: () => [["#brand", "Tap **⌂** at the top left to go to the start page."], ["#start-add", "Tap **+ Add a new person**, then type their name."]] },
   { at: "tree", t: "Add or change a photo", who: changer, steps: c => [`Tap the person, then **${edit(c)}**.`,
     c.role === "editor" ? "Tap **Add photo** (or **Change photo**) beside the photo, or **+ Add photos** for more. ★ marks the profile photo."
       : "Tap **Suggest a photo** and choose one.", ...sent(c)],
-  go: c => [PERSON, EDIT(c), [".photo-row > button:not(.phbtn)", c.role === "editor" ? "Tap **Add photo** or **Change photo**." : "Tap **Suggest a photo**."],
-    [null, "Choose a photo.", "read"]] },
+  go: c => [PERSON, EDIT(c), [".photo-row > button:not(.phbtn)", c.role === "editor" ? "Tap **Add photo** or **Change photo**, next to their picture." : "Tap **Suggest a photo** to send one to the editors."],
+    [null, "Choose a photo from your phone or computer.", "read"]] },
   { at: "tree", t: "Change or add things in the tree", who: c => c.role === "contributor" || c.role === "guest",
     steps: c => [c.role === "contributor" ? "You can add new people (see above). To change details or link people, ask an editor."
       : "You can look at everything, but not change it. If you'd like to help, ask the family tree's owner."] },
   { at: "tree", t: "Invite a relative", who: c => c.role === "editor", steps: () => [
     "Tap them, open **More details** and tap **✉ Invite to the family tree** (people who don't have a login yet).",
     "Send the message by WhatsApp, email or any app."],
-  go: () => [PERSON, MORE, [".panel .invite", "Tap **✉ Invite to the family tree**."]] },
+  go: () => [PERSON, MORE, [".panel .invite", "Tap **✉ Invite to the family tree**, then send the message by WhatsApp, email or any app."]] },
   { at: "tree", t: "Old family papers", who: c => !c.hide.has("docs"), steps: c => [`Open ${menu(c, c.label("family", "Family"), c.label("docs", "📚 Family documents"))}.`],
-    go: c => [MENU(c), ["#menu-docs", `Tap **${c.label("docs", "📚 Family documents")}**.`]] },
+    go: c => [MENU(c), ["#menu-docs", `Tap **${c.label("docs", "📚 Family documents")}** to see the family's old papers.`]] },
   { at: "tree", t: "Bigger text, dark screen or another date style", who: c => !c.hide.has("display") || !c.hide.has("theme") || !c.hide.has("dates"),
     steps: c => [`Open ${menu(c, c.label("display", "Display"))}.`, "Changes show at once and stay with your login."],
-    go: c => [MENU(c), ["#h-display", "Change the look here.", "read"]] },
+    go: c => [MENU(c), ["#h-display", "Change text size, light or dark screen, and how dates look here. It changes at once.", "read"]] },
   { at: "tree", t: "Put the family tree on your home screen", who: c => !c.hide.has("install"),
     steps: c => [`Open ${menu(c, c.label("help", "Help"), c.label("install", "📲 Install as an app"))} and follow the steps.`],
-    go: c => [MENU(c), ["#menu-install", `Tap **${c.label("install", "📲 Install as an app")}**.`]] },
+    go: c => [MENU(c), ["#menu-install", `Tap **${c.label("install", "📲 Install as an app")}** and follow the steps for your phone.`]] },
 
   // ---------- Edit person ----------
   { at: "editor", t: "Change a detail", who: changer, steps: c => ["Tap the box and type. It's saved by itself when you leave the box.",
     c.role === "suggest" ? "**Not in the tree yet** at the top right means it's waiting for an editor."
       : "**Saved ✓** at the top right says it worked. **Not saved** shows **Try again**.", ...sent(c)],
-  go: () => [[TYPE, "Type in a box. It saves by itself.", "read"]] },
+  go: () => [[TYPE, "Tap a box and type. It saves by itself when you leave the box; there's no Save button.", "read"]] },
   { at: "editor", t: "Type a date", who: changer, steps: c => [`Type it as ${c.date}, for example ${c.eg}.`,
     `On a phone you can type just the numbers, such as ${c.digits}.`,
     "Or tap 📅 to pick it from a calendar. Only know the year? Tick **I only know the year**."],
-  go: c => [[".daterow input", `Type it as ${c.date}, or tap 📅.`, "read"]] },
+  go: c => [[".daterow input", `Type the date as ${c.date}, or tap 📅 to pick it on a calendar.`, "read"]] },
   { at: "editor", t: "Add a relative", who: changer, steps: c => ["Tap a dotted box such as **Add father**, **Add mother** or **Add child**.",
     "Type the new person's name, or **Pick someone already in the tree**. One person at a time.", ...sent(c)],
-  go: () => [[".ed-slot", "Tap a dotted box, like **Add father**."],
-    ["#dlg input", "Type their name, or **Pick someone already in the tree**.", "read"]] },
+  go: () => [[".ed-slot", "Tap a dotted box, like **Add father** or **Add child**."],
+    ["#dlg input", "Type the new person's name. Already in the tree? Tap **Pick someone already in the tree**.", "read"]] },
   { at: "editor", t: "Take someone out of a family", who: c => c.role === "editor", steps: () => [
     "Tap **⋯** on their card, then **Remove from this family**. Nobody is deleted: only the link goes.",
     "Made a mistake? Tap **Undo** at the bottom."],
-  go: () => [[".rcard .more", "Tap **⋯** on their card."], [".rcard .menu .danger", "Tap **Remove from this family**."]] },
+  go: () => [[".rcard .more", "Tap **⋯** on the card of the person to take out."], [".rcard .menu .danger", "Tap **Remove from this family**. Nobody is deleted; only the link goes."]] },
   { at: "editor", t: "Someone has passed away", who: changer, steps: c => ["Tick **Passed away?**. Boxes for the date and burial place appear.", ...sent(c)],
-    go: () => [["#ed-passed", "Tick **Passed away?**."]] },
+    go: () => [["#ed-passed", "Tick **Passed away?**. Boxes for the date and burial place appear."]] },
   { at: "editor", t: "Photos", who: changer, steps: c => [c.role === "editor"
     ? "Tap **+ Add photos** to add more. Tap a photo to see it big, then **Use as profile photo** or remove it."
     : "Tap **Suggest a photo** to send one for the editors to look at."],
-  go: c => [c.role === "editor" ? [".phadd", "Tap **+ Add photos**."] : [".photo-row > button:not(.phbtn)", "Tap **Suggest a photo**."],
-    [null, "Choose a photo.", "read"]] },
+  go: c => [c.role === "editor" ? [".phadd", "Tap **+ Add photos** to add more pictures of them."] : [".photo-row > button:not(.phbtn)", "Tap **Suggest a photo** to send one to the editors."],
+    [null, "Choose a photo from your phone or computer.", "read"]] },
   { at: "editor", t: "The same person is in the tree twice", who: c => c.role === "editor", steps: () => [
     "Under **Other actions**, tap **Merge with a duplicate** and find the other one.", "Choose which details to keep, then merge."],
-  go: () => [[".dupbtn", "Tap **Merge with a duplicate**."]] },
+  go: () => [[".dupbtn", "Tap **Merge with a duplicate**, then find the other copy of this person."]] },
   { at: "editor", t: "Delete a person added by mistake", who: changer, steps: c => [
     `Under **Other actions**, tap **Delete this person**.${c.role === "editor" && !c.owner ? " Editors can delete people they added; for others, it's sent as a suggestion." : ""}`,
     ...(c.role === "suggest" ? ["It's a suggestion: an editor decides."] : [])],
-  go: () => [[".delbtn", "Tap **Delete this person**."]] },
+  go: () => [[".delbtn", "Tap **Delete this person**. Only for someone added by mistake."]] },
   { at: "editor", t: "Go back to the tree", steps: () => ["Tap **← Back to tree** at the top left. Your changes are already saved."],
-    go: () => [["#ed-back", "Tap **← Back to tree**."]] },
+    go: () => [["#ed-back", "Tap **← Back to tree**. Your changes are already saved."]] },
 
   // ---------- chat ----------
   { at: "chat", t: "Write to the whole family", steps: () => ["Tap **Whole family** in the list, type in the box at the bottom and tap **Send**."],
-    go: c => [CHAT(c), ["#chat .crow", "Tap **Whole family**."], ["#chat .cfoot textarea", "Type, then **Send**.", "read"]] },
+    go: c => [CHAT(c), ["#chat .crow", "Tap **Whole family**. Everyone in the family tree can read it."], ["#chat .cfoot textarea", "Type your message here, then tap **Send**.", "read"]] },
   { at: "chat", t: "Send a private message", who: c => c.dms, steps: () => ["Tap **+ Message someone** and pick them.",
     "Only the two of you can read it. People who turned off private chats aren't listed."],
-  go: c => [CHAT(c), ["#chat .msgsome", "Tap **+ Message someone**."]] },
+  go: c => [CHAT(c), ["#chat .msgsome", "Tap **+ Message someone** and pick who to write to. Only the two of you can read it."]] },
   { at: "chat", t: "Groups", steps: c => [c.role === "editor" ? "Tap **+ New group** to make one, or **Join** under Groups you can join."
     : "Tap **Join** under Groups you can join. Editors make new groups."],
-  go: c => [CHAT(c), ["#chat .join, #chat .newgroup", c.role === "editor" ? "Tap **+ New group**, or **Join** a group." : "Tap **Join**."]] },
+  go: c => [CHAT(c), ["#chat .join, #chat .newgroup", c.role === "editor" ? "Tap **+ New group** to start one, or **Join** to join a group." : "Tap **Join** next to a group to join it."]] },
   { at: "chat", t: "Talk about a person in the tree", who: c => c.talk, steps: () => [
     "Tap them in the tree, then **💬 Family talk about …** at the bottom of their details."],
-  go: () => [PERSON, [".panel .talkhead", "Tap **💬 Family talk about …**."]] },
+  go: () => [PERSON, [".panel .talkhead", "Tap **💬 Family talk about …** to talk about this person with the family."]] },
   { at: "chat", t: "Answers to your suggestions", who: c => c.role === "suggest", steps: () => [
     "They come in **🌳 Family tree updates**, under Groups. Nobody writes there: it's only for you."] },
   { at: "chat", t: "Delete a message you wrote", steps: () => ["Tap **⋯** beside it, then delete. \"Message deleted\" stays in its place."],
-    go: c => [CHAT(c), ["#chat .dots", "Tap **⋯** beside your message."]] },
+    go: c => [CHAT(c), ["#chat .dots", "Tap **⋯** beside your message, then delete it."]] },
   { at: "chat", t: "Get told about new messages", who: c => !c.hide.has("you"), steps: c => [
     `Open ${menu(c, c.label("you", "You"))} and turn on **Notify me of new chat messages on this device**.`,
     ...(c.email ? ["Or turn on the email for a message that waits for you a day."] : [])],
-  go: c => [MENU(c), ["#menu-me", "Turn on **Notify me of new chat messages on this device**.", "read"]] },
+  go: c => [MENU(c), ["#menu-me", "Turn on **Notify me of new chat messages on this device**. This phone or computer then tells you about new messages.", "read"]] },
   { at: "chat", t: "Turn off private chats", who: c => !c.hide.has("you"), steps: c => [`Open ${menu(c, c.label("you", "You"))}, turn off **Private chats**.`,
     "Nobody can message you privately then, and you can't message others. The family chat and groups stay."],
-  go: c => [MENU(c), ["#menu-me", "Turn off **Private chats** here.", "read"]] },
+  go: c => [MENU(c), ["#menu-me", "Turn off **Private chats** here. Then nobody can message you privately.", "read"]] },
 
   // ---------- Manage ----------
   { at: "manage", t: "Look at suggestions", who: c => c.reviews, steps: c => [
     `Open ${menu(c, c.label("manage", "⚙️ Manage"))} → **Suggestions**. The tree shows them on top, new and changed boxes marked.`,
     "Tick the ones to take, then **Approve** or **Reject**. The person who sent them gets a message.",
     "Changed your mind? **History** has **Undo**."],
-  go: c => [...MANAGE(c), ["#manage [data-sec=suggest]", "Tap **Suggestions**."]] },
+  go: c => [...MANAGE(c), ["#manage [data-sec=suggest]", "Tap **Suggestions** to see the changes people have sent."]] },
   { at: "manage", t: "See who changed what", who: c => c.history, steps: c => [
     `Open ${menu(c, c.label("manage", "⚙️ Manage"))} → **History**.${c.admin ? " Undo puts a change back." : ""}`],
-  go: c => [...MANAGE(c), ["#manage [data-sec=history]", "Tap **History**."]] },
+  go: c => [...MANAGE(c), ["#manage [data-sec=history]", "Tap **History** to see who changed what."]] },
   { at: "manage", t: "Someone is waiting to join", who: c => c.owner, steps: c => [
     `Open ${menu(c, c.label("manage", "⚙️ Manage"))} → **Waiting to join**.`,
     "Pick what they may do and tap **Let them in**: they get a \"You're in\" email. **Say no** deletes the sign-up."],
-  go: c => [...MANAGE(c), ["#manage [data-sec=joining]", "Tap **Waiting to join**."]] },
+  go: c => [...MANAGE(c), ["#manage [data-sec=joining]", "Tap **Waiting to join** to see who has asked to join."]] },
   { at: "manage", t: "Invite someone with their place in the tree", who: c => c.owner, steps: () => [
     "Tap them in the tree, open **More details**, tap **✉ Invite to the family tree** → **✉ Email**, and pick what they may do.",
     "When they sign in with that email, they're let in and linked to their place by themselves."],
-  go: () => [PERSON, MORE, [".panel .invite", "Tap **✉ Invite to the family tree**."]] },
+  go: () => [PERSON, MORE, [".panel .invite", "Tap **✉ Invite to the family tree**, then **✉ Email** to send it."]] },
   { at: "manage", t: "Find mistakes in the tree", who: c => c.check, steps: c => [
     `Open ${menu(c, c.label("manage", "⚙️ Manage"))} and look under **🔍 Check the tree**: **Possible duplicates**, **Date problems**, **Split families** and more.`,
     "**See them** shows them on the tree."],
-  go: c => [...MANAGE(c), ["#manage [data-sec=dupes]", "Tap **Possible duplicates**, or another check."]] },
+  go: c => [...MANAGE(c), ["#manage [data-sec=dupes]", "Tap **Possible duplicates** (people in the tree twice), or another check."]] },
   { at: "manage", t: "Who can do what, names and menu", who: c => c.owner, steps: c => [
     `Open ${menu(c, c.label("manage", "⚙️ Manage"))} and look under **⚙️ Settings**.`,
     "**Who can do what** sets who may suggest changes; **Menu and buttons** renames or hides menu items; **App name and icon**."],
-  go: c => [...MANAGE(c), ["#manage [data-sec=rights]", "Tap **Who can do what**."]] },
+  go: c => [...MANAGE(c), ["#manage [data-sec=rights]", "Tap **Who can do what** to choose who may change the tree."]] },
 ];
 
 // The tasks this person may do: this screen's first, then the rest, each with its steps in words and its tour.

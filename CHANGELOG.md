@@ -2,6 +2,13 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.24 — 2026-11-12
+
+### Changed
+- **Guide mode:** when there's no button to ring ("Tap the person", or it isn't on screen yet), the guide's bubble pulses
+  instead, so it isn't missed. The ring pulses 6 times (was 4). Two taps on the blur end the guide.
+- The guide's words are written for someone new to the app: what to tap, where it is and what happens next.
+
 ## 1.9.23 — 2026-11-10
 
 ### Changed

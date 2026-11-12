@@ -731,7 +731,7 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .howto ol { margin: 0 0 10px; padding-inline-start: 22px; line-height: 1.5; }
 .howto details > .pill { margin: 0 0 12px; }
 .helpglow { outline: 4px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
-@media (prefers-reduced-motion: no-preference) { .helpglow { animation: helpglow 1s ease-in-out 4; } }
+@media (prefers-reduced-motion: no-preference) { .helpglow { animation: helpglow 1s ease-in-out 6; } }
 @keyframes helpglow { 50% { outline-offset: 7px; } }
 /* 👉 Show me (help.js): the bubble beside the ringed button */
 .tour { position: fixed; z-index: 65; width: max-content; max-width: min(340px, calc(100vw - 32px)); background: var(--card);
