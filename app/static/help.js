@@ -41,7 +41,8 @@ export function openHelp() {
 // ---------- 👉 Show me: a guide, one step at a time ----------
 // Everything but the button to tap is blurred (the veil: four panes around it, so it stays tappable); the bubble says
 // what to do. Tapping that button moves on; with a screen open (the editor, chat, a pop-up), a later step already showing
-// there is skipped to. A tap on the blur only nudges the ring. It never taps anything itself. Exit or Esc ends it; at the end,
+// there is skipped to. A tap on the blur nudges the ring; a second one ends the guide, as do Exit and Esc. With no button to ring
+// (any person will do, or it isn't on screen), the bubble pulses instead. It never taps anything itself. At the end,
 // "Done ✓" goes by itself or with any tap. Steps: [selector, words, mode, what to do when it isn't on screen].
 let T = null;  // {steps, at, el, shown: the step drawn, lost, done, bubble, veil, timer}
 const layer = () => ["#dlg-wrap", "#manage", "#chat", "#editor"].map(x => $(x)).find(x => !x.hidden);  // what's on top
@@ -51,8 +52,8 @@ const find = sel => (sel && [...document.querySelectorAll(sel)].find(showing)) |
 function tour(steps) {
   stopTour(); hideDlg();
   const veil = h("div", { class: "tourveil", "aria-hidden": "true" }, ...[0, 1, 2, 3].map(() => h("div")));
-  veil.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); nudge(); });  // (not to the page: it'd close the menu)
-  T = { steps, at: 0, el: null, shown: -1, lost: null, veil, bubble: h("div", { class: "tour", role: "status" }) };
+  veil.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); if (++T.taps > 1) stopTour(); else nudge(); });  // (not to the page: it'd close the menu)
+  T = { steps, at: 0, el: null, shown: -1, lost: null, taps: 0, veil, bubble: h("div", { class: "tour", role: "status" }) };
   document.body.append(veil, T.bubble);
   T.timer = setInterval(tick, 300);  // the next button may take a moment (the editor opening, the menu)
   T.watch = new MutationObserver(() => { if (!T.queued) T.queued = requestAnimationFrame(() => { if (T) { T.queued = 0; if (!T.done) tick(); } }); });
@@ -92,12 +93,14 @@ function tick() {
 }
 function draw() {
   const [sel, say, mode, hint] = T.steps[T.at], last = T.at === T.steps.length - 1;  // (T.lost: from tick)
-  T.shown = T.at;
+  T.shown = T.at; T.taps = 0;
   T.bubble.replaceChildren(
     h("div", { class: "tourhead" }, h("span", {}, `👉 Guide · ${T.at + 1} of ${T.steps.length}`), h("button", { class: "tourexit", onclick: stopTour }, "Exit")),
     h("p", {}, ...words(say)),
-    sel && T.lost ? h("p", { class: "small muted" }, hint || (layer() ? "Not here. Go back first (← Back)." : "Not on screen yet.")) : "",
+    sel && T.lost ? h("p", { class: "small muted" }, hint || (layer() ? "It isn't on this screen. Tap ← Back first, then try again." : "Can't see it yet. Close what's open, or scroll.")) : "",
     mode === "read" || !sel ? h("button", { class: "primary", onclick: next }, last ? "Done" : "Next ›") : "");
+  T.bubble.classList.remove("helpglow");
+  if (!T.el) { void T.bubble.offsetWidth; T.bubble.classList.add("helpglow"); }  // no ring on the page: the bubble is what to look at
 }
 // The bubble beside the ringed button (below, or above when there's no room), else at the bottom; the veil around it.
 // No button on screen: no veil, so you can go and find it.
