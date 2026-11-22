@@ -82,8 +82,10 @@ LICENSE             AGPL-3.0-or-later (matches Gramps Web); keep any added depen
   **private** Address, email in a **private** Url. `work`/`education` set the first
   Occupation/Education event's description (made if none; emptied: deleted unless it has a date, place, note or citation).
 - `POST /tree/person/{h}/photo` — upload and make it the main photo (`main=0`: add it after the others).
-  `POST /tree/person/{h}/photos {media, do: main|remove}` — make one the main photo, or take it off the
-  person (the Media stays in Gramps; never deleted). The graph's `photos` lists their pictures, main first.
+  A file already in Gramps (same MD5, Gramps' `checksum`; `gramps.same_photo`) is linked, not uploaded again (`reused`).
+  `POST /tree/person/{h}/photos {media, do: main|remove|tag, rect}` — make one the main photo, take it off the
+  person (the Media stays in Gramps; never deleted), or tag them on it (`rect` x1,y1,x2,y2 in %, on their MediaRef;
+  added after their photos if new). The graph's `photos` lists their pictures, main first.
 - `POST /tree/person` — new person with no relatives (`{first, last, nick, gender, birth}`, as `new` in add relative). `POST /tree/relative` — add father / mother /
   spouse / child (existing or new); refuses a second father/mother **before** creating anyone;
   returns an undo token. Adding a father/mother to a one-parent family whose parent is already a couple
@@ -350,7 +352,8 @@ the panel's More details (this person, birth, place of birth, death, burial, bur
 
 **Big photo view** (`photos.js`): over everything, dark; ‹ › / ← → / swipe; closes with ✕, Esc, a tap
 beside the photo, or Back (a history step with the same address). Editors: "Use as profile photo",
-"Remove from this person" (two-step; only unlinks).
+"Remove from this person" (two-step; only unlinks), "Tag people" (drag a box over the picture, pick who: boxes in % on
+a layer fitted to the drawn picture, set through `el.style` as the CSP allows no `style=""`). "In this photo:" lists everyone it's on.
 
 **Merge dialog** ("Merge with a duplicate"): find the other profile (rows with the ⓘ preview) → 4-column compare (field | KEEP | REMOVE | "Will be saved as");
 tap a value to use it; names/places can also be typed, pasted or dragged into the result box;

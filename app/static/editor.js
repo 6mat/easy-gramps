@@ -303,21 +303,24 @@ function dateInputs(prefix, label, get, set) {
   return h("div", {}, row, yr, bad, h("label", { class: "inline small", for: yo.id }, yo, "I only know the year"));
 }
 
+const SAME = "Saved ✓ That photo was already in the tree, so it's linked, not copied.";
 // More photos, one after another (each after the person's other photos).
 function addPhotos(p, files) {
   const ok = files.filter(f => f.size <= 20 * 1024 * 1024);
   if (ok.length < files.length) setStatus("A photo was too big (20 MB at most) and wasn't added", "failed");
   if (!ok.length) return;
   sentSaves = true;
+  let reused = false;
   enqueue(async () => {  // one after another; the first that fails stops the rest
     for (const [i, f] of ok.entries()) {
       setStatus(ok.length > 1 ? `Saving photo ${i + 1} of ${ok.length}…` : "Saving photo…", "saving");
       const fd = new FormData(); fd.append("photo", f, f.name); fd.append("main", "0");
       const res = await api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd });
-      p.photos = [...p.photos, res.added]; p.photo = res.photo;
+      p.photos = [...p.photos.filter(x => x !== res.added), res.added]; p.photo = res.photo;
+      reused ||= res.reused;
       if (!$("#editor").hidden) renderEditor();
     }
-  }).then(() => { setStatus("Saved ✓"); renderTree(); renderPanel(); }, err => {
+  }).then(() => { setStatus(reused ? SAME : "Saved ✓"); renderTree(); renderPanel(); }, err => {
     if (err instanceof LoginNeeded) return showLogin();
     setStatus(`Photo not saved: ${err.message}`, "failed");
   });
@@ -361,7 +364,10 @@ function centreCard(p) {
     setStatus("Saving photo…", "saving");
     sentSaves = true;
     enqueue(() => api(`/tree/person/${p.id}/photo`, { method: "POST", body: fd }))
-      .then(res => { p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)]; setStatus("Saved ✓"); })
+      .then(res => {
+        p.photo = res.photo; p.photos = [res.photo, ...p.photos.filter(x => x !== res.photo)];
+        setStatus(res.reused ? SAME : "Saved ✓");
+      })
       .catch(err => {
         p.photo = old; URL.revokeObjectURL(preview);
         if (err instanceof LoginNeeded) return showLogin();

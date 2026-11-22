@@ -970,7 +970,8 @@ async def tree_photo_change(handle: str, request: Request):
     body = await json_body(request)
     res = await familytree.photo_change(await gramps_as(request), handle, body)
     log.add((await who(request))["name"], {"op": "other", "id": handle,
-                                           "what": "took a photo off" if body.get("do") == "remove" else "changed the profile photo"})
+                                           "what": {"remove": "took a photo off", "tag": "tagged them in a photo"}.get(
+                                               body.get("do"), "changed the profile photo")})
     return res
 
 

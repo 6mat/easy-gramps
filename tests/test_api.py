@@ -363,7 +363,8 @@ def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
     p = fake.person("A")
     png = {"photo": ("a.png", b"\x89PNG....", "image/png")}
     first = client.post(f"/easy-gramps/tree/person/{p}/photo", files=png).json()["photo"]
-    more = client.post(f"/easy-gramps/tree/person/{p}/photo", files=png, data={"main": "0"}).json()
+    more = client.post(f"/easy-gramps/tree/person/{p}/photo", files={"photo": ("b.png", b"\x89PNG..b.", "image/png")},
+                       data={"main": "0"}).json()
     assert more["photo"] == first and more["added"] != first
     doc = fake.add("media", _class="Media", mime="application/pdf")  # not a picture: not in photos
     fake.get("people", p)["media_list"].append({"_class": "MediaRef", "ref": doc})
@@ -377,6 +378,34 @@ def test_more_photos_main_and_remove(fake, client):  # owner's picks 2b 2d
     import main
     main._who_cache.clear()
     assert client.post(f"/easy-gramps/tree/person/{p}/photos", json={"media": first, "do": "remove"}).status_code == 403
+
+
+def test_the_same_photo_again_is_linked_not_copied(fake, client):  # two people in one picture
+    a, b = fake.person("A"), fake.person("B")
+    pic = {"photo": ("group.jpg", b"\xff\xd8 group", "image/jpeg")}
+    first = client.post(f"/easy-gramps/tree/person/{a}/photo", files=pic).json()
+    assert first["reused"] is False
+    client.post(f"/easy-gramps/tree/person/{b}/photo", files={"photo": ("x.jpg", b"\xff\xd8 other", "image/jpeg")})
+    fake.get("people", b)["media_list"].insert(0, {"_class": "MediaRef", "ref": first["added"], "rect": [50, 0, 90, 40]})
+    again = client.post(f"/easy-gramps/tree/person/{b}/photo", files=pic, data={"main": "0"}).json()
+    assert again["reused"] is True and again["added"] == first["added"] and len(fake.db["media"]) == 2
+    refs = fake.get("people", b)["media_list"]
+    assert [r["ref"] for r in refs].count(first["added"]) == 1 and refs[-1].get("rect") == [50, 0, 90, 40]  # kept their part
+
+
+def test_tag_someone_on_a_group_photo(fake, client):
+    a, b = fake.person("A"), fake.person("B")
+    pic = client.post(f"/easy-gramps/tree/person/{a}/photo", files={"photo": ("g.jpg", b"\xff\xd8 g", "image/jpeg")}).json()["added"]
+
+    def tag(who, rect):
+        return client.post(f"/easy-gramps/tree/person/{who}/photos", json={"media": pic, "do": "tag", "rect": rect})
+    assert tag(b, [10, 20, 40, 60]).json() == {"photo": pic}  # their first photo: the main one
+    assert client.get("/easy-gramps/tree/graph").json()["people"][b]["crops"] == {pic: [10, 20, 40, 60]}
+    assert tag(b, [12, 20, 40, 60]).status_code == 200 and len(fake.get("people", b)["media_list"]) == 1  # moved, not added
+    assert tag(a, [50, 0, 90, 40]).status_code == 200 and fake.get("people", a)["media_list"][0]["rect"] == [50, 0, 90, 40]
+    for bad in ([40, 20, 10, 60], [0, 0, 101, 50], [1, 2, 3], "0,0,5,5", [0.5, 0, 5, 5]):
+        assert tag(b, bad).status_code == 400
+    assert client.post(f"/easy-gramps/tree/person/{b}/photos", json={"media": "gone", "do": "tag", "rect": [0, 0, 5, 5]}).status_code == 404
 
 
 def test_settings_say_so_when_the_data_folder_cant_be_written(fake, client, monkeypatch, tmp_path):

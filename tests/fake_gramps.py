@@ -6,6 +6,7 @@ change existing ones (or link existing people into a new family), deleting an ev
 people, and `?backlinks=1` lists who uses an object.
 """
 import copy
+import hashlib
 import json
 import urllib.parse
 import uuid
@@ -135,7 +136,8 @@ class FakeGramps:
             if self.role < 2:
                 return httpx.Response(403, json={})
             h = uuid.uuid4().hex
-            self.db["media"][h] = {"_class": "Media", "handle": h, "desc": "", "mime": request.headers.get("content-type"), "tag_list": []}
+            self.db["media"][h] = {"_class": "Media", "handle": h, "desc": "", "mime": request.headers.get("content-type"), "tag_list": [],
+                                  "checksum": hashlib.md5(request.content).hexdigest()}
             return httpx.Response(201, json=[{"_class": "Media", "type": "add", "handle": h}])
         if len(parts) == 4 and parts[0] == "people" and parts[2] == "merge" and method == "POST":
             if self.role < 3:

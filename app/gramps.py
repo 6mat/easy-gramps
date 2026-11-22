@@ -1,5 +1,6 @@
 """Small Gramps Web API client and object helpers, used with the caller's own token."""
 import datetime
+import hashlib
 import logging
 import uuid
 
@@ -154,6 +155,13 @@ def new_person_objs(details, tags, private, gender=None):
         person["event_ref_list"] = [{"_class": "EventRef", "ref": ev["handle"], "role": "Primary"}]
         person["birth_ref_index"] = 0
     return person["handle"], objs
+
+
+async def same_photo(g, data: bytes):
+    """A photo already in Gramps with exactly these bytes (Gramps' checksum is their MD5): one picture of two people
+    uploaded twice is linked again, not stored as a second photo."""
+    md5 = hashlib.md5(data).hexdigest()
+    return next((m["handle"] for m in await g.get("/media/", keys="handle,checksum") if m.get("checksum") == md5), None)
 
 
 async def upload_photo(g, photo, tags, private, desc=""):

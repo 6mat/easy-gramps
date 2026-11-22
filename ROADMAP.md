@@ -77,8 +77,16 @@ share the browser's `localStorage`, where Gramps Web keeps its login (password *
 - **"Can you help?" list** for suggesters: people missing a birth year, photo or parents (see "Could use some details" above).
 - **Printable tree:** a one-page PDF of someone's tree for gatherings.
 - **Memories per person:** a few lines and an old photo, kept apart from the chat.
-- **Who's in this photo:** tap faces in a group photo to tag people (builds on the crops).
+- ~~**Who's in this photo**~~: done in 1.9.27 (Tag people in the big photo view).
 - **Family map:** where people were born or lived.
+- **Many generations at once (owner, Nov 2026):** the tree shows 3 rows. Today: Full Gramps → Tree → ⚙ → Max Ancestor
+  Generations (no upper limit). Later: a read-only viewer behind our login, rebuilt nightly. Pick: Topola Viewer (our
+  own copy, static, all generations on one chart) fed by `gramps -O <tree> -e family.ged`. Looked at: Gramps' Narrated
+  Web Site (built in, plain 2005 look, 20 s / 83 MB for the 2,100-person sample), greatgramps (nicest per-person pages,
+  reads the Gramps database, needs its own image), ged2site (Perl + CGI, too heavy), Dynamic Web Report (unmaintained).
+  To check first: what a CLI GEDCOM export does with private records; Topola on a phone.
+- **Same photo uploaded twice:** the exact same file is linked again since 1.9.27. A resent copy (WhatsApp shrinks it)
+  has other bytes: maybe later, "Use a photo already in the tree" (photos of their close family first) before Upload.
 - **Second Google account:** people sign up again with another Gmail. The waiting screen can't know who they are (no
   token), so: a hint line there ("Already in with another Google account? Sign in with that one"); Waiting to join
   flags a same-name sign-up; Say no → "They already have a login: [person]" emails them the account to use (address

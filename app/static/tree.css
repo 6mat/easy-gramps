@@ -488,6 +488,16 @@ body.onstart .top .search, body.onstart .treebar { display: none; }
 .vstage img { max-width: calc(100% - 150px); max-height: 100%; object-fit: contain; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
 .vstep { flex: none; width: 60px; height: 80px; padding: 0; font-size: 40px; line-height: 1; border-radius: 14px; }
 .vactions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+/* Tagging people: boxes over the picture (photos.js); the layer only takes taps while tagging */
+.vboxes { position: absolute; pointer-events: none; }
+.vboxes.drawing { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.vbox { position: absolute; border: 2px solid #fff; border-radius: 6px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); }
+.vbox.new { border-color: var(--sel-ink); border-style: dashed; }
+.vbox span { position: absolute; left: -2px; top: 100%; margin-top: 2px; padding: 1px 6px; border-radius: 6px; font-size: 13px;
+  white-space: nowrap; background: rgba(12, 11, 10, .85); color: #fff; }
+.vwho { text-align: center; }
+.vtag { display: flex; flex-direction: column; gap: 8px; width: min(520px, 100%); margin: 0 auto; max-height: 40vh; overflow: auto; }
+.vtag.vactions { flex-direction: row; }
 @media (max-width: 600px) {
   .vstage img { max-width: 100%; }
   .vstep { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 64px; opacity: .85; }
