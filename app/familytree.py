@@ -6,7 +6,7 @@ Reads go through the viewer's own Gramps Web token, so Gramps decides what they 
 import asyncio
 import re
 
-from gramps import GENDER, MOD_ABOUT, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, upload_photo
+from gramps import GENDER, MOD_ABOUT, Gramps, GrampsError, gramps_date, new_handle, new_person_objs, note_obj, same_photo, upload_photo
 
 GENDER_CODE = {0: "f", 1: "m"}  # Gramps' numbers -> the page's letters
 GENDER_WORD = {"m": "male", "f": "female"}  # the page's letters -> gramps.GENDER keys
@@ -448,26 +448,43 @@ async def update_person(g: Gramps, handle: str, changes: dict, tags: list) -> di
 
 
 async def set_photo(g: Gramps, handle: str, photo, tags: list, main=True) -> dict:
-    """Upload a photo: the person's main (first) photo, or (main=False) one more after the others."""
+    """Upload a photo: the person's main (first) photo, or (main=False) one more after the others. A photo already in
+    Gramps (the same file) is linked instead (reused)."""
     p = await g.get(f"/people/{handle}")
     name = (p["primary_name"].get("first_name") or "").strip()
-    mh = await upload_photo(g, photo, tags, False, desc=f"Photo of {name}".strip())
+    reused = await same_photo(g, photo[0])
+    mh = reused or await upload_photo(g, photo, tags, False, desc=f"Photo of {name}".strip())
     p = await g.get(f"/people/{handle}")  # again: someone may have saved during the upload
-    rest = [m for m in p.get("media_list") or [] if m["ref"] != mh]
-    ref = {"_class": "MediaRef", "ref": mh}
-    p["media_list"] = [ref] + rest if main else rest + [ref]
+    refs = p.get("media_list") or []
+    mine = [m for m in refs if m["ref"] == mh] or [{"_class": "MediaRef", "ref": mh}]  # (keeps their part of it, if tagged)
+    rest = [m for m in refs if m["ref"] != mh]
+    p["media_list"] = mine + rest if main else rest + mine
     await g.put(f"/people/{handle}", p)
-    return {"photo": p["media_list"][0]["ref"], "added": mh}
+    return {"photo": p["media_list"][0]["ref"], "added": mh, "reused": bool(reused)}
 
 
 async def photo_change(g: Gramps, handle: str, body: dict) -> dict:
-    """{media, do: "main" | "remove"}: make one of their photos the main one, or take it off this
-    person. The photo itself stays in Gramps (others may use it); nothing is deleted."""
-    media, do = body.get("media"), body.get("do")
-    if do not in ("main", "remove") or not media:
+    """{media, do: "main" | "remove" | "tag", rect}: make one of their photos the main one, take it off this person, or
+    tag them on a picture (rect: their part of it, x1, y1, x2, y2 in %; it's added after their other photos if new).
+    The photo itself stays in Gramps (others may use it); nothing is deleted."""
+    media, do, rect = body.get("media"), body.get("do"), body.get("rect")
+    if do not in ("main", "remove", "tag") or not media:
         raise GrampsError("Something was missing. Please try again.")
     p = await g.get(f"/people/{handle}")
     refs = p.get("media_list") or []
+    if do == "tag":
+        if not (isinstance(rect, list) and len(rect) == 4 and all(type(v) is int and 0 <= v <= 100 for v in rect)
+                and rect[0] < rect[2] and rect[1] < rect[3]):
+            raise GrampsError("Draw a box around their face first.")
+        await g.get(f"/media/{media}")  # (a photo that's gone: Gramps says so)
+        i = next((i for i, m in enumerate(refs) if m["ref"] == media), None)
+        if i is None:
+            refs.append({"_class": "MediaRef", "ref": media, "rect": rect})
+        else:
+            refs[i] = {**refs[i], "rect": rect}
+        p["media_list"] = refs
+        await g.put(f"/people/{handle}", p)
+        return {"photo": refs[0]["ref"]}
     mine = [m for m in refs if m["ref"] == media]  # all its links (one may carry their region in the picture)
     if not mine:
         raise GrampsError("That photo isn't on this person any more.", 404)

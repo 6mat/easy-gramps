@@ -98,7 +98,7 @@ const TASKS = [
   { at: "editor", t: "Someone has passed away", who: changer, steps: c => ["Tick **Passed away?**. Boxes for the date and burial place appear.", ...sent(c)],
     go: () => [["#ed-passed", "Tick **Passed away?**. Boxes for the date and burial place appear."]] },
   { at: "editor", t: "Photos", who: changer, steps: c => [c.role === "editor"
-    ? "Tap **+ Add photos** to add more. Tap a photo to see it big, then **Use as profile photo** or remove it."
+    ? "Tap **+ Add photos** to add more. Tap a photo to see it big, then **Use as profile photo**, remove it, or **Tag people** on a group photo."
     : "Tap **Suggest a photo** to send one for the editors to look at."],
   go: c => [c.role === "editor" ? [".phadd", "Tap **+ Add photos** to add more pictures of them."] : [".photo-row > button:not(.phbtn)", "Tap **Suggest a photo** to send one to the editors."],
     [null, "Choose a photo from your phone or computer.", "read"]] },

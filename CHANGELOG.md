@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.27 — 2026-11-22
+
+### Added
+- **Tag people on a group photo** (editors): in the big photo view, **Tag people**, drag a box around a face and pick
+  who it is. Gramps keeps the box as their part of the picture, so their photo shows their face; someone without a photo
+  gets it as their profile photo. **In this photo:** under a picture names everyone it's on.
+
+### Changed
+- **The same photo uploaded again** (one picture of two people) is linked to the photo already in Gramps instead of being
+  stored twice ("That photo was already in the tree, so it's linked, not copied"). Only the exact same file: a copy sent
+  through WhatsApp or saved again is a new photo.
+
 ## 1.9.26 — 2026-11-21
 
 ### Added
