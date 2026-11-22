@@ -116,7 +116,11 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   login names for editors, `""` for everyone else; `DELETE /tree/logins/{h}` (editors) unlinks. The owner links anyone's
   login: `GET /logins` (owner: let-in Gramps users + `person`), `PUT /tree/logins/{h} {login}` → `{was}` (a login linked
   elsewhere moves; 409 if the person has another login); from 🔗 Link a login (details panel, beside ✉ Invite) and
-  ☰ Menu → Manage → People → Logins (`me.js linkLogin`). A person
+  ☰ Menu → Manage → People → Logins (`me.js linkLogin`). There the owner also changes a login's role: `PUT /logins/<login> {role 0–3}`
+  (not their own, not an owner's or admin's: Full Gramps). **Activity** (admins, role 5, Manage → People): `GET /activity` = each let-in
+  login's `seen`, days in the last 30 / in all (chat.sqlite3 `visits`, a row per login per day from `CHAT.seen`, which `/auth/me`
+  and chat call) and documents opened (`opened`, a row per login, media, day, written by `/gapi/media/…/file`; the ticket
+  carries the login). Site `keep` (months, `chat.KEEPS`, admins only; default 12): older rows deleted hourly and on save. A person
   merge moves the link to `keep` (dropped if `keep` already has one). Nothing is written to Gramps; on the same site
   me.js also sets Gramps Web's browser-side home person (`grampsjs_settings_tree[tree].homePerson`, Gramps ID; always
   on "Yes, this is me", otherwise only if none is set).

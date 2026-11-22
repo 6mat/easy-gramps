@@ -4,7 +4,7 @@
 // details). The settings are kept on the server (main.py /site), the same for everyone. It's a browser-history step, like
 // the chat: Back closes it.
 import { api, BASE } from "./auth.js";
-import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, matches, name, named, postJSON, searchWords, trapTab, years } from "./common.js";
+import { $, APP_NAME, BOX_LINES, BUILT, FAMS, KIN, ME, P, closeMenu, dateProblems, fieldName, h, layout, matches, name, named, postJSON, searchWords, send, trapTab, years } from "./common.js";
 import { duplicates, islands, noRelatives, splitFamilies } from "./checks.js";
 import { openMerge } from "./merge.js";
 import { openRelate } from "./relate.js";
@@ -59,6 +59,7 @@ const SECTIONS = [
   ["joining", () => `Waiting to join${waits(ME.joining)}`, isOwner, joining, PEOPLE],
   ["invites", () => "Invites", isOwner, invites, PEOPLE],
   ["logins", () => "Logins", isOwner, logins, PEOPLE],
+  ["activity", () => "Activity", isAdmin, activityPage, PEOPLE],
   ["split", () => `Split families${count("split")}`, canCheck, splitPage, CHECK],
   ["alone", () => `On their own${count("alone")}`, canCheck, alonePage, CHECK],
   ["dupes", () => `Possible duplicates${count("dupes")}`, canCheck, dupesPage, CHECK],
@@ -207,7 +208,7 @@ async function invites() {
     ...(rows.length ? rows : [h("p", { class: "muted" }, "No invites waiting.")])];
 }
 
-// ---------- Logins (owner): everyone let in, and the person each is linked to (me.js linkLogin; also 🔗 Link a login in someone's details) ----------
+// ---------- Logins (owner): everyone let in, what they can do, and the person each is linked to (me.js linkLogin; also 🔗 Link a login in someone's details) ----------
 async function logins() {
   const list = await api("/logins");
   list.sort((x, y) => !y.person - !x.person || x.name.localeCompare(y.name));
@@ -225,14 +226,43 @@ async function logins() {
       });
       searchKeys(input, hits);
       const change = h("button", { onclick: () => { change.replaceWith(input); input.focus(); } }, who ? "Change person" : "Choose their person");
-      row.replaceChildren(h("div", {}, h("strong", {}, u.name), [u.login !== u.name && u.login, u.email, roleName(u.role)].filter(Boolean).map(x => ` · ${x}`).join(""),
+      // Guest to Editor here; an owner's or admin's role (and your own) only in Full Gramps (main.py set_role).
+      const mayRole = u.role <= 3 && u.login !== ME.name;
+      const role = mayRole && h("select", { "aria-label": `What ${u.name} can do` }, ...ROLES.map(([v, n, what]) => h("option", { value: v }, `${n}: ${what}`)));
+      if (role) {
+        role.value = String(u.role);
+        role.onchange = async () => {
+          role.disabled = true;
+          try { await send("PUT", `/logins/${encodeURIComponent(u.login)}`, { role: Number(role.value) }); u.role = Number(role.value); draw(); say.textContent = `Saved ✓ ${u.name} is now ${roleName(u.role)}.`; }
+          catch (err) { role.value = String(u.role); role.disabled = false; say.textContent = err.message; }
+        };
+      }
+      row.replaceChildren(h("div", {}, h("strong", {}, u.name), [u.login !== u.name && u.login, u.email, !mayRole && roleName(u.role)].filter(Boolean).map(x => ` · ${x}`).join(""),
         h("div", { class: "small muted" }, who ? `Linked to ${name(who)}` : "Not linked to anyone in the tree")),
-        h("div", { class: "btnrow" }, who && h("button", { onclick: () => { leave(); seeTree(who.id); } }, "See their tree"), change), hits, say);
+        h("div", { class: "btnrow" }, role || "", who && h("button", { onclick: () => { leave(); seeTree(who.id); } }, "See their tree"), change), hits, say);
     };
     draw();
     return row;
   });
-  return [h("p", { class: "small muted" }, "Everyone who can log in, and who they are in the tree. Linked, they see the tree from their own place. Not linked yet first."),
+  return [h("p", { class: "small muted" }, "Everyone who can log in, what they can do, and who they are in the tree. Linked, they see the tree from their own place. Not linked yet first."),
+    ...(rows.length ? rows : [h("p", { class: "muted" }, "No logins yet.")])];
+}
+
+// ---------- Activity (admins): when each login was last here, the days it came, the documents it opened (main.py /activity) ----------
+const KEEP = [[1, "1 month"], [3, "3 months"], [6, "6 months"], [12, "1 year"], [24, "2 years"]];
+const day = d => new Date(`${d}T12:00`).toLocaleDateString();  // (a "y-m-d" day, in the server's calendar)
+async function activityPage() {
+  const a = await api("/activity");
+  const keep = h("select", { id: "act-keep" }, ...KEEP.map(([v, n]) => h("option", { value: v }, n)));
+  keep.value = String(a.keep);
+  a.people.sort((x, y) => (y.seen || 0) - (x.seen || 0) || x.name.localeCompare(y.name));
+  const rows = a.people.map(u => h("div", { class: "joinrow" },
+    h("div", {}, h("strong", {}, u.name), u.seen ? ` · last here ${new Date(u.seen * 1000).toLocaleDateString()}` : " · not seen yet",
+      h("div", { class: "small muted" }, `${u.month} ${u.month === 1 ? "day" : "days"} in the last 30 · ${u.days} in all`)),
+    u.docs.length ? h("ul", { class: "small" }, ...u.docs.map(d => h("li", {}, `📄 ${d.title} · ${day(d.day)}${d.n > 1 ? ` (on ${d.n} days)` : ""}`))) : ""));
+  return [h("p", { class: "small muted" }, "Only admins see this. The days each login opened the app, and the family documents they opened. Nothing else is kept, and nothing older than the time below."),
+    h("label", { for: keep.id }, "Keep this for", keep),
+    ...saver(() => ({ keep: Number(keep.value) })),
     ...(rows.length ? rows : [h("p", { class: "muted" }, "No logins yet.")])];
 }
 

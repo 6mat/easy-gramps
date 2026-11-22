@@ -18,6 +18,7 @@ EMOJI = ("🏠", "🎉", "🍲", "📷", "⛪", "🎂", "✈️", "⚽")
 FAMILY = 1  # the "Whole family" conversation's id
 DATE_FORMATS = ("d mon y", "d/m/y", "m/d/y", "y-m-d", "mon d, y")
 ACTIVE = 30 * 86400  # a login not seen for this long (e.g. disabled in Gramps Web) gets no emails or notifications
+KEEPS = (1, 3, 6, 12, 24)  # months the activity is kept for (site "keep", the admin's choice)
 MAX_DEVICES = 10  # push devices kept per login (the oldest go first)
 
 SCHEMA = """
@@ -35,10 +36,12 @@ CREATE TABLE IF NOT EXISTS push (endpoint TEXT PRIMARY KEY, login TEXT NOT NULL,
 CREATE TABLE IF NOT EXISTS site (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
 CREATE TABLE IF NOT EXISTS notsame (a TEXT NOT NULL, b TEXT NOT NULL, login TEXT, at REAL, PRIMARY KEY (a, b));
+CREATE TABLE IF NOT EXISTS visits (login TEXT NOT NULL, day TEXT NOT NULL, PRIMARY KEY (login, day));
+CREATE TABLE IF NOT EXISTS opened (login TEXT NOT NULL, media TEXT NOT NULL, title TEXT, day TEXT NOT NULL, PRIMARY KEY (login, media, day));
 """
 SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
         "layout": [], "box": ["years", "birthPlace"],
-        "checks": "owner", "dupes": {"year": True, "kin": True, "place": True, "level": "normal", "same": ""}}  # the owner's site settings, and their defaults
+        "checks": "owner", "dupes": {"year": True, "kin": True, "place": True, "level": "normal", "same": ""}, "keep": 12}  # the owner's site settings, and their defaults
 ADDED = (("convs", "private", "INTEGER"), ("users", "private", "INTEGER"),  # columns newer than 1.8.0's tables
          ("settings", "dms", "INTEGER"), ("messages", "extra", "TEXT"))
 UPDATES = "Family tree updates"
@@ -71,6 +74,7 @@ class Chat:
         self.con = None
         self.lock = threading.Lock()
         self._seen = {}  # login -> (when last written to users, what was written), so polling doesn't write every time
+        self._pruned = 0.0  # when old activity was last deleted
 
     def db(self) -> sqlite3.Connection:
         if self.con is None:
@@ -154,6 +158,39 @@ class Chat:
         self.q("INSERT INTO users (login, seen, email, full_name, private) VALUES (?, ?, ?, ?, ?) ON CONFLICT (login) DO UPDATE "
                "SET seen = excluded.seen, email = excluded.email, full_name = excluded.full_name, private = excluded.private",
                login, now, *what)
+        self.q("INSERT OR IGNORE INTO visits (login, day) VALUES (?, ?)", login, time.strftime("%Y-%m-%d"))
+        self.prune()
+
+    # ----- activity (admins, ☰ Menu → Manage → Activity): the days each login came, and the documents it opened -----
+    def opened_doc(self, login: str, media: str, title: str):
+        self.q("INSERT OR IGNORE INTO opened (login, media, title, day) VALUES (?, ?, ?, ?)", login, media, title, time.strftime("%Y-%m-%d"))
+        self.prune()
+
+    def prune(self, now: bool = False):
+        """Delete activity older than the site's "keep" months (at most once an hour, unless `now`)."""
+        if not now and time.time() - self._pruned < 3600:
+            return
+        self._pruned = time.time()
+        since = time.strftime("%Y-%m-%d", time.localtime(time.time() - self.site()["keep"] * 31 * 86400))  # (a month: 31 days)
+        self.tx(("DELETE FROM visits WHERE day < ?", since), ("DELETE FROM opened WHERE day < ?", since))
+
+    def activity(self) -> dict:
+        """login -> {seen (last time), month (days in the last 30), days (in all that's kept), docs [{title, day, n}]}."""
+        month = time.strftime("%Y-%m-%d", time.localtime(time.time() - 30 * 86400))
+        out = {}
+
+        def new(login):
+            return out.setdefault(login, {"seen": None, "month": 0, "days": 0, "docs": []})
+        for r in self.q("SELECT login, seen FROM users"):
+            new(r["login"])["seen"] = r["seen"]
+        for r in self.q("SELECT login, COUNT(*) AS n, SUM(day > ?) AS m FROM visits GROUP BY login", month):
+            new(r["login"]).update(days=r["n"], month=r["m"])
+        for r in self.q("SELECT login, media, MAX(title) AS title, MAX(day) AS day, COUNT(*) AS n FROM opened "
+                        "GROUP BY login, media ORDER BY day DESC"):
+            docs = new(r["login"])["docs"]
+            if len(docs) < 20:
+                docs.append({"title": r["title"] or "A document", "day": r["day"], "n": r["n"]})
+        return out
 
     def logins(self) -> list[str]:
         return [r["login"] for r in self.q("SELECT login FROM users WHERE seen > ? ORDER BY login", time.time() - ACTIVE)]

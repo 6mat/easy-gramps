@@ -280,6 +280,7 @@ async def photo_session_end():
 async def me(request: Request):
     user = dict(await who(request))
     try:
+        CHAT.seen(user.get("name"), user.get("email"), user.get("full_name"), user.get("can_view_private"))  # (Activity: the days they came)
         user["settings"] = CHAT.settings(user.get("name"))
     except sqlite3.Error as e:  # (the page still opens, with the usual settings)
         gramps.log.error("Can't read settings in %s: %s", DATA, e)
@@ -432,8 +433,12 @@ async def save_site(request: Request):
         if not isinstance(body["talk"], bool):
             raise HTTPException(400, "Something was missing. Please try again.")
         changes["talk"] = body["talk"]
-    if ("layout" in body or "box" in body or "checks" in body or "dupes" in body) and (await who(request)).get("role", 0) < ROLE_ADMIN:
+    if ("layout" in body or "box" in body or "checks" in body or "dupes" in body or "keep" in body) and (await who(request)).get("role", 0) < ROLE_ADMIN:
         raise HTTPException(403, "Only admins can change the layout.")
+    if "keep" in body:
+        if type(body["keep"]) is not int or body["keep"] not in chat.KEEPS:
+            raise HTTPException(400, "Something was missing. Please try again.")
+        changes["keep"] = body["keep"]
     if "checks" in body:
         if body["checks"] not in CHECKS_FOR:
             raise HTTPException(400, "Something was missing. Please try again.")
@@ -466,6 +471,8 @@ async def save_site(request: Request):
             raise HTTPException(400, "Each name can have up to 40 letters.")
         changes["labels"] = {k: v for k, v in labels.items() if v}  # empty: the default
     CHAT.save_site(changes)
+    if "keep" in changes:
+        CHAT.prune(now=True)  # (a shorter time: the older activity goes now)
     return {**site(), "layout": layout((await who(request)).get("role", 0))}  # as /auth/me has it
 
 
@@ -759,6 +766,44 @@ async def all_logins(request: Request):
              "person": linked.get(u["name"])} for u in users if u.get("role", 0) >= 0]
 
 
+@easy.put("/logins/{login}")
+async def set_role(login: str, request: Request):
+    """The owner changes what a let-in login can do, {role: 0–3}; not their own, an owner's or an admin's (Full Gramps)."""
+    owner = await need_owner(request)
+    role = (await json_body(request)).get("role")
+    if type(role) is not int or not 0 <= role <= ROLE_EDITOR:
+        raise HTTPException(400, "Something was missing. Please try again.")
+    if login == owner.get("name"):
+        raise HTTPException(400, "You can't change your own role.")
+    u = next((x for x in await owner_users(request) if x["name"] == login and x.get("role", 0) >= 0), None)
+    if not u:
+        raise HTTPException(404, "That login isn't there any more.")
+    if u.get("role", 0) > ROLE_EDITOR:
+        raise HTTPException(403, "Change an owner's or an admin's role in Full Gramps.")
+    try:
+        r = await upstream.put(f"/users/{urllib.parse.quote(login, safe='')}/", json={"role": role},
+                               headers={"Authorization": f"Bearer {bearer(request)}"})
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 403:
+            raise HTTPException(403, "The family tree's server didn't let you change this. Change it in Full Gramps.") from None
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    except httpx.HTTPError:
+        raise HTTPException(502, "The family tree's server didn't answer. Please try again.") from None
+    return {"role": role}
+
+
+@easy.get("/activity")
+async def activity(request: Request):
+    """Admins (☰ Menu → Manage → Activity): each let-in login's last visit, the days it came, the documents it opened."""
+    if (await who(request)).get("role", 0) < ROLE_ADMIN:
+        raise HTTPException(403, "Only admins can see this.")
+    users, seen = await owner_users(request), CHAT.activity()
+    none = {"seen": None, "month": 0, "days": 0, "docs": []}
+    return {"keep": site()["keep"], "people": [{"login": u["name"], "name": u.get("full_name") or u["name"], **seen.get(u["name"], none)}
+                                             for u in users if u.get("role", 0) >= 0]}
+
+
 @easy.put("/tree/logins/{handle}")
 async def tree_link_login(handle: str, request: Request):
     """The owner links a login to this person; a login linked elsewhere moves here (`was`: where it was)."""
@@ -802,23 +847,23 @@ async def tree_recent(request: Request):
 # (an iPhone home-screen app has its own cookies; Android treats it as a link from another app). So each link carries a
 # ticket: random, for that one file, for 10 minutes, standing for the login that listed it.
 # shortcut: kept in memory, one process (uvicorn without --workers); put them in chat.sqlite3 if it ever runs several.
-TICKETS: dict[str, tuple[str, str, float]] = {}  # ticket -> (media handle, Gramps token, expires)
+TICKETS: dict[str, tuple[str, str, float, str]] = {}  # ticket -> (media handle, Gramps token, expires, login)
 TICKET_SECONDS = 600
 
 
-def file_ticket(handle: str, token: str) -> str:
+def file_ticket(handle: str, token: str, login: str) -> str:
     now = time.time()
-    for k in [k for k, (_, _, until) in TICKETS.items() if until < now]:
+    for k in [k for k, (_, _, until, _) in TICKETS.items() if until < now]:
         del TICKETS[k]
     t = secrets.token_urlsafe(18)
-    TICKETS[t] = (handle, token, now + TICKET_SECONDS)
+    TICKETS[t] = (handle, token, now + TICKET_SECONDS, login)
     return t
 
 
 @easy.get("/tree/documents")
 async def tree_documents(request: Request):
-    docs = await familytree.documents(await gramps_as(request))
-    return [{**d, "ticket": file_ticket(d["id"], bearer(request))} for d in docs]
+    docs, login = await familytree.documents(await gramps_as(request)), (await who(request)).get("name")
+    return [{**d, "ticket": file_ticket(d["id"], bearer(request), login)} for d in docs]
 
 
 @easy.get("/tree/places")
@@ -836,10 +881,11 @@ async def tree_relation(a: str, b: str, request: Request):  # Related to… (rel
 @easy.get("/tree/details/{handle}")
 async def tree_details(handle: str, request: Request):
     g = await gramps_as(request)
-    keys = {r["k"] for r in layout((await who(request)).get("role", 0))}
+    user = await who(request)
+    keys = {r["k"] for r in layout(user.get("role", 0))}
     d, books = await asyncio.gather(familytree.details(g, handle, want=[k for k in keys if k[:2] in ("e:", "a:")]),
                                     familytree.books(g, handle))
-    d["books"] = [{**b, "ticket": file_ticket(b["media"], bearer(request))} for b in books]  # (a link to the page: docs.js)
+    d["books"] = [{**b, "ticket": file_ticket(b["media"], bearer(request), user.get("name"))} for b in books]  # (a link to the page: docs.js)
     # What the layout doesn't show this login isn't sent (contacts: editors, by default; chat lets the rest reach each other).
     shown = {k: k in keys for k in BUILT_IN}
     if any(d[k] and not shown[k] for k in ("phone", "email")):
@@ -1400,6 +1446,10 @@ async def media_file(handle: str, request: Request, ticket: str = "", name: str 
     inline = kind == "application/pdf" and not download
     ext = pathlib.PurePath(r.headers.get("content-disposition", "").rsplit("=", 1)[-1].strip('"')).suffix[:10]
     title = " ".join(re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", name).split())[:100] or handle
+    try:
+        CHAT.opened_doc(t[3], handle, title)  # (Activity; once a day per document, however many pages the viewer asks for)
+    except sqlite3.Error as e:  # the document opens anyway
+        gramps.log.error("Couldn't note a document opened: %s", e)
     keep = {"content-type": kind if inline else "application/octet-stream",
             "content-disposition": f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{urllib.parse.quote(title + ext)}",
             "cache-control": "private, max-age=3600",
