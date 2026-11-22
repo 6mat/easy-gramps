@@ -436,6 +436,51 @@ def test_owner_links_a_login_to_a_person(fake, client):  # Logins page and 🔗 
     assert client.get("/easy-gramps/logins").json()[0]["person"] == ann
 
 
+
+def test_owner_changes_a_logins_role(fake, client):  # Logins page
+    import main
+    fake.users = [{"name": "ann", "email": "", "full_name": "Ann", "role": 1}, {"name": "boss", "role": 5},
+                  {"name": "tester", "role": 4}, {"name": "waiting", "role": -1}]
+    assert client.put("/easy-gramps/logins/ann", json={"role": 3}).status_code == 403  # an editor
+    fake.role = 4
+    main._who_cache.clear()
+    assert client.put("/easy-gramps/logins/ann", json={"role": 3}).json() == {"role": 3}
+    assert fake.users[0]["role"] == 3
+    assert client.put("/easy-gramps/logins/ann", json={"role": 4}).status_code == 400  # never owner or admin here
+    assert client.put("/easy-gramps/logins/ann", json={"role": True}).status_code == 400
+    assert client.put("/easy-gramps/logins/boss", json={"role": 0}).status_code == 403  # an admin: Full Gramps
+    assert client.put("/easy-gramps/logins/tester", json={"role": 0}).status_code == 400  # their own
+    assert client.put("/easy-gramps/logins/waiting", json={"role": 0}).status_code == 404  # Waiting to join does that
+
+
+def test_activity_for_admins_only(fake, client):  # Manage → Activity: days here, documents opened, kept for "keep" months
+    from starlette.testclient import TestClient
+    import main
+    book = fake.add("media", _class="Media", mime="application/pdf", desc="Family book", path="abc.pdf")
+    fake.users = [{"name": "tester", "full_name": "Tess", "role": 5}, {"name": "ann", "full_name": "Ann", "role": 1}]
+    assert client.get("/easy-gramps/activity").status_code == 403  # an editor
+    assert client.put("/easy-gramps/site", json={"keep": 3}).status_code == 403
+    fake.role = 4
+    main._who_cache.clear()
+    assert client.get("/easy-gramps/activity").status_code == 403  # the owner too: admins only
+    assert client.put("/easy-gramps/site", json={"keep": 3}).status_code == 403
+    fake.role = 5
+    main._who_cache.clear()
+    client.get("/easy-gramps/auth/me")  # a visit
+    t = client.get("/easy-gramps/tree/documents").json()[0]["ticket"]
+    for _ in range(2):  # (a viewer asks more than once: one row a day)
+        TestClient(main.app).get(f"/easy-gramps/gapi/media/{book}/file?ticket={t}&name=Family book")
+    a = client.get("/easy-gramps/activity").json()
+    assert a["keep"] == 12
+    tess, ann = a["people"]
+    assert tess["seen"] and (tess["month"], tess["days"]) == (1, 1)
+    assert [(d["title"], d["n"]) for d in tess["docs"]] == [("Family book", 1)]
+    assert ann == {"login": "ann", "name": "Ann", "seen": None, "month": 0, "days": 0, "docs": []}
+    assert client.put("/easy-gramps/site", json={"keep": 5}).status_code == 400
+    main.CHAT.q("INSERT INTO visits (login, day) VALUES ('ann', '2001-01-01')")
+    assert client.put("/easy-gramps/site", json={"keep": 1}).json()["keep"] == 1
+    assert main.CHAT.q("SELECT day FROM visits WHERE login = 'ann'") == []  # older than a month: gone at once
+
 def test_a_merged_away_person_takes_its_login_along(fake, client):
     import main
     keep, dup = fake.person("Ann", "Lee", 0), fake.person("Anne", "Lee", 0)
@@ -514,14 +559,14 @@ def test_site_settings_owner_only(fake, client):  # #145
     me = client.get("/easy-gramps/auth/me").json()
     assert me["site"] == {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
                           "layout": main.DEFAULT_LAYOUT, "box": ["years", "birthPlace"],
-                          "checks": "owner", "dupes": main.chat.SITE["dupes"]} and me["gramps_link"]
+                          "checks": "owner", "dupes": main.chat.SITE["dupes"], "keep": 12} and me["gramps_link"]
     fake.role = 4
     main._who_cache.clear()
     for bad in ({"name": "  "}, {"name": "x" * 41}, {"hide": ["logout"]}, {"hide": "theme"}, {"gramps": "admins"}):
         assert client.put("/easy-gramps/site", json=bad).status_code == 400, bad
     s = client.put("/easy-gramps/site", json={"name": " The  <Kumar> Family ", "hide": ["source", "theme"], "gramps": "owner"}).json()
     assert s == {"name": "The <Kumar> Family", "hide": ["theme", "source"], "gramps": "owner", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
-                 "layout": main.DEFAULT_LAYOUT, "box": ["years", "birthPlace"], "checks": "owner", "dupes": main.chat.SITE["dupes"]}
+                 "layout": main.DEFAULT_LAYOUT, "box": ["years", "birthPlace"], "checks": "owner", "dupes": main.chat.SITE["dupes"], "keep": 12}
     page = client.get("/easy-gramps/").text
     assert "<title>The &lt;Kumar&gt; Family</title>" in page and "__NAME__" not in page
     assert client.get("/easy-gramps/manifest.webmanifest").json()["name"] == "The <Kumar> Family"

@@ -2,6 +2,15 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.26 — 2026-11-21
+
+### Added
+- **Change what someone can do** in ☰ Menu → ⚙️ Manage → Logins: the owner picks Guest, Member, Contributor or
+  Editor for each login (before, only in Full Gramps). Owners' and admins' roles, and your own, still change in Full Gramps.
+- **Activity** (admins only, ☰ Menu → ⚙️ Manage → People): when each login was last here, the days it came (in the
+  last 30 and in all) and the family documents it opened. Nothing else is kept. **Keep this for** 1 month to 2 years
+  (1 year at first); older activity is deleted, at once when the time is made shorter.
+
 ## 1.9.25 — 2026-11-12
 
 ### Security

@@ -14,7 +14,7 @@ relatives who find the full Gramps interface too much.
   straight to its own page in Gramps Web.
 - **Find me:** claim your place in the tree, so the family can message you in the chat and your own family tree
   is one tap from the start (offers Gramps Web's home person when there is one). The owner can link anyone's login to their person:
-  🔗 Link a login in their details, or ☰ Menu → Manage → Logins.
+  🔗 Link a login in their details, or ☰ Menu → Manage → Logins, where they can also change what each login can do (Guest to Editor).
 - **Family chat:** the whole family, groups, private messages and talk about a person, with the unread count
   on the tab and app icon, notifications on phones and computers that switch them on, and a daily email.
   Each person gets their own read-only 🌳 Family tree updates (what happened to their suggestions; after a rejection,
@@ -29,7 +29,7 @@ relatives who find the full Gramps interface too much.
 - **History:** decided suggestions and every change editors make in Easy Gramps, in words; admins can undo a change.
 - **Date checks:** warnings for dates that can't be right, and a list of everyone with them for the owner.
 - **Book pages:** link a person to a page of a family book (a Gramps citation); it opens in the app's own viewer at that page, with the paragraph marked (editors drag a box over it).
-- **Manage** (☰ Menu → Family; editors see Changes, the owner everything): one page in four groups. **Changes**: Suggestions and History. **People**: Waiting to join and Invites. **Check the tree**: likely mistakes in the data. **Settings**: the app's name and icon, the menu and buttons (what shows and what it's called), who can do what (suggestions, Family talk, the Full Gramps link). Admins also get **Person details and boxes**: which Gramps events, attributes and relatives each person's details show, where, and to whom, and what the person boxes show under the name.
+- **Manage** (☰ Menu → Family; editors see Changes, the owner everything): one page in four groups. **Changes**: Suggestions and History. **People**: Waiting to join, Invites, Logins, and for admins **Activity** (the days each login came and the documents it opened, kept 1 month to 2 years). **Check the tree**: likely mistakes in the data. **Settings**: the app's name and icon, the menu and buttons (what shows and what it's called), who can do what (suggestions, Family talk, the Full Gramps link). Admins also get **Person details and boxes**: which Gramps events, attributes and relatives each person's details show, where, and to whom, and what the person boxes show under the name.
 - **Find people quickly:** search with photos, an ⓘ preview of their family, and keys (↓ ↑ → Enter).
 - **Made for laptops and tablets:** pinch and drag the tree, double-tap to centre, light/dark theme,
   bigger-text option, and your choice of date format (kept with your login, on every device).
