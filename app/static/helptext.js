@@ -115,6 +115,9 @@ const TASKS = [
   // ---------- chat ----------
   { at: "chat", t: "Write to the whole family", steps: () => ["Tap **Whole family** in the list, type in the box at the bottom and tap **Send**."],
     go: c => [CHAT(c), ["#chat .crow", "Tap **Whole family**. Everyone in the family tree can read it."], ["#chat .cfoot textarea", "Type your message here, then tap **Send**.", "read"]] },
+  { at: "chat", t: "React or reply to a message", steps: () => ["Tap **⋯** next to the message: pick a face, or **↩ Reply** to answer it.",
+    "On a phone you can also swipe the message to the right to reply. Tap a face under a message to see who sent it."],
+  go: c => [CHAT(c), ["#chat .msg .dots", "Tap **⋯** next to a message to react with a face or reply to it."]] },
   { at: "chat", t: "Send a private message", who: c => c.dms, steps: () => ["Tap **+ Message someone** and pick them.",
     "Only the two of you can read it. People who turned off private chats aren't listed."],
   go: c => [CHAT(c), ["#chat .msgsome", "Tap **+ Message someone** and pick who to write to. Only the two of you can read it."]] },
