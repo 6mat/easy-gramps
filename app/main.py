@@ -1232,13 +1232,14 @@ def app_url() -> str:
 _pushing: set = set()  # the running sends (a task nobody holds can be dropped before it finishes)
 
 
-def notify(cid: int, login: str, text: str):
-    task = asyncio.create_task(push_new(cid, login, text))
+def notify(cid: int, login: str, text: str, answered: str | None = None):
+    task = asyncio.create_task(push_new(cid, login, text, answered))
     _pushing.add(task)
     task.add_done_callback(_pushing.discard)
 
 
-async def push_new(cid: int, login: str, text: str):
+async def push_new(cid: int, login: str, text: str, answered: str | None = None):
+    """`answered`: the login whose message this replies to; their devices say "… replied to you"."""
     try:
         devices = CHAT.devices(cid, login)
         if not devices:
@@ -1247,9 +1248,11 @@ async def push_new(cid: int, login: str, text: str):
         title = {"family": "Whole family", "group": c["name"], "private": writer, "updates": f"🌳 {chat.UPDATES}",
                  "person": f"About {c['name'] or 'someone in the tree'}"}[c["kind"]]
         body = text[:200] if c["kind"] in ("private", "updates") else f"{writer}: {text[:200]}"
-        data = json.dumps({"title": title, "body": body, "conv": cid}).encode()
-        for url in await PUSH.send(devices, data, push_contact()):
-            CHAT.remove_device(url)  # switched off in the browser, or the app was removed
+        theirs = [d for d in devices if answered and answered != login and d["login"] == answered]
+        for group, b in ((theirs, f"{writer} replied to you: {text[:200]}"), ([d for d in devices if d not in theirs], body)):
+            if group:
+                for url in await PUSH.send(group, json.dumps({"title": title, "body": b, "conv": cid}).encode(), push_contact()):
+                    CHAT.remove_device(url)  # switched off in the browser, or the app was removed
     except Exception:  # noqa: BLE001 - the message is saved; only its notification is lost
         gramps.log.exception("Chat notifications failed")
 
@@ -1299,14 +1302,15 @@ async def chat_list(request: Request):
     if not site()["talk"]:  # family talk about people turned off (Site settings): not listed, not counted
         out["convs"] = [c for c in out["convs"] if c["kind"] != "person"]
         out["unread"] = sum(c["unread"] for c in out["convs"])
-    out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), nodms=CHAT.no_dms(), emoji=chat.EMOJI)
+    out.update(me=login, editor=editor, people=CHAT.linked(), logins=CHAT.logins(), nodms=CHAT.no_dms(), emoji=chat.EMOJI,
+               reactions=chat.REACTIONS)
     return out
 
 
 @easy.get("/chat/c/{cid}")
-async def chat_messages(cid: int, request: Request, after: int = 0, before: int = 0):
+async def chat_messages(cid: int, request: Request, after: int = 0, before: int = 0, since: int = 0):
     login, _ = await chat_user(request)
-    return CHAT.messages(cid, login, after, before=before)
+    return CHAT.messages(cid, login, after, before=before, since=since)
 
 
 @easy.post("/chat/c/{cid}")
@@ -1314,8 +1318,9 @@ async def chat_post(cid: int, request: Request):
     login, _ = await chat_user(request)
     if not site()["talk"] and CHAT.conv(cid)["kind"] == "person":
         raise HTTPException(403, "The owner has turned off family talk about people.")
-    m = CHAT.post(cid, login, (await json_body(request)).get("text"))
-    notify(cid, login, m["text"])
+    body = await json_body(request)
+    m = CHAT.post(cid, login, body.get("text"), body.get("reply_to"))
+    notify(cid, login, m["text"], m.get("reply", {}).get("login"))
     return m
 
 
@@ -1323,6 +1328,15 @@ async def chat_post(cid: int, request: Request):
 async def chat_delete_message(mid: int, request: Request):
     login, editor = await chat_user(request)
     return CHAT.delete(mid, login, editor)
+
+
+@easy.post("/chat/m/{mid}/react")
+async def chat_react(mid: int, request: Request):
+    """{emoji}: their reaction to a message (one of chat.REACTIONS; null takes it away). Nobody is notified."""
+    login, _ = await chat_user(request)
+    if not site()["talk"] and CHAT.conv(CHAT.get(mid, login)[0]["conv"])["kind"] == "person":
+        raise HTTPException(403, "The owner has turned off family talk about people.")
+    return CHAT.react(mid, login, (await json_body(request)).get("emoji"))
 
 
 @easy.post("/chat/groups")

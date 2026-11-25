@@ -15,6 +15,7 @@ import time
 
 MAX_TEXT = 2000
 EMOJI = ("🏠", "🎉", "🍲", "📷", "⛪", "🎂", "✈️", "⚽")
+REACTIONS = ("👍", "❤️", "😂", "😮", "😢", "🙏")  # one per login per message
 FAMILY = 1  # the "Whole family" conversation's id
 DATE_FORMATS = ("d mon y", "d/m/y", "m/d/y", "y-m-d", "mon d, y")
 ACTIVE = 30 * 86400  # a login not seen for this long (e.g. disabled in Gramps Web) gets no emails or notifications
@@ -37,13 +38,15 @@ CREATE TABLE IF NOT EXISTS site (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS invites (email TEXT PRIMARY KEY, person TEXT, role INTEGER NOT NULL, by TEXT, at REAL, joined TEXT);
 CREATE TABLE IF NOT EXISTS notsame (a TEXT NOT NULL, b TEXT NOT NULL, login TEXT, at REAL, PRIMARY KEY (a, b));
 CREATE TABLE IF NOT EXISTS visits (login TEXT NOT NULL, day TEXT NOT NULL, PRIMARY KEY (login, day));
+CREATE TABLE IF NOT EXISTS reactions (msg INTEGER NOT NULL, login TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY (msg, login));
 CREATE TABLE IF NOT EXISTS opened (login TEXT NOT NULL, media TEXT NOT NULL, title TEXT, day TEXT NOT NULL, PRIMARY KEY (login, media, day));
 """
 SITE = {"name": "Family Tree", "hide": [], "gramps": "everyone", "labels": {}, "talk": True, "suggest": "off", "suggest_send": "auto",
         "layout": [], "box": ["years", "birthPlace"],
         "checks": "owner", "dupes": {"year": True, "kin": True, "place": True, "level": "normal", "same": ""}, "keep": 12}  # the owner's site settings, and their defaults
 ADDED = (("convs", "private", "INTEGER"), ("users", "private", "INTEGER"),  # columns newer than 1.8.0's tables
-         ("settings", "dms", "INTEGER"), ("messages", "extra", "TEXT"))
+         ("settings", "dms", "INTEGER"), ("messages", "extra", "TEXT"),
+         ("messages", "reply_to", "INTEGER"), ("messages", "changed", "INTEGER"))
 UPDATES = "Family tree updates"
 NO_DMS_ME = "You've turned off private chats. Turn them on in ☰ Menu → You to chat."
 NO_DMS = "They've turned off private chats, so you can't message them here."
@@ -296,7 +299,8 @@ class Chat:
     def delete_group(self, cid: int):
         if self.conv(cid)["kind"] != "group":
             raise ChatError("Only groups can be deleted.")
-        self.tx(*((f"DELETE FROM {table} WHERE {col} = ?", cid)
+        self.tx(("DELETE FROM reactions WHERE msg IN (SELECT id FROM messages WHERE conv = ?)", cid),
+                *((f"DELETE FROM {table} WHERE {col} = ?", cid)
                   for table, col in (("messages", "conv"), ("members", "conv"), ("reads", "conv"), ("convs", "id"))))
 
     def private(self, login: str, other: str) -> int:
@@ -338,35 +342,94 @@ class Chat:
     def _msg(m, login) -> dict:
         deleted = m["deleted_by"] is not None
         out = {"id": m["id"], "conv": m["conv"], "login": m["login"], "text": None if deleted else m["text"],
-               "at": m["at"], "deleted": deleted, "mine": m["login"] == login}
+               "at": m["at"], "deleted": deleted, "mine": m["login"] == login, "changed": m["changed"] or 0}
         if m["extra"]:
             out.update(json.loads(m["extra"]))  # an update's "ask": {login, name} for its 💬 Message button
         return out
 
-    def messages(self, cid: int, login: str, after: int = 0, limit: int = 200, mark: bool = True, before: int = 0) -> list[dict]:
+    def _full(self, rows, login) -> list[dict]:
+        """Messages with their reactions {emoji: [logins]} and the message each one answers (read now: a quote follows a delete)."""
+        out = [self._msg(m, login) for m in rows]
+        if not out:
+            return out
+        ids = ",".join(str(m["id"]) for m in out)  # (ints from the database)
+        reacts: dict = {}
+        for r in self.q(f"SELECT * FROM reactions WHERE msg IN ({ids}) ORDER BY rowid"):
+            reacts.setdefault(r["msg"], {}).setdefault(r["emoji"], []).append(r["login"])
+        quoted = {r["id"]: r for r in self.q(f"SELECT id, login, text, deleted_by FROM messages WHERE id IN "
+                                             f"(SELECT reply_to FROM messages WHERE id IN ({ids}))")}
+        for m, row in zip(out, rows, strict=True):
+            m["reactions"] = reacts.get(m["id"], {})
+            if row["reply_to"]:
+                q = quoted.get(row["reply_to"])
+                gone = not q or q["deleted_by"] is not None
+                m["reply"] = {"id": row["reply_to"], "login": q and q["login"], "text": None if gone else q["text"][:300], "deleted": gone}
+        return out
+
+    def messages(self, cid: int, login: str, after: int = 0, limit: int = 200, mark: bool = True, before: int = 0,
+                 since: int = 0) -> list[dict]:
+        """The newest `limit` after `after` (or before `before`), and with `since` also older ones changed since then
+        (a reaction or a delete: the change number every write to a message gets)."""
         self.check(cid, login)
         rows = self.q("SELECT * FROM (SELECT * FROM messages WHERE conv = ? AND id > ? AND id < ? ORDER BY id DESC LIMIT ?) ORDER BY id",
                       cid, after, before or 2**62, limit)
         if mark and rows and not before:  # an older batch says nothing about what was read since
             self.mark(cid, login, rows[-1]["id"])
-        return [self._msg(m, login) for m in rows]
+        if since:
+            rows = self.q("SELECT * FROM messages WHERE conv = ? AND id <= ? AND changed > ? ORDER BY id", cid, after, since) + rows
+        return self._full(rows, login)
+
+    def _changed(self, mid: int):
+        """Give the message the next change number, so the open conversations notice it (call with the lock held)."""
+        self.db().execute("UPDATE messages SET changed = (SELECT COALESCE(MAX(changed), 0) + 1 FROM messages) WHERE id = ?", (mid,))
+
+    def get(self, mid: int, login: str):
+        """A message this login may see (its conversation's row as well)."""
+        m = self.one("SELECT * FROM messages WHERE id = ?", mid)
+        if not m:
+            raise ChatError("That message isn't there any more.", 404)
+        return m, self.check(m["conv"], login)
+
+    def writable(self, row, login: str):
+        if row["kind"] == "updates":
+            raise ChatError("Nobody writes here: these are the family tree's own updates.", 403)
+        if row["kind"] == "private":
+            self.dms_check(login, next((x for x in row["pair"].split("\n") if x != login), login))
+
+    def react(self, mid: int, login: str, emoji) -> dict:
+        """Their reaction to a message (None: take it away); one each, a new one replaces the old."""
+        m, row = self.get(mid, login)
+        self.writable(row, login)
+        if m["deleted_by"] is not None:
+            raise ChatError("That message was deleted.")
+        if emoji is not None and emoji not in REACTIONS:
+            raise ChatError("Pick one of the faces.")
+        with self.lock:
+            if emoji is None:
+                self.db().execute("DELETE FROM reactions WHERE msg = ? AND login = ?", (mid, login))
+            else:
+                self.db().execute("INSERT INTO reactions (msg, login, emoji) VALUES (?, ?, ?) "
+                                  "ON CONFLICT (msg, login) DO UPDATE SET emoji = excluded.emoji", (mid, login, emoji))
+            self._changed(mid)
+        return self._full([self.one("SELECT * FROM messages WHERE id = ?", mid)], login)[0]
 
     def mark(self, cid: int, login: str, last: int):
         self.q("INSERT INTO reads (login, conv, last) VALUES (?, ?, ?) "
                "ON CONFLICT (login, conv) DO UPDATE SET last = MAX(last, excluded.last)", login, cid, last)
 
-    def post(self, cid: int, login: str, text) -> dict:
+    def post(self, cid: int, login: str, text, reply_to=None) -> dict:
+        """A new message; `reply_to`: the id of the message it answers, in the same conversation."""
         text = clean_text(text)
-        row = self.check(cid, login)
-        if row["kind"] == "updates":
-            raise ChatError("Nobody writes here: these are the family tree's own updates.", 403)
-        if row["kind"] == "private":
-            self.dms_check(login, next((x for x in row["pair"].split("\n") if x != login), login))
+        self.writable(self.check(cid, login), login)
+        if reply_to is not None and (type(reply_to) is not int or not self.one(
+                "SELECT 1 FROM messages WHERE id = ? AND conv = ?", reply_to, cid)):
+            raise ChatError("The message you're answering isn't there any more.", 404)
         with self.lock:
-            mid = self.db().execute("INSERT INTO messages (conv, login, text, at) VALUES (?, ?, ?, ?)",
-                                    (cid, login, text, time.time())).lastrowid
+            mid = self.db().execute("INSERT INTO messages (conv, login, text, at, reply_to) VALUES (?, ?, ?, ?, ?)",
+                                    (cid, login, text, time.time(), reply_to)).lastrowid
+            self._changed(mid)
         self.mark(cid, login, mid)
-        return self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
+        return self._full([self.one("SELECT * FROM messages WHERE id = ?", mid)], login)[0]
 
     def update(self, login: str, text: str, ask: dict | None = None) -> tuple[int, dict]:
         """A message from the family tree itself to `login`, in their own Family tree updates (made with the first)."""
@@ -379,10 +442,7 @@ class Chat:
         return cid, self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
 
     def delete(self, mid: int, login: str, editor: bool) -> dict:
-        m = self.one("SELECT * FROM messages WHERE id = ?", mid)
-        if not m:
-            raise ChatError("That message isn't there any more.", 404)
-        self.check(m["conv"], login)
+        m, _ = self.get(mid, login)
         if m["deleted_by"] is not None:  # a second delete takes away the "Message deleted" line (editors)
             if not editor:
                 raise ChatError("Only editors can remove this.", 403)
@@ -390,8 +450,11 @@ class Chat:
             return {"id": mid, "removed": True}
         if m["login"] != login and not editor:
             raise ChatError("You can delete only your own messages.", 403)
-        self.q("UPDATE messages SET deleted_by = ?, text = NULL WHERE id = ?", login, mid)  # "Message deleted" stays
-        return self._msg(self.one("SELECT * FROM messages WHERE id = ?", mid), login)
+        with self.lock:  # "Message deleted" stays; its reactions go
+            self.db().execute("UPDATE messages SET deleted_by = ?, text = NULL WHERE id = ?", (login, mid))
+            self.db().execute("DELETE FROM reactions WHERE msg = ?", (mid,))
+            self._changed(mid)
+        return self._full([self.one("SELECT * FROM messages WHERE id = ?", mid)], login)[0]
 
     # ----- the daily email: messages that have waited a day, at most one email a day -----
     def waiting(self, now: float, day: float = 86400) -> list[dict]:
@@ -475,4 +538,4 @@ class Chat:
         rows = self.q("SELECT p.*, u.private FROM push p JOIN users u ON u.login = p.login WHERE u.seen > ? AND p.login != ?",
                       time.time() - ACTIVE, writer)
         rows = [r for r in rows if self.readable(row, r["login"])]
-        return [{"endpoint": r["endpoint"], "keys": json.loads(r["keys"])} for r in rows]
+        return [{"endpoint": r["endpoint"], "keys": json.loads(r["keys"]), "login": r["login"]} for r in rows]

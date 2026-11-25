@@ -134,7 +134,12 @@ combines the same couple recorded twice (editors; same father and mother). `POST
   → none at all either way, old ones readable, `nodms` lists them), `updates` (one per login, `pair` = the login, read-only:
   `CHAT.update(login, text, ask)`, written by suggest.py `_tell` with login ""; `ask {login, name}` = 💬 Message button,
   only after a rejection and when both have private chats on), `person` (`GET/POST /chat/person/{h}`, starts with the first message; every login; a
-  person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read; `POST /chat/c/{id} {text}` (≤ 2000);
+  person merge moves it to `keep`). `GET /chat/c/{id}?after=` marks read (`&since=<change no.>`: also older messages changed
+  since: each write to a message gets the next `messages.changed`; the open conversation polls with it); `POST /chat/c/{id}
+  {text, reply_to?}` (≤ 2000; reply_to = a message id in the same conversation; messages carry `reply {id, login, text,
+  deleted}` read live, and `reactions {emoji: [logins]}`); `POST /chat/m/{id}/react {emoji|null}` (`chat.REACTIONS`, one
+  per login, table `reactions`; not on updates, deleted messages or closed private chats; no notification; a delete drops them);
+  push: the replied-to login's devices get "X replied to you: …";
   `DELETE /chat/m/{id}` own or editor → text gone, "Message deleted" stays; an editor's second DELETE removes the row
   (`{id, removed: true}`). Daily email: hourly task (started by the
   first chat request when `EMAIL_HOST` is set) → `send_waiting()`: unread for a day, not listed before, at most one a

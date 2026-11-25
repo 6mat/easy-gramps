@@ -2,6 +2,18 @@
 
 All notable changes, newest first. Versions follow `VERSION`; releases are tagged `vX.Y.Z`.
 
+## 1.9.28 — 2026-11-24
+
+### Added
+- **Reactions in the chat:** tap **⋯** next to a message and pick 👍 ❤️ 😂 😮 😢 or 🙏 (one each; pick it again to take it
+  away). Faces show under the message with a count; tap one to see who. Nobody gets a notification for a reaction.
+- **Replies:** **⋯ → ↩ Reply** (or swipe right on a phone) quotes the message above yours; tap the quote to go to it.
+  A quote of a deleted message says "Message deleted". The person you answered gets "… replied to you" as a notification.
+  Not in 🌳 Family tree updates.
+
+### Fixed
+- A deleted message (and now a reaction) shows for everyone with the conversation open, not only after reopening it.
+
 ## 1.9.27 — 2026-11-22
 
 ### Added

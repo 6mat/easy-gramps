@@ -348,13 +348,17 @@ def test_phone_notifications(fake, chat, monkeypatch, tmp_path):  # #133
         [True, True, False, False, False]
     as_user(fake, "bob")
     m = chat.post(f"{E}/chat/c/1", json={"text": "Lunch on Sunday?"}).json()
-    assert started == [(1, "bob", "Lunch on Sunday?")]
+    assert started == [(1, "bob", "Lunch on Sunday?", None)]
     asyncio.run(main.push_new(1, "bob", m["text"]))
     assert [str(r.url) for r in got] == [sub["endpoint"]]
     r = got[0]
     assert r.headers["content-encoding"] == "aes128gcm" and r.headers["authorization"].startswith("vapid t=")
     assert json.loads(http_ece.decrypt(r.content, private_key=k, auth_secret=auth, version="aes128gcm")) == \
         {"title": "Whole family", "body": "bob: Lunch on Sunday?", "conv": 1}
+    got.clear()
+    asyncio.run(main.push_new(1, "bob", "Yes", "ann"))  # an answer to ann's message
+    assert json.loads(http_ece.decrypt(got[0].content, private_key=k, auth_secret=auth, version="aes128gcm"))["body"] == \
+        "bob replied to you: Yes"
     got.clear()
     as_user(fake, "cat")
     chat.get(f"{E}/chat")
@@ -472,3 +476,55 @@ def test_earlier_messages_reach_past_the_newest_200(fake, chat):
     as_user(fake, "cat")  # an older batch alone doesn't mark the newest as read
     chat.get(f"{E}/chat/c/1?before={ids[5]}")
     assert conv(chat, 1)["unread"] == 205
+
+
+def test_reactions_one_each_and_replies_quote_the_message(fake, chat):
+    as_user(fake, "ann")
+    a = chat.post(f"{E}/chat/c/1", json={"text": "Who has Grandpa's wedding photo?"}).json()
+    assert a["reactions"] == {} and "reply" not in a
+    as_user(fake, "bob")
+    seen = chat.get(f"{E}/chat/c/1").json()
+    since = max(m["changed"] for m in seen)
+    r = chat.post(f"{E}/chat/c/1", json={"text": "I do!", "reply_to": a["id"]}).json()
+    assert r["reply"] == {"id": a["id"], "login": "ann", "text": "Who has Grandpa's wedding photo?", "deleted": False}
+    assert chat.post(f"{E}/chat/c/1", json={"text": "x", "reply_to": 999}).status_code == 404
+    assert chat.post(f"{E}/chat/c/1", json={"text": "x", "reply_to": str(a["id"])}).status_code == 404
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": "👍"}).json()["reactions"] == {"👍": ["bob"]}
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": "❤️"}).json()["reactions"] == {"❤️": ["bob"]}  # one each
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": "🐍"}).status_code == 400
+    as_user(fake, "cat")
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": "❤️"}).json()["reactions"] == {"❤️": ["bob", "cat"]}
+    # the open conversation's poll: the new reply, and the older message that changed (its reactions)
+    got = chat.get(f"{E}/chat/c/1?after={seen[-1]['id']}&since={since}").json()
+    assert [(m["id"], m["reactions"]) for m in got] == [(a["id"], {"❤️": ["bob", "cat"]}), (r["id"], {})]
+    as_user(fake, "bob")
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": None}).json()["reactions"] == {"❤️": ["cat"]}
+    as_user(fake, "ann")
+    chat.delete(f"{E}/chat/m/{a['id']}")  # deleted: the quote says so, its reactions go, nobody reacts to it
+    [x, y] = chat.get(f"{E}/chat/c/1").json()
+    assert x["reactions"] == {} and y["reply"] == {"id": a["id"], "login": "ann", "text": None, "deleted": True}
+    assert chat.post(f"{E}/chat/m/{a['id']}/react", json={"emoji": "👍"}).status_code == 400
+    as_user(fake, "ed", 3)
+    chat.delete(f"{E}/chat/m/{a['id']}")  # the line removed too
+    assert chat.get(f"{E}/chat/c/1").json()[0]["reply"] == {"id": a["id"], "login": None, "text": None, "deleted": True}
+
+
+def test_reactions_only_where_they_may_write(fake, chat):
+    import main
+    as_user(fake, "ann")
+    cid, m = main.CHAT.update("ann", "Your suggestion was approved.")
+    assert chat.post(f"{E}/chat/m/{m['id']}/react", json={"emoji": "👍"}).status_code == 403  # the tree's own updates
+    as_user(fake, "bob")
+    chat.get(f"{E}/chat")
+    assert chat.post(f"{E}/chat/m/{m['id']}/react", json={"emoji": "👍"}).status_code == 404  # not theirs to see
+    pid = chat.post(f"{E}/chat/private", json={"login": "ann"}).json()["id"]
+    hi = chat.post(f"{E}/chat/c/{pid}", json={"text": "hi"}).json()
+    as_user(fake, "ann")
+    chat.put(f"{E}/auth/settings", json={"dms": False})
+    assert chat.post(f"{E}/chat/m/{hi['id']}/react", json={"emoji": "👍"}).status_code == 403
+    as_user(fake, "ed", 3)
+    gid = chat.post(f"{E}/chat/groups", json={"name": "Reunion"}).json()["id"]
+    g = chat.post(f"{E}/chat/c/{gid}", json={"text": "Book the hall?"}).json()
+    chat.post(f"{E}/chat/m/{g['id']}/react", json={"emoji": "👍"})
+    chat.delete(f"{E}/chat/c/{gid}")
+    assert not main.CHAT.q("SELECT * FROM reactions WHERE msg = ?", g["id"])

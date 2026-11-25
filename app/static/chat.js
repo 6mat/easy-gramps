@@ -1,6 +1,6 @@
 // Easy Gramps — Family chat: 💬 Chat in the top bar (with the unread count), a full-screen chat (groups,
 // private messages, conversations about a person) and "Family talk about …" in the details panel.
-// Text only. Each login also has its own read-only 🌳 Family tree updates (what happened to their suggestions), and
+// Text only, with a face as a reaction (one each) and replies that quote the message they answer. Each login also has its own read-only 🌳 Family tree updates (what happened to their suggestions), and
 // can turn private chats off (none at all, either way: ☰ Menu → You). The page checks for new messages every 15 s (every 5 s in an open conversation).
 // Opening the chat is a browser-history step, like the editor: Back (or a phone's back gesture) closes it.
 import { api, auth, LoginNeeded } from "./auth.js";
@@ -10,8 +10,9 @@ import { seeTree } from "./tree.js";
 import { renderPanel } from "./panel.js";
 import { showLogin } from "./start.js";
 
-let D = null;  // GET /chat: { convs, unread, me, editor, people (login -> person), logins, nodms (private chats off), emoji }
-const C = { open: false, cur: null, msgs: [], sure: null, phoneConv: false, back: null, draft: {} };
+let D = null;  // GET /chat: { convs, unread, me, editor, people (login -> person), logins, nodms (private chats off), emoji, reactions }
+// menu / who: the message whose ⋯ menu / list of who reacted is open; reply: conv -> the message being answered
+const C = { open: false, cur: null, msgs: [], sure: null, menu: null, who: null, phoneConv: false, back: null, draft: {}, reply: {} };
 const talk = {};  // person -> { at, data } for the details panel
 const talkDraft = {};  // person -> what's typed in their panel box (the panel redraws often)
 let talkFocus = null;  // the person whose panel box had the cursor
@@ -85,13 +86,14 @@ window.addEventListener("keydown", e => {
   if (!C.open || !$("#dlg-wrap").hidden) return;
   if (e.key === "Escape") {
     e.preventDefault(); e.stopImmediatePropagation();
-    if (C.sure) { C.sure = null; renderConv(); } else if (narrow() && C.phoneConv) { C.phoneConv = false; renderAll(); } else closeChat();
+    if (C.sure || C.menu || C.who) { C.sure = C.menu = C.who = null; renderConv(); }
+    else if (C.reply[C.cur]) { delete C.reply[C.cur]; drawReply(); } else if (narrow() && C.phoneConv) { C.phoneConv = false; renderAll(); } else closeChat();
   } else if (e.key === "Tab") trapTab(e, $("#chat"));
 }, true);
 
 async function show(cid) {
   const c = D?.convs.find(x => x.id === cid);
-  if (C.cur !== cid) { C.msgs = []; C.sure = null; C.more = false; }
+  if (C.cur !== cid) { C.msgs = []; C.sure = C.menu = C.who = null; C.more = false; }
   C.cur = cid;
   renderAll();
   if (c && (c.kind !== "group" || c.joined)) await load();
@@ -99,14 +101,16 @@ async function show(cid) {
   convTimer = setInterval(() => { if (document.visibilityState === "visible" && C.open) load(true); }, 5000);
 }
 async function load(quiet) {
-  const cid = C.cur, after = C.msgs.at(-1)?.id || 0;
+  const cid = C.cur, after = C.msgs.at(-1)?.id || 0, since = Math.max(0, ...C.msgs.map(m => m.changed));
   const c = D?.convs.find(x => x.id === cid);
   if (!c || (c.kind === "group" && !c.joined)) return;
   try {
-    const got = await api(`/chat/c/${cid}?after=${quiet ? after : 0}`);
+    // (quiet: the new ones, and older ones that changed since: a reaction, a delete)
+    const got = await api(quiet ? `/chat/c/${cid}?after=${after}&since=${since}` : `/chat/c/${cid}`);
     if (cid !== C.cur) return;
     if (quiet && !got.length) return;
-    C.msgs = quiet ? [...C.msgs, ...got] : got;
+    const byId = new Map(got.map(m => [m.id, m]));
+    C.msgs = quiet ? [...C.msgs.map(m => byId.get(m.id) || m), ...got.filter(m => m.id > after)] : got;
     if (!quiet) C.more = got.length === 200;  // a full batch: there may be older ones
     renderConv(true);
     if (got.some(m => !m.mine)) refresh();  // read now: the unread count drops
@@ -180,20 +184,85 @@ function dayLabel(t) {
   return fmtDate({ y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() });
 }
 const timeOf = t => new Date(t * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const canWrite = c => c && c.kind !== "updates" && !c.closed && (c.kind !== "group" || c.joined);
+function quote(r, label, onclick) {
+  return h(onclick ? "button" : "div", { class: "quote", ...(onclick ? { onclick, "aria-label": `${label}: go to the message` } : {}) },
+    h("strong", {}, label), h("span", {}, r.deleted ? "Message deleted" : r.text));
+}
+function jumpTo(id) {
+  const el = $(`#chat .msg[data-mid="${id}"]`);
+  if (!el) return toast(C.more ? "That message is further up: tap Earlier messages." : "That message isn't there any more.");
+  el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  el.classList.add("hl"); setTimeout(() => el.classList.remove("hl"), 1600);
+}
+function reactions(m) {
+  const list = Object.entries(m.reactions || {});
+  if (!list.length) return "";
+  const names = ls => ls.map(whoName).join(", ");
+  return h("div", { class: "reacts" }, ...list.map(([e, ls]) => h("button", {
+    class: `react${ls.includes(D.me) ? " mine" : ""}`, "aria-expanded": String(C.who === m.id),
+    "aria-label": `${e} ${ls.length}: ${names(ls)}`, onclick: () => { C.who = C.who === m.id ? null : m.id; C.menu = null; renderConv(); } }, `${e} ${ls.length}`)),
+  C.who === m.id ? h("div", { class: "whopop" }, ...list.flatMap(([e, ls]) => [h("b", {}, `${e} ${ls.length}`),
+    ...ls.map(l => l === D.me ? h("button", { class: "linkish", onclick: () => react(m.id, null) }, "You · tap to take it away") : h("span", {}, whoName(l)))])) : "");
+}
+function menu(m, canDel, write) {
+  const mine = Object.entries(m.reactions || {}).find(([, ls]) => ls.includes(D.me))?.[0];
+  return h("div", { class: "msgmenu", role: "group", "aria-label": "Message actions" },
+    m.deleted || !write ? "" : h("div", { class: "emobar" }, ...D.reactions.map(e => h("button", { class: e === mine ? "on" : "", "aria-pressed": String(e === mine),
+      "aria-label": e === mine ? `Take away ${e}` : `React with ${e}`, onclick: () => react(m.id, e === mine ? null : e) }, e))),
+    m.deleted || !write ? "" : h("button", { class: "item", onclick: () => replyTo(m) }, "↩ Reply"),
+    canDel ? h("button", { class: "item danger", onclick: () => { C.sure = m.id; C.menu = null; renderConv(); } }, m.deleted ? "🗑 Remove this line" : "🗑 Delete") : "");
+}
+function swipeToReply(el, m) {  // phones: swipe a message to the right to answer it
+  let x0 = null, y0 = 0;
+  el.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchend", e => {
+    const t = e.changedTouches[0];
+    if (x0 !== null && t.clientX - x0 > 70 && Math.abs(t.clientY - y0) < 40) replyTo(m);
+    x0 = null;
+  }, { passive: true });
+}
 function message(m) {
+  const c = D.convs.find(x => x.id === m.conv), write = canWrite(c);
   const canDel = m.login !== "" && (m.deleted ? D.editor : m.mine || D.editor);  // editors can also take away a "Message deleted" line
-  const sure = C.sure === m.id;
-  return h("div", { class: `msg${m.mine ? " me" : ""}${sure ? " sure" : ""}` }, avatar(m.login),
+  const sure = C.sure === m.id, open = C.menu === m.id;
+  const hasMenu = canDel || (write && !m.deleted);
+  const el = h("div", { class: `msg${m.mine ? " me" : ""}${sure || open ? " sure" : ""}`, "data-mid": String(m.id) }, avatar(m.login),
     h("div", { class: "mb" },
       h("div", { class: "who" }, h("strong", {}, whoName(m.login)), h("span", { class: "small muted" }, timeOf(m.at))),
+      m.reply ? quote(m.reply, m.reply.login == null ? "A message" : whoName(m.reply.login), () => jumpTo(m.reply.id)) : "",
       m.deleted ? h("div", { class: "txt gone" }, "Message deleted") : h("div", { class: "txt" }, m.text),
+      reactions(m),
       m.ask && !noDms(D.me) && !noDms(m.ask.login)  // (an update after a rejection: ask them why)
         ? h("button", { class: "small", onclick: () => openPrivate({ login: m.ask.login }) }, `💬 Message ${m.ask.name}`) : "",
       sure ? h("div", { class: "msgsure" }, h("span", { class: "small" }, m.deleted ? "Remove “Message deleted” for everyone?"
         : `Delete ${m.mine ? "your" : `${first({ first: whoName(m.login) })}'s`} message? Everyone will see “Message deleted”.`),
         h("span", { class: "btnrow" }, h("button", { class: "danger", onclick: () => deleteMessage(m.id) }, m.deleted ? "Yes, remove it" : "Yes, delete it"),
-          h("button", { onclick: () => { C.sure = null; renderConv(); } }, "Cancel"))) : ""),
-    canDel && !sure ? h("button", { class: "dots", title: m.deleted ? "Remove this line" : "Delete this message", "aria-label": m.deleted ? "Remove this line" : "Delete this message", onclick: () => { C.sure = m.id; renderConv(); } }, "⋯") : "");
+          h("button", { onclick: () => { C.sure = null; renderConv(); } }, "Cancel"))) : "",
+      open && !sure ? menu(m, canDel, write) : ""),
+    hasMenu && !sure ? h("button", { class: "dots", title: "React, reply or delete", "aria-label": "React, reply or delete",
+      "aria-expanded": String(open), onclick: () => { C.menu = open ? null : m.id; C.who = null; renderConv(); } }, "⋯") : "");
+  if (write && !m.deleted) swipeToReply(el, m);
+  return el;
+}
+function replyTo(m) {
+  C.reply[m.conv] = m; C.menu = null;
+  renderConv();
+  $("#chat .cfoot textarea")?.focus();
+}
+function drawReply() {  // the "Replying to …" line above the writing box (the box itself is kept while messages come in)
+  const bar = $("#chat .creply"), r = C.reply[C.cur];
+  if (!bar) return;
+  bar.replaceChildren(...(r ? [quote(r, `Replying to ${whoName(r.login)}`),
+    h("button", { class: "x", "aria-label": "Don't reply to it", onclick: () => { delete C.reply[C.cur]; drawReply(); $("#chat .cfoot textarea")?.focus(); } }, "✕")] : []));
+}
+async function react(id, emoji) {
+  try {
+    const m = await send("POST", `/chat/m/${id}/react`, { emoji });
+    C.msgs = C.msgs.map(x => (x.id === id ? m : x)); C.menu = null;
+    if (!emoji) C.who = null;
+    renderConv();
+  } catch (err) { failed(err); }
 }
 function renderConv(toEnd) {
   const box = $("#chat .cconv"), c = D?.convs.find(x => x.id === C.cur);
@@ -238,9 +307,11 @@ function renderConv(toEnd) {
       : c.closed === "me" ? h("div", { class: "cfoot" }, h("p", { class: "small" }, "You've turned off private chats."),
         h("button", { onclick: () => { closeChat(); setTimeout(() => $("#menubtn").click(), 0); } }, "Go to ☰ Menu → You to turn them on"))
       : c.closed === "them" ? h("div", { class: "cfoot small" }, `${whoName(c.other)} has turned off private chats, so you can't message them here.`)
-      : kept || h("div", { class: "cfoot" }, h("div", { class: "cwrite" }, ta, sendBtn)));
+      : kept || h("div", { class: "cfoot" }, h("div", { class: "creply" }), h("div", { class: "cwrite" }, ta, sendBtn)));
+  drawReply();
   const nl = box.querySelector(".cmsgs");
   if (toEnd || atEnd) nl.scrollTop = nl.scrollHeight;
+  box.querySelector(".msgmenu, .whopop")?.scrollIntoView({ block: "nearest" });
 }
 
 async function post(cid, ta, btn) {
@@ -248,8 +319,8 @@ async function post(cid, ta, btn) {
   if (!text) return ta.focus();
   btn.disabled = true;
   try {
-    const m = await send("POST", `/chat/c/${cid}`, { text });
-    C.draft[cid] = ""; ta.value = "";
+    const m = await send("POST", `/chat/c/${cid}`, { text, reply_to: C.reply[cid]?.id ?? null });
+    C.draft[cid] = ""; ta.value = ""; delete C.reply[cid];
     if (C.cur === cid && !C.msgs.some(x => x.id === m.id)) C.msgs.push(m);
     renderConv(true); $("#chat .cfoot textarea")?.focus();
     refresh();
@@ -259,6 +330,7 @@ async function deleteMessage(id) {
   try {
     const m = await send("DELETE", `/chat/m/${id}`);
     C.msgs = m.removed ? C.msgs.filter(x => x.id !== id) : C.msgs.map(x => (x.id === id ? m : x)); C.sure = null;
+    for (const k in C.reply) if (C.reply[k].id === id) delete C.reply[k];
     renderConv(); refresh();
   } catch (err) { failed(err); }
 }
